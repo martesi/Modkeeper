@@ -23,8 +23,8 @@
     "baseUrl": ".",
     "paths": {
       "@gen/*": [".config/generated/*"],
-      "@/*": ["./src/*"],
-      "@/utils/*": ["./src/utils/*"]
+      "@/*": ["src/*"],
+      "@utils/*": ["src/utils/*"]
     }
   },
   "include": ["src", ".config/generated", ".config/vite-env.d.ts"]

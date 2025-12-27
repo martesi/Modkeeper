@@ -2,15 +2,17 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import router from '@tanstack/router-plugin/vite'
 import autoImports from 'unplugin-auto-import/vite'
-import { fileURLToPath } from 'node:url'
 import tailwindcss from '@tailwindcss/vite'
+import tsconfigPaths from 'vite-tsconfig-paths'
 
 const host = process.env.TAURI_DEV_HOST
 
 export default defineConfig(() => ({
+  envDir: '.config',
   plugins: [
     react(),
     tailwindcss(),
+    tsconfigPaths(),
     router({
       generatedRouteTree: '.config/generated/routes.ts',
       disableLogging: true,
@@ -56,13 +58,6 @@ export default defineConfig(() => ({
       : undefined,
     watch: {
       ignored: ['**/src-tauri/**'],
-    },
-  },
-  resolve: {
-    alias: {
-      '@gen': fileURLToPath(new URL('.config/generated', import.meta.url)),
-      '@': fileURLToPath(new URL('src', import.meta.url)),
-      '@utils': fileURLToPath(new URL('src/utils', import.meta.url)),
     },
   },
 }))
