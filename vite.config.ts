@@ -7,7 +7,6 @@ import tailwindcss from '@tailwindcss/vite'
 
 const host = process.env.TAURI_DEV_HOST
 
-// https://vite.dev/config/
 export default defineConfig(() => ({
   plugins: [
     react(),
@@ -43,11 +42,7 @@ export default defineConfig(() => ({
     }),
   ],
 
-  // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
-  //
-  // 1. prevent Vite from obscuring rust errors
   clearScreen: false,
-  // 2. tauri expects a fixed port, fail if that port is not available
   server: {
     port: 1420,
     strictPort: true,
@@ -60,13 +55,14 @@ export default defineConfig(() => ({
         }
       : undefined,
     watch: {
-      // 3. tell Vite to ignore watching `src-tauri`
       ignored: ['**/src-tauri/**'],
     },
   },
   resolve: {
     alias: {
       '@gen': fileURLToPath(new URL('.config/generated', import.meta.url)),
+      '@': fileURLToPath(new URL('src', import.meta.url)),
+      '@utils': fileURLToPath(new URL('src/utils', import.meta.url)),
     },
   },
 }))
