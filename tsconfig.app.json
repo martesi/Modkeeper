@@ -24,7 +24,8 @@
     "paths": {
       "@gen/*": [".config/generated/*"],
       "@/*": ["src/*"],
-      "@utils/*": ["src/utils/*"]
+      "@utils/*": ["src/utils/*"],
+      "@comps/*": ["src/components/*", "src/components/ui/*"]
     }
   },
   "include": ["src", ".config/generated", ".config/vite-env.d.ts"]

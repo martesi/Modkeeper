@@ -4,19 +4,22 @@ import router from '@tanstack/router-plugin/vite'
 import autoImports from 'unplugin-auto-import/vite'
 import tailwindcss from '@tailwindcss/vite'
 import tsconfigPaths from 'vite-tsconfig-paths'
+import { lingui } from '@lingui/vite-plugin'
 
 const host = process.env.TAURI_DEV_HOST
 
 export default defineConfig(() => ({
   envDir: '.config',
   plugins: [
-    react(),
-    tailwindcss(),
-    tsconfigPaths(),
-    router({
-      generatedRouteTree: '.config/generated/routes.ts',
-      disableLogging: true,
+    react({
+      babel: {
+        plugins: [
+          '@lingui/babel-plugin-lingui-macro',
+          'babel-plugin-react-compiler',
+        ],
+      },
     }),
+    lingui(),
     autoImports({
       include: [/\.tsx?$/],
       imports: [
@@ -42,8 +45,13 @@ export default defineConfig(() => ({
       ],
       dts: '.config/generated/auto-imports.d.ts',
     }),
+    tailwindcss(),
+    tsconfigPaths(),
+    router({
+      generatedRouteTree: '.config/generated/routes.ts',
+      disableLogging: true,
+    }),
   ],
-
   clearScreen: false,
   server: {
     port: 1420,
