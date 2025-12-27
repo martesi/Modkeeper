@@ -7,6 +7,12 @@
 export const commands = {
 async greet(name: string) : Promise<string> {
     return await TAURI_INVOKE("greet", { name });
+},
+async getAppSettings() : Promise<AppSettings | null> {
+    return await TAURI_INVOKE("get_app_settings");
+},
+async getRepoDef() : Promise<RepoDef | null> {
+    return await TAURI_INVOKE("get_repo_def");
 }
 }
 
@@ -20,7 +26,11 @@ async greet(name: string) : Promise<string> {
 
 /** user-defined types **/
 
-
+export type AppSettings = { version: number; home: string }
+export type ModDef = { id: string; includes: ModFeat[]; enabled: boolean }
+export type ModFeat = { type: ModType; path: string }
+export type ModType = "Client" | "Server"
+export type RepoDef = { version: number; records: Partial<{ [key in string]: ModDef }> }
 
 /** tauri-specta globals **/
 

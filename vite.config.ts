@@ -13,7 +13,7 @@ export default defineConfig(() => ({
     react(),
     tailwindcss(),
     router({
-      generatedRouteTree: 'config/generated/routes.ts',
+      generatedRouteTree: '.config/generated/routes.ts',
       disableLogging: true,
     }),
     autoImports({
@@ -39,7 +39,7 @@ export default defineConfig(() => ({
           ],
         },
       ],
-      dts: 'config/generated/auto-imports.d.ts',
+      dts: '.config/generated/auto-imports.d.ts',
     }),
   ],
 
@@ -66,7 +66,7 @@ export default defineConfig(() => ({
   },
   resolve: {
     alias: {
-      '@gen': fileURLToPath(new URL('config/generated', import.meta.url)),
+      '@gen': fileURLToPath(new URL('.config/generated', import.meta.url)),
     },
   },
 }))

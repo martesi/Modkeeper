@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+.tanstack
+.config/generated/auto-imports.d.ts
+.config/generated/routes.ts
