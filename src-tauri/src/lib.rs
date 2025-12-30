@@ -1,10 +1,15 @@
 mod commands;
 mod config;
+mod core;
+mod models;
+mod utils;
 
-use commands::{get_app_settings,get_repo_def};
+use crate::commands::instance::{get_current_instance, switch_instance};
+use commands::instance::{add_mod, remove_mod};
 use specta_typescript::Typescript;
 use tauri::{DragDropEvent, Window, WindowEvent};
 use tauri_specta::{collect_commands, Builder};
+use crate::core::registry::AppRegistry; // added import
 
 #[tauri::command]
 #[specta::specta]
@@ -28,12 +33,21 @@ fn handle_drop_event(window: &Window, event: &WindowEvent) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let builder = Builder::<tauri::Wry>::new().commands(collect_commands![greet, get_app_settings,get_repo_def]);
+    let builder = Builder::<tauri::Wry>::new().commands(collect_commands![
+        greet,
+        add_mod,
+        remove_mod,
+        get_current_instance,
+        switch_instance,
+    ]);
 
     #[cfg(debug_assertions)] // <- Only export on non-release builds
     builder
         .export(Typescript::default(), "../.config/generated/bindings.ts")
         .expect("Failed to export typescript bindings");
+
+    // create the shared AppRegistry and manage it in the Tauri app state
+    let app_registry = AppRegistry::new();
 
     tauri::Builder::default()
         .plugin(
@@ -44,6 +58,7 @@ pub fn run() {
         .on_window_event(handle_drop_event)
         // and finally tell Tauri how to invoke them
         .invoke_handler(builder.invoke_handler())
+        .manage(app_registry) // register the shared AppRegistry state
         .setup(move |app| {
             // This is also required if you want to use events
             builder.mount_events(app);

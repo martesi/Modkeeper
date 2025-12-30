@@ -1,3 +1,5 @@
+pub mod global;
+
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
 use specta::Type;
