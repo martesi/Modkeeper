@@ -1,41 +1,50 @@
 use crate::core::cache::InstanceCache;
 use crate::core::linker::Linker;
 use crate::core::mod_manager::ModManagerInstance;
+use crate::models::error::SError;
 use crate::models::instance_dto::ModManagerInstanceDTO;
 use crate::models::mod_dto::{Mod, ModCache, ModManifest};
-use crate::models::paths::SptPathConfig;
-use camino::Utf8PathBuf;
-use std::collections::BTreeMap;
-use sysinfo::System;
-
+use crate::models::paths::{InstancePaths, RepoConfig};
 use crate::utils::version::read_pe_version;
-
+use camino::{Utf8Path, Utf8PathBuf};
+use std::collections::{BTreeMap, HashSet};
+use std::io;
+use sysinfo::System;
 
 pub struct Instance {
     pub id: String,
     pub repo_root: Utf8PathBuf,
     pub game_root: Utf8PathBuf,
-    pub config: SptPathConfig,
+    pub paths: InstancePaths,
+    pub repo_conf: RepoConfig,
     pub cache: InstanceCache,
     pub spt_version: String,
 }
 
 impl Instance {
-    pub fn create(repo_root: &Utf8PathBuf, game_root: Option<&Utf8PathBuf>) -> Result<Self, String> {
+    pub fn create(
+        repo_root: &Utf8PathBuf,
+        game_root: Option<&Utf8PathBuf>,
+    ) -> Result<Self, SError> {
         for dir in ["mods", "backups", "staging"] {
-            std::fs::create_dir_all(repo_root.join(dir)).map_err(|e| e.to_string())?;
+            std::fs::create_dir_all(repo_root.join(dir))
+                .map_err(|e| SError::IOError(e.to_string()))?;
         }
 
-        let config = SptPathConfig::default();
+        let config = InstancePaths::default();
         let game_root = game_root.cloned().unwrap_or_else(|| repo_root.clone());
         let spt_version = Self::validate_spt_version(&game_root, &config)?;
 
         let inst = Self {
-            id: repo_root.file_name().map(|s| s.to_string()).unwrap_or_else(|| "unknown".into()),
+            id: repo_root
+                .file_name()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| "unknown".into()),
             repo_root: repo_root.clone(),
             game_root,
-            config,
+            paths: config,
             cache: InstanceCache::default(),
+            repo_conf: RepoConfig::default(),
             spt_version,
         };
 
@@ -45,18 +54,17 @@ impl Instance {
 
     pub fn read_instance_manifest(
         repo_root: &Utf8PathBuf,
-    ) -> Result<ModManagerInstanceDTO, String> {
-        let manifest_path = repo_root.join("manifest.toml");
+    ) -> Result<ModManagerInstanceDTO, SError> {
+        let manifest_path = repo_root.join(RepoConfig::default().manifest);
         if !manifest_path.to_path_buf().exists() {
-            return Err("manifest.toml not found".into());
+            return Err(SError::FileOrDirectoryNotFound(repo_root.to_string()));
         }
-        let s = std::fs::read_to_string(&manifest_path).map_err(|e| e.to_string())?;
-        toml::from_str::<ModManagerInstanceDTO>(&s).map_err(|e| e.to_string())
+        Instance::read_toml::<ModManagerInstanceDTO>(repo_root)
     }
 
-    pub fn load(repo_root: &Utf8PathBuf) -> Result<Self, String> {
+    pub fn load(repo_root: &Utf8PathBuf) -> Result<Self, SError> {
         let dto = Self::read_instance_manifest(repo_root)?;
-        let config = SptPathConfig::default();
+        let config = InstancePaths::default();
         let game_root = Utf8PathBuf::from(dto.game_root);
         let spt_version = Self::validate_spt_version(&game_root, &config)?;
 
@@ -64,218 +72,284 @@ impl Instance {
             id: dto.id,
             repo_root: repo_root.clone(),
             game_root,
-            config,
+            paths: config,
+            repo_conf: RepoConfig::default(),
             cache: InstanceCache::new(),
             spt_version,
         };
 
-        inst.load_cache_or_scan()?;
+        inst.cache = inst.scan_repo_internal()?;
+
         Ok(inst)
     }
 
-    pub fn scan_repo_internal(&mut self) -> Result<(), String> {
-        let mods_base = self.repo_root.join("mods");
+    pub fn scan_repo_internal(&mut self) -> Result<InstanceCache, SError> {
+        let mods_base = self.repo_root.join(self.repo_conf.mods.as_str());
 
         let new_cache = if !mods_base.exists() {
             InstanceCache::default()
         } else {
-            InstanceCache::build_from_mods(&mods_base, &self.config)?
+            InstanceCache::build_from_mods(&mods_base, &self.paths)?
         };
 
-        self.cache = new_cache;
-        Ok(())
+        Ok(new_cache)
     }
 
-    fn resolve_id(&self, files: &[Utf8PathBuf], manifest: Option<&ModManifest>) -> String {
-        manifest
-            .and_then(|m| (!m.guid.is_empty()).then(|| m.guid.clone()))
-            .or_else(|| {
-                files.iter().find_map(|path| {
-                    let parts: Vec<_> = path.components().map(|c| c.as_str()).collect();
-                    let pos = parts.iter().position(|&p| p == "mods")?;
-                    parts.get(pos + 1).map(|s| s.to_string())
-                })
+    /**
+    @hint
+    instead of requesting manifest from outside, manifest should be fetched from a fixed position
+    at {config.manifest_file}; If file can be parsed, guid is used as id;
+    if this file is not present, fallback to get all folders under {server_mods}, join them with {config.id_divider}
+    and used as id;
+    if no folder found, fallback to get all folder/file names under {client_plugins} joined with {config.id_divider} as id;
+    Err returned if unsolved.
+    */
+    fn resolve_id(&self, files: &[Utf8PathBuf]) -> Result<String, SError> {
+        self.read_manifest_guid()
+            .or_else(|_| self.collect_ids_from_path(files, &self.paths.server_mods))
+            .or_else(|_| self.collect_ids_from_path(files, &self.paths.client_plugins))
+            .map_err(|_| SError::UnableToDetermineModId)
+    }
+
+    fn read_manifest_guid(&self) -> Result<String, String> {
+        let manifest_path = self.repo_root.join(&self.paths.manifest_file);
+        std::fs::read_to_string(&manifest_path)
+            .ok()
+            .and_then(|json| serde_json::from_str::<ModManifest>(&json).ok())
+            .filter(|m| !m.guid.is_empty())
+            .map(|m| m.guid)
+            .ok_or_else(|| "manifest guid not found".into())
+    }
+
+    fn collect_ids_from_path(
+        &self,
+        files: &[Utf8PathBuf],
+        search_path: &Utf8PathBuf,
+    ) -> Result<String, String> {
+        let search_str = search_path.to_string();
+        let search_parts: Vec<&str> = search_str.split('/').collect();
+        let ids: Vec<String> = files
+            .iter()
+            .filter_map(|path| self.extract_id_after_path(path, &search_parts))
+            .collect::<std::collections::HashSet<_>>()
+            .into_iter()
+            .collect();
+
+        (!ids.is_empty())
+            .then(|| ids.join(self.repo_conf.id_divider.as_str()))
+            .ok_or_else(|| "No ids found in path".into())
+    }
+
+    fn extract_id_after_path(&self, path: &Utf8PathBuf, search_parts: &[&str]) -> Option<String> {
+        let parts: Vec<&str> = path.components().map(|c| c.as_str()).collect();
+        (0..=parts.len().saturating_sub(search_parts.len()))
+            .find(|&i| &parts[i..i + search_parts.len()] == search_parts)
+            .and_then(|idx| parts.get(idx + search_parts.len()))
+            .map(|s| s.to_string())
+    }
+
+    fn validate_mod_add(&self, files: &[Utf8PathBuf], mod_id: &str) -> Result<(), SError> {
+        let mods_to_check: BTreeMap<String, ModCache> = self
+            .cache
+            .mods
+            .iter()
+            .filter(|(id, _)| *id != mod_id)
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+
+        Self::check_mod_collisions(&mods_to_check, files)?
+            .into_iter()
+            .collect::<Vec<_>>()
+            .is_empty()
+            .then_some(())
+            .ok_or_else(|| {
+                SError::FileCollision(
+                    Self::check_mod_collisions(&mods_to_check, files).unwrap_or_default(),
+                )
             })
-            .or_else(|| {
-                files.iter()
-                    .find(|p| p.extension() == Some("dll"))
-                    .and_then(|p| p.file_stem().map(|s| s.to_string()))
-            })
-            .unwrap_or_else(|| "unknown_mod".into())
     }
 
-    fn validate_mod_add(&self, files: &[Utf8PathBuf]) -> Result<(), String> {
-        let mod_folders = Self::detect_mod_folders(files)?;
-
-        if mod_folders.len() > 1 {
-            return Err(format!("Multi-mod detected ({} folders). Add individually.", mod_folders.len()));
-        }
-
-        let collisions = Self::check_mod_collisions(&self.cache.mods, files)?;
-        if !collisions.is_empty() {
-            return Err(format!("Collisions detected: {}", collisions.join(", ")));
-        }
-
-        Ok(())
+    fn stage_files_to_repo(
+        &self,
+        files: &[Utf8PathBuf],
+        target_base: &Utf8PathBuf,
+    ) -> Result<Vec<Utf8PathBuf>, SError> {
+        files.iter().try_fold(Vec::new(), |mut acc, src| {
+            if src.is_dir() {
+                self.stage_directory(src, target_base, &mut acc)?;
+            } else {
+                self.stage_file(src, target_base, &mut acc)?;
+            }
+            Ok(acc)
+        })
     }
 
-    fn stage_files_to_repo(&self, files: &[Utf8PathBuf], target_base: &Utf8PathBuf) -> Result<Vec<Utf8PathBuf>, String> {
-        files.iter()
-            .try_fold(Vec::new(), |mut acc, src| {
-                if src.is_dir() {
-                    self.stage_directory(src, target_base, &mut acc)?;
-                } else {
-                    self.stage_file(src, target_base, &mut acc)?;
-                }
-                Ok(acc)
-            })
-    }
-
-    fn stage_directory(&self, src_dir: &Utf8PathBuf, target_base: &Utf8PathBuf, stored: &mut Vec<Utf8PathBuf>) -> Result<(), String> {
+    fn stage_directory(
+        &self,
+        src_dir: &Utf8PathBuf,
+        target_base: &Utf8PathBuf,
+        stored: &mut Vec<Utf8PathBuf>,
+    ) -> Result<(), SError> {
         walkdir::WalkDir::new(src_dir)
             .into_iter()
             .filter_map(Result::ok)
             .filter(|e| e.path().is_file())
             .try_for_each(|entry| {
-                let path = Utf8PathBuf::from_path_buf(entry.path().to_path_buf()).map_err(|_| "Invalid path")?;
-                let rel = path.strip_prefix(src_dir).map_err(|e| e.to_string())?;
+                let path = Utf8PathBuf::from_path_buf(entry.path().to_path_buf())
+                    .map_err(|_| SError::ParseError(entry.path().to_string_lossy().to_string()))?;
+                let rel = path
+                    .strip_prefix(src_dir)
+                    .map_err(|e| SError::ParseError(e.to_string()))?;
 
-                if rel.starts_with("manifest") { return Ok(()); }
-
-                let dst = target_base.join(rel);
-                if let Some(parent) = dst.parent() {
-                    std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-                }
-
-                std::fs::copy(&path, &dst).map_err(|e| e.to_string())?;
-                stored.push(rel.to_path_buf());
+                rel.starts_with("manifest")
+                    .then_some(())
+                    .map(Some)
+                    .unwrap_or_else(|| {
+                        self.copy_and_store_file(&path, target_base, rel, stored)
+                            .ok()
+                    });
                 Ok(())
             })
     }
 
-    fn stage_file(&self, src: &Utf8PathBuf, target_base: &Utf8PathBuf, stored: &mut Vec<Utf8PathBuf>) -> Result<(), String> {
-        let filename = src.file_name().ok_or("Invalid filename")?;
-        let dst = target_base.join(filename);
+    fn copy_and_store_file(
+        &self,
+        src: &Utf8PathBuf,
+        target_base: &Utf8PathBuf,
+        rel: &Utf8Path,
+        stored: &mut Vec<Utf8PathBuf>,
+    ) -> Result<(), String> {
+        let dst = target_base.join(rel);
+        dst.parent()
+            .map(|parent| std::fs::create_dir_all(parent).map_err(|e| e.to_string()))
+            .transpose()?;
+
         std::fs::copy(src, &dst).map_err(|e| e.to_string())?;
+        stored.push(rel.to_path_buf());
+        Ok(())
+    }
+
+    fn stage_file(
+        &self,
+        src: &Utf8PathBuf,
+        target_base: &Utf8PathBuf,
+        stored: &mut Vec<Utf8PathBuf>,
+    ) -> Result<(), SError> {
+        let filename = src.file_name().ok_or(SError::ParseError(src.to_string()))?;
+        let dst = target_base.join(filename);
+        std::fs::copy(src, &dst).map_err(|e| SError::IOError(e.to_string()))?;
         stored.push(Utf8PathBuf::from(filename));
         Ok(())
     }
 
-    fn detect_mod_folders(files: &[Utf8PathBuf]) -> Result<Vec<String>, String> {
-        Self::normalize_mod_paths(files)
-            .map(|normalized| {
-                let roots: std::collections::HashSet<String> = normalized
-                    .iter()
-                    .filter_map(|f| {
-                        f.components()
-                            .next()
-                            .and_then(|c| c.as_os_str().to_str())
-                            .map(|s| s.to_string())
-                    })
-                    .collect();
-                roots.into_iter().collect()
+    fn detect_mod_folders(files: &[Utf8PathBuf]) -> Result<Vec<String>, SError> {
+        let folders: HashSet<String> = Self::normalize_mod_paths(files)
+            .into_iter()
+            .filter_map(|f| {
+                f.components()
+                    .next() // Get the first part of the path (the top folder)
+                    .map(|c| c.as_str().to_string())
             })
+            .collect();
+
+        // Wrap the resulting Vec in Ok() to match the return type
+        Ok(folders.into_iter().collect())
     }
 
-    fn normalize_mod_paths(files: &[Utf8PathBuf]) -> Result<Vec<Utf8PathBuf>, String> {
-        let anchors = ["SPT", "BepInEx", "manifest"];
-
-        Ok(files.iter().map(|f| {
-            let parts: Vec<_> = f.components().map(|c| c.as_str()).collect();
-
-            let start_idx = anchors.iter()
-                .find_map(|&anchor| parts.iter().position(|&p| p == anchor))
-                .map(|idx| if parts[idx] == "SPT" { idx + 1 } else { idx })
-                .unwrap_or(0);
-
-            parts[start_idx..].iter().collect::<Utf8PathBuf>()
-        }).collect())
+    /**
+    @hint
+    A server mod starts as a folder within {config.server_mods}, a client mod starts as a folder/file within {config.client_plugins}.
+    We normalize all paths by removing leading parts.
+    manifest is a mod self-description folder, as in {config.manifest_folder}, should be ignored.
+    Remove anchors here as it's not the correct standing for paths to strip.
+    */
+    fn normalize_mod_paths(files: &[Utf8PathBuf]) -> Vec<Utf8PathBuf> {
+        files
+            .iter()
+            .filter(|f| f.components().find(|c| c.as_str() == "manifest").is_none())
+            .cloned()
+            .collect()
     }
 
-    fn check_mod_collisions(existing: &BTreeMap<String, ModCache>, new_files: &[Utf8PathBuf]) -> Result<Vec<String>, String> {
+    fn check_mod_collisions(
+        existing: &BTreeMap<String, ModCache>,
+        new_files: &[Utf8PathBuf],
+    ) -> Result<Vec<String>, SError> {
         let new_folders = Self::detect_mod_folders(new_files)?;
-        Ok(existing.keys()
+        Ok(existing
+            .keys()
             .filter(|id| new_folders.contains(id))
             .cloned()
             .collect())
     }
 
-    fn validate_spt_version(game_root: &Utf8PathBuf, config: &SptPathConfig) -> Result<String, String> {
-        let server_dll = game_root.join(&config.server_dll);
-        let version = read_pe_version(&server_dll).map_err(|e| e.to_string())?;
-
-        let major = version.split('.')
-            .next()
-            .and_then(|s| s.parse::<u32>().ok())
-            .unwrap_or(0);
-
-        if major != 4 {
-            return Err(format!("Unsupported SPT version: {} (4.x required)", version));
-        }
-        Ok(version)
+    fn validate_spt_version(
+        game_root: &Utf8PathBuf,
+        config: &InstancePaths,
+    ) -> Result<String, SError> {
+        read_pe_version(&game_root.join(&config.server_dll))
+            .map_err(SError::ParseError)
+            .and_then(|v| {
+                let major = v.split('.').next().and_then(|s| s.parse::<u32>().ok());
+                if major == Some(4) {
+                    Ok(v)
+                } else {
+                    Err(SError::UnsupportedSPTVersion(v))
+                }
+            })
     }
 }
 
 impl Instance {
-    fn load_cache_or_scan(&mut self) -> Result<(), String> {
-        let cache_path = self.repo_root.join("cache.toml");
-
-        let cache = std::fs::read_to_string(&cache_path)
-            .ok()
-            .and_then(|s| toml::from_str::<InstanceCache>(&s).ok());
-
-        match cache {
-            Some(c) => {
-                self.cache = c;
-                Ok(())
-            }
-            None => {
-                self.scan_repo_internal()
-            }
-        }
+    fn persist_cache(&self) -> Result<(), SError> {
+        let dto = self.to_dto();
+        Instance::write_toml(&self.repo_root.join(&self.repo_conf.manifest), &dto)?;
+        Instance::write_toml(&self.repo_root.join(&self.repo_conf.cache), &self.cache)?;
+        Ok(())
     }
 
-    fn persist_cache(&self) -> Result<(), String> {
-        let dto = self.to_dto();
-        let manifest_path = self.repo_root.join("manifest.toml");
-        if let Ok(t) = toml::to_string(&dto) {
-            let _ = std::fs::write(&manifest_path, t);
-        }
+    fn write_toml<T: serde::Serialize>(path: &Utf8PathBuf, data: &T) -> Result<(), SError> {
+        toml::to_string(data)
+            .map_err(|e| SError::ParseError(e.to_string()))
+            .and_then(|t| std::fs::write(path, t).map_err(|e| SError::IOError(e.to_string())))
+    }
 
-        let cache_path = self.repo_root.join("cache.toml");
-        if let Ok(ct) = toml::to_string(&self.cache) {
-            let _ = std::fs::write(&cache_path, ct);
-        }
-
-        Ok(())
+    fn read_toml<T: serde::de::DeserializeOwned>(path: &Utf8PathBuf) -> Result<T, SError> {
+        let s = std::fs::read_to_string(path).map_err(|e| SError::IOError(e.to_string()))?;
+        toml::from_str::<T>(&s).map_err(|e| SError::ParseError(e.to_string()))
     }
 }
 
 impl ModManagerInstance for Instance {
     fn is_running(&self) -> bool {
         let s = System::new_all();
-        let server_name = self.config.server_exe.file_name().unwrap_or_default();
-        let client_name = self.config.client_exe.file_name().unwrap_or_default();
+        let server_name = self.paths.server_exe.file_name().unwrap_or_default();
+        let client_name = self.paths.client_exe.file_name().unwrap_or_default();
 
         s.processes()
             .values()
             .any(|p| p.name() == server_name || p.name() == client_name)
     }
 
-    fn add_mod(&mut self, files: Vec<Utf8PathBuf>) -> Result<String, String> {
+    fn add_mod(&mut self, files: Vec<Utf8PathBuf>) -> Result<(), SError> {
         if self.is_running() {
-            return Err("Game is running".into());
+            return Err(SError::GameOrServerRunning);
         }
 
-        let id = self.resolve_id(&files, None);
+        let id = self.resolve_id(&files)?;
 
-        self.validate_mod_add(&files)?;
+        /*
+          @hint
+          remove this method, use check_mod_collisions directly;
+          give a cloned mods cache without the current mod id to check collisions;
+        */
+        self.validate_mod_add(&files, &id)?;
 
         let target_base = self.repo_root.join("mods").join(&id);
-        std::fs::create_dir_all(&target_base).map_err(|e| e.to_string())?;
+        std::fs::create_dir_all(&target_base).map_err(|e| SError::IOError(e.to_string()))?;
 
         let stored_paths = self.stage_files_to_repo(&files, &target_base)?;
-        let mod_type = InstanceCache::infer_mod_type(&stored_paths, &self.config);
+        let mod_type = InstanceCache::infer_mod_type(&stored_paths, &self.paths);
 
         self.cache.mods.insert(
             id.clone(),
@@ -289,18 +363,19 @@ impl ModManagerInstance for Instance {
 
         self.persist_cache()?;
 
-        Ok(id)
+        // @TODO return Mod instead
+        Ok(())
     }
 
-    fn remove_mod(&mut self, id: &str) -> Result<(), String> {
+    fn remove_mod(&mut self, id: &str) -> Result<(), SError> {
         if self.is_running() {
-            return Err("Game is running".into());
+            return Err(SError::GameOrServerRunning);
         }
 
         if let Some(m) = self.cache.mods.remove(id) {
-            for f in &m.files {
+            m.files.iter().for_each(|f| {
                 let _ = Linker::unlink(&self.game_root.join(f));
-            }
+            });
             let _ = std::fs::remove_dir_all(self.repo_root.join("mods").join(id));
         }
 
@@ -309,25 +384,39 @@ impl ModManagerInstance for Instance {
         Ok(())
     }
 
-    fn deploy_active_mods(&self) -> Result<(), String> {
-        if self.is_running() { return Err("Game is running".into()); }
+    fn deploy_active_mods(&self) -> Result<(), SError> {
+        if self.is_running() {
+            return Err(SError::GameOrServerRunning);
+        }
 
-        let errors: Vec<_> = self.cache.mods.values()
+        let errors: Vec<_> = self
+            .cache
+            .mods
+            .values()
             .flat_map(|m| m.files.iter().map(move |f| (m, f)))
             .filter_map(|(m, file_path)| {
                 let src = self.repo_root.join("mods").join(&m.id).join(file_path);
                 let dst = self.game_root.join(file_path);
-
-                let res = if m.is_active { Linker::link(&src, &dst) } else { Linker::unlink(&dst) };
-                res.err().map(|e| format!("{}: {}", file_path, e))
+                let res = if m.is_active {
+                    Linker::link(&src, &dst)
+                } else {
+                    Linker::unlink(&dst)
+                };
+                res.err()
+                    .map(|e| e.to_string())
             })
             .collect();
 
-        if errors.is_empty() { Ok(()) } else { Err(errors.join("\n")) }
+        errors
+            .is_empty()
+            .then_some(())
+            .ok_or_else(|| SError::Link())
     }
 
-    fn scan_repo(&mut self) -> Result<(), String> {
+    fn scan_repo(&mut self) -> Result<(), SError> {
         self.scan_repo_internal()
+            .inspect(|v| self.cache = v.clone())
+            .and_then(|_| Ok(()))
     }
 
     fn to_dto(&self) -> ModManagerInstanceDTO {
@@ -349,4 +438,3 @@ impl ModManagerInstance for Instance {
         }
     }
 }
-

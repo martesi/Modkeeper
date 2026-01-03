@@ -1,3 +1,4 @@
+use crate::models::error::SError;
 use crate::models::mod_dto::{ModCache, ModManifest, ModType};
 use camino::Utf8PathBuf;
 use serde::{Deserialize, Serialize};
@@ -21,15 +22,18 @@ impl InstanceCache {
 
     pub fn build_from_mods(
         mods_base: &Utf8PathBuf,
-        config: &crate::models::paths::SptPathConfig,
-    ) -> Result<Self, String> {
+        config: &crate::models::paths::InstancePaths,
+    ) -> Result<Self, SError> {
         let mut cache = Self::default();
 
-        let entries = std::fs::read_dir(mods_base).map_err(|e| e.to_string())?;
+        let entries = std::fs::read_dir(mods_base).map_err(|e| SError::IOError(e.to_string()))?;
 
         for entry in entries.flatten() {
-            let path = Utf8PathBuf::from_path_buf(entry.path()).map_err(|p| p.to_string_lossy().to_string())?;
-            if !path.is_dir() { continue; }
+            let path = Utf8PathBuf::from_path_buf(entry.path())
+                .map_err(|p| SError::ParseError(p.to_string_lossy().to_string()))?;
+            if !path.is_dir() {
+                continue;
+            }
 
             let id = path.file_name().unwrap_or_default().to_string();
 
@@ -47,7 +51,7 @@ impl InstanceCache {
     fn scan_mod_folder(
         mod_path: &Utf8PathBuf,
         id: &str,
-        config: &crate::models::paths::SptPathConfig,
+        config: &crate::models::paths::InstancePaths,
     ) -> Result<ModCache, String> {
         let files = Self::collect_mod_files(mod_path)?;
         let mod_type = Self::infer_mod_type(&files, config);
@@ -69,7 +73,9 @@ impl InstanceCache {
                 let path = Utf8PathBuf::from_path_buf(e.path().to_path_buf()).ok()?;
                 let rel = path.strip_prefix(base).ok()?;
                 // Skip files inside the 'manifest' directory
-                if rel.starts_with("manifest") { return None; }
+                if rel.starts_with("manifest") {
+                    return None;
+                }
                 Some(rel.to_path_buf())
             })
             .collect())
@@ -77,7 +83,7 @@ impl InstanceCache {
 
     pub fn infer_mod_type(
         files: &[Utf8PathBuf],
-        config: &crate::models::paths::SptPathConfig,
+        config: &crate::models::paths::InstancePaths,
     ) -> ModType {
         let has_client = files.iter().any(|p| p.starts_with(&config.client_plugins));
         let has_server = files.iter().any(|p| p.starts_with(&config.server_mods));
@@ -90,13 +96,9 @@ impl InstanceCache {
         }
     }
 
-    fn load_mod_manifest(
-        mods_base: &Utf8PathBuf,
-        id: &str,
-    ) -> Result<ModManifest, String> {
+    fn load_mod_manifest(mods_base: &Utf8PathBuf, id: &str) -> Result<ModManifest, String> {
         let manifest_path = mods_base.join(id).join("manifest").join("manifest.json");
         let s = std::fs::read_to_string(&manifest_path).map_err(|e| e.to_string())?;
         serde_json::from_str::<ModManifest>(&s).map_err(|e| e.to_string())
     }
 }
-

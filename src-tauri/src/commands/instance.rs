@@ -2,25 +2,26 @@ use tauri::State;
 use crate::core::instance::Instance;
 use crate::core::mod_manager::ModManagerInstance;
 use crate::core::registry::AppRegistry;
+use crate::models::error::SError;
 use crate::models::instance_dto::ModManagerInstanceDTO;
 
 #[tauri::command]
 #[specta::specta]
-pub async fn add_mod(state: State<'_, AppRegistry>, paths: Vec<String>) -> Result<String, String> {
+pub async fn add_mod(state: State<'_, AppRegistry>, paths: Vec<String>) -> Result<(), SError> {
     let mut active = state.active_instance.lock().await;
     match active.as_mut() {
         Some(inst) => inst.add_mod(paths.into_iter().map(|p| p.into()).collect()),
-        None => Err("No active instance selected".into()),
+        None => Err(SError::Unexpected),
     }
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn remove_mod(state: State<'_, AppRegistry>, id: String) -> Result<(), String> {
+pub async fn remove_mod(state: State<'_, AppRegistry>, id: String) -> Result<(), SError> {
     let mut active = state.active_instance.lock().await;
     match active.as_mut() {
         Some(inst) => inst.remove_mod(&id),
-        None => Err("No active instance selected".into()),
+        None => Err(SError::Unexpected),
     }
 }
 
@@ -34,7 +35,7 @@ pub async fn get_current_instance(state: State<'_, AppRegistry>) -> Result<Optio
 
 #[tauri::command]
 #[specta::specta]
-pub async fn switch_instance(state: State<'_, AppRegistry>, path: String) -> Result<ModManagerInstanceDTO, String> {
+pub async fn switch_instance(state: State<'_, AppRegistry>, path: String) -> Result<ModManagerInstanceDTO, SError> {
     let path_buf = camino::Utf8PathBuf::from(path);
     let new_inst = Instance::load(&path_buf)?;
     let dto = new_inst.to_dto();
