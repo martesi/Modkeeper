@@ -3574,6 +3574,7 @@ dependencies = [
  "directories",
  "junction",
  "regex",
+ "semver",
  "serde",
  "serde_json",
  "specta",

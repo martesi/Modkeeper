@@ -5,9 +5,10 @@ use crate::models::error::SError;
 use crate::models::instance_dto::ModManagerInstanceDTO;
 use crate::models::mod_dto::{Mod, ModCache, ModManifest};
 use crate::models::paths::{LibPaths, SPTPaths};
-use crate::utils::version::read_pe_version;
 use crate::utils::toml::Toml;
+use crate::utils::version::read_pe_version;
 use camino::{Utf8Path, Utf8PathBuf};
+use semver::{Version, VersionReq};
 use std::collections::{BTreeMap, HashSet};
 use sysinfo::System;
 
@@ -29,7 +30,7 @@ impl Library {
         }
 
         let config = SPTPaths::new(game_root);
-        let spt_version = Library::validate_spt_version(game_root, &config)?;
+        let spt_version = Library::fetch_and_validate_spt_version(game_root, &config)?;
 
         let inst = Self {
             id: uuid::Uuid::new_v4().to_string(),
@@ -59,7 +60,7 @@ impl Library {
         let dto = Self::read_instance_manifest(repo_root)?;
         let config = SPTPaths::default();
         let game_root = Utf8PathBuf::from(dto.game_root);
-        let spt_version = Self::validate_spt_version(&game_root, &config)?;
+        let spt_version = Self::fetch_and_validate_spt_version(&game_root, &config)?;
 
         let mut inst = Self {
             id: dto.id,
@@ -276,16 +277,21 @@ impl Library {
             .collect())
     }
 
-    fn validate_spt_version(game_root: &Utf8PathBuf, config: &SPTPaths) -> Result<String, SError> {
+    fn fetch_and_validate_spt_version(
+        game_root: &Utf8PathBuf,
+        config: &SPTPaths,
+    ) -> Result<String, SError> {
         read_pe_version(&game_root.join(&config.server_dll))
-            .map_err(SError::ParseError)
+            .map_err(|e| SError::ParseError(e))
+            .and_then(|version| {
+                Version::parse(&version).map_err(|e| SError::ParseError(e.to_string()))
+            })
             .and_then(|v| {
-                let major = v.split('.').next().and_then(|s| s.parse::<u32>().ok());
-                if major == Some(4) {
-                    Ok(v)
-                } else {
-                    Err(SError::UnsupportedSPTVersion(v))
-                }
+                VersionReq::parse(">=4, <5")
+                    .map_err(|e| SError::Unexpected(e.to_string()))?
+                    .matches(&v)
+                    .then(|| v.to_string())
+                    .ok_or_else(|| SError::UnsupportedSPTVersion(v.to_string()))
             })
     }
 
