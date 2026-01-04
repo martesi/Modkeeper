@@ -1,4 +1,4 @@
 pub mod cache;
-pub mod instance;
+pub mod library;
 pub mod linker;
 pub mod registry;

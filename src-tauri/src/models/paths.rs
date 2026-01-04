@@ -7,12 +7,12 @@ macro_rules! define_paths {
         }
 
         impl $name {
-            pub fn to_absolute(mut self, base: &camino::Utf8Path) -> Self {
+            pub fn to_absolute(mut self, base: &Utf8Path) -> Self {
                 $(self.$field = base.join(self.$field);)*
                 self
             }
-            
-            pub fn new(base: &camino::Utf8Path) -> Self {
+
+            pub fn new(base: &Utf8Path) -> Self {
                 Self::default().to_absolute(base)
             }
         }

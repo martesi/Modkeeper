@@ -1,5 +1,5 @@
 use tauri::State;
-use crate::core::instance::Library;
+use crate::core::library::Library;
 use crate::core::registry::AppRegistry;
 use crate::models::error::SError;
 use crate::models::instance_dto::ModManagerInstanceDTO;

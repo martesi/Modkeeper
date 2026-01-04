@@ -1,7 +1,7 @@
 // src/core/registry.rs
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use crate::core::instance::Library;
+use crate::core::library::Library;
 use crate::config::global::{GlobalConfig, load_config};
 
 pub struct AppRegistry {

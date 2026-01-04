@@ -6,6 +6,7 @@ use crate::models::instance_dto::ModManagerInstanceDTO;
 use crate::models::mod_dto::{Mod, ModCache, ModManifest};
 use crate::models::paths::{LibPaths, SPTPaths};
 use crate::utils::version::read_pe_version;
+use crate::utils::toml::Toml;
 use camino::{Utf8Path, Utf8PathBuf};
 use std::collections::{BTreeMap, HashSet};
 use sysinfo::System;
@@ -28,7 +29,7 @@ impl Library {
         }
 
         let config = SPTPaths::new(game_root);
-        let spt_version = Self::validate_spt_version(game_root, &config)?;
+        let spt_version = Library::validate_spt_version(game_root, &config)?;
 
         let inst = Self {
             id: uuid::Uuid::new_v4().to_string(),
@@ -51,7 +52,7 @@ impl Library {
         if !manifest_path.to_path_buf().exists() {
             return Err(SError::FileOrDirectoryNotFound(repo_root.to_string()));
         }
-        Library::read_toml::<ModManagerInstanceDTO>(repo_root)
+        Toml::read::<ModManagerInstanceDTO>(&manifest_path)
     }
 
     pub fn load(repo_root: &Utf8PathBuf) -> Result<Self, SError> {
@@ -406,19 +407,8 @@ impl Library {
 
     fn persist_cache(&self) -> Result<(), SError> {
         let dto = self.to_dto();
-        Library::write_toml(&self.repo_root.join(&self.lib_paths.manifest), &dto)?;
-        Library::write_toml(&self.repo_root.join(&self.lib_paths.cache), &self.cache)?;
+        Toml::write(&self.repo_root.join(&self.lib_paths.manifest), &dto)?;
+        Toml::write(&self.repo_root.join(&self.lib_paths.cache), &self.cache)?;
         Ok(())
-    }
-
-    fn write_toml<T: serde::Serialize>(path: &Utf8PathBuf, data: &T) -> Result<(), SError> {
-        toml::to_string(data)
-            .map_err(|e| SError::ParseError(e.to_string()))
-            .and_then(|t| std::fs::write(path, t).map_err(|e| SError::IOError(e.to_string())))
-    }
-
-    fn read_toml<T: serde::de::DeserializeOwned>(path: &Utf8PathBuf) -> Result<T, SError> {
-        let s = std::fs::read_to_string(path).map_err(|e| SError::IOError(e.to_string()))?;
-        toml::from_str::<T>(&s).map_err(|e| SError::ParseError(e.to_string()))
     }
 }
