@@ -1,9 +1,10 @@
 use crate::core::cache::LibraryCache;
 use crate::core::linker::Linker;
+use crate::core::mod_fs::ModFS;
 use crate::models::divider::MOD_ID_DIVIDER;
 use crate::models::error::SError;
 use crate::models::library_dto::LibraryDTO;
-use crate::models::mod_dto::{Mod, ModCache, ModManifest};
+use crate::models::mod_dto::{Mod, ModManifest};
 use crate::models::paths::{LibPaths, SPTPaths};
 use crate::utils::toml::Toml;
 use crate::utils::version::read_pe_version;
@@ -27,7 +28,7 @@ impl Library {
     pub fn create(repo_root: &Utf8PathBuf, game_root: &Utf8PathBuf) -> Result<Self, SError> {
         let lib_paths = LibPaths::new(game_root);
         for dir in [&lib_paths.mods, &lib_paths.backups, &lib_paths.staging] {
-            std::fs::create_dir_all(dir).map_err(|e| SError::IOError(e.to_string()))?;
+            std::fs::create_dir_all(dir)?;
         }
 
         let config = SPTPaths::new(game_root);
@@ -76,51 +77,6 @@ impl Library {
         Toml::read::<LibraryDTO>(&LibPaths::new(lib_root).manifest)
     }
 
-    /**
-    @hint
-    instead of requesting manifest from outside, manifest should be fetched from a fixed position
-    at {config.manifest_file}; If file can be parsed, guid is used as id;
-    if this file is not present, fallback to get all folders under {server_mods}, join them with {config.id_divider}
-    and used as id;
-    if no folder found, fallback to get all folder/file names under {client_plugins} joined with {config.id_divider} as id;
-    Err returned if unsolved.
-    */
-    fn resolve_id(&self, files: &[Utf8PathBuf]) -> Result<String, SError> {
-        self.read_manifest_guid()
-            .or_else(|_| self.collect_ids_from_path(files, &self.spt_paths.server_mods))
-            .or_else(|_| self.collect_ids_from_path(files, &self.spt_paths.client_plugins))
-            .map_err(|_| SError::UnableToDetermineModId)
-    }
-
-    fn read_manifest_guid(&self) -> Result<String, String> {
-        let manifest_path = self.repo_root.join(&self.lib_paths.manifest);
-        std::fs::read_to_string(&manifest_path)
-            .ok()
-            .and_then(|json| serde_json::from_str::<ModManifest>(&json).ok())
-            .filter(|m| !m.guid.is_empty())
-            .map(|m| m.guid)
-            .ok_or_else(|| "manifest guid not found".into())
-    }
-
-    fn collect_ids_from_path(
-        &self,
-        files: &[Utf8PathBuf],
-        search_path: &Utf8PathBuf,
-    ) -> Result<String, String> {
-        let search_str = search_path.to_string();
-        let search_parts: Vec<&str> = search_str.split('/').collect();
-        let ids: Vec<String> = files
-            .iter()
-            .filter_map(|path| self.extract_id_after_path(path, &search_parts))
-            .collect::<std::collections::HashSet<_>>()
-            .into_iter()
-            .collect();
-
-        (!ids.is_empty())
-            .then(|| ids.join(MOD_ID_DIVIDER))
-            .ok_or_else(|| "No ids found in path".into())
-    }
-
     fn extract_id_after_path(&self, path: &Utf8PathBuf, search_parts: &[&str]) -> Option<String> {
         let parts: Vec<&str> = path.components().map(|c| c.as_str()).collect();
         (0..=parts.len().saturating_sub(search_parts.len()))
@@ -130,7 +86,7 @@ impl Library {
     }
 
     fn validate_mod_add(&self, files: &[Utf8PathBuf], mod_id: &str) -> Result<(), SError> {
-        let mods_to_check: BTreeMap<String, ModCache> = self
+        let mods_to_check: BTreeMap<String, ModFS> = self
             .cache
             .mods
             .iter()
@@ -178,9 +134,7 @@ impl Library {
             .try_for_each(|entry| {
                 let path = Utf8PathBuf::from_path_buf(entry.path().to_path_buf())
                     .map_err(|_| SError::ParseError(entry.path().to_string_lossy().to_string()))?;
-                let rel = path
-                    .strip_prefix(src_dir)
-                    .map_err(|e| SError::ParseError(e.to_string()))?;
+                let rel = path.strip_prefix(src_dir)?;
 
                 rel.starts_with("manifest")
                     .then_some(())
@@ -199,13 +153,13 @@ impl Library {
         target_base: &Utf8PathBuf,
         rel: &Utf8Path,
         stored: &mut Vec<Utf8PathBuf>,
-    ) -> Result<(), String> {
+    ) -> Result<(), SError> {
         let dst = target_base.join(rel);
         dst.parent()
-            .map(|parent| std::fs::create_dir_all(parent).map_err(|e| e.to_string()))
+            .map(|parent| std::fs::create_dir_all(parent))
             .transpose()?;
 
-        std::fs::copy(src, &dst).map_err(|e| e.to_string())?;
+        std::fs::copy(src, &dst)?;
         stored.push(rel.to_path_buf());
         Ok(())
     }
@@ -218,7 +172,7 @@ impl Library {
     ) -> Result<(), SError> {
         let filename = src.file_name().ok_or(SError::ParseError(src.to_string()))?;
         let dst = target_base.join(filename);
-        std::fs::copy(src, &dst).map_err(|e| SError::IOError(e.to_string()))?;
+        std::fs::copy(src, &dst)?;
         stored.push(Utf8PathBuf::from(filename));
         Ok(())
     }
@@ -253,7 +207,7 @@ impl Library {
     }
 
     fn check_mod_collisions(
-        existing: &BTreeMap<String, ModCache>,
+        existing: &BTreeMap<String, ModFS>,
         new_files: &[Utf8PathBuf],
     ) -> Result<Vec<String>, SError> {
         let new_folders = Self::detect_mod_folders(new_files)?;
@@ -296,33 +250,28 @@ impl Library {
             .any(|p| p.name() == server_name || p.name() == client_name)
     }
 
-    pub fn add_mod(&mut self, files: Vec<Utf8PathBuf>) -> Result<(), SError> {
+    pub fn add_mod(&mut self, mod_root: &Utf8Path) -> Result<(), SError> {
         if self.is_running() {
             return Err(SError::GameOrServerRunning);
         }
 
-        let id = self.resolve_id(&files)?;
+        let fs = ModFS::new(mod_root, &SPTPaths::default())?;
 
         /*
           @hint
           remove this method, use check_mod_collisions directly;
           give a cloned mods cache without the current mod id to check collisions;
         */
-        self.validate_mod_add(&files, &id)?;
+        self.validate_mod_add(&fs.files, &fs.id)?;
 
-        let target_base = self.repo_root.join("mods").join(&id);
-        std::fs::create_dir_all(&target_base).map_err(|e| SError::IOError(e.to_string()))?;
+        let target_base = self.repo_root.join("mods").join(&fs.id);
+        std::fs::create_dir_all(&target_base)?;
 
-        let stored_paths = self.stage_files_to_repo(&files, &target_base)?;
-        let mod_type = LibraryCache::infer_mod_type(&stored_paths, &self.spt_paths);
+        let stored_paths = self.stage_files_to_repo(&fs.files, &target_base)?;
 
         self.cache.mods.insert(
-            id.clone(),
-            ModCache {
-                id: id.clone(),
-                mod_type,
-                files: stored_paths,
-            },
+            fs.id.clone(),
+            fs,
         );
 
         self.persist()?;
@@ -371,10 +320,7 @@ impl Library {
             })
             .collect();
 
-        errors
-            .is_empty()
-            .then_some(())
-            .ok_or_else(|| SError::Link)
+        errors.is_empty().then_some(()).ok_or_else(|| SError::Link)
     }
 
     pub fn to_dto(&self) -> LibraryDTO {

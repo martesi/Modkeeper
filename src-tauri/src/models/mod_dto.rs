@@ -26,10 +26,3 @@ pub struct Mod {
     // files removed: only needed in cache, not for frontend display
 }
 
-// Internal cache representation: includes files but NOT sent to frontend
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct ModCache {
-    pub id: String,
-    pub mod_type: ModType,
-    pub files: Vec<Utf8PathBuf>,
-}
