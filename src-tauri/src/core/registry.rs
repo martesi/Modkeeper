@@ -1,12 +1,12 @@
 // src/core/registry.rs
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use crate::core::instance::Instance;
+use crate::core::instance::Library;
 use crate::config::global::{GlobalConfig, load_config};
 
 pub struct AppRegistry {
     // Arc<Mutex<Option>> allows us to "swap" the entire instance safely
-    pub active_instance: Arc<Mutex<Option<Instance>>>,
+    pub active_instance: Arc<Mutex<Option<Library>>>,
     pub global_config: Arc<Mutex<GlobalConfig>>,
 }
 

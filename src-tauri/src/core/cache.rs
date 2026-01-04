@@ -6,12 +6,12 @@ use std::collections::BTreeMap;
 use walkdir::WalkDir;
 
 #[derive(Serialize, Deserialize, Default, Clone)]
-pub struct InstanceCache {
+pub struct LibraryCache {
     pub mods: BTreeMap<String, ModCache>,
     pub manifests: BTreeMap<String, ModManifest>,
 }
 
-impl InstanceCache {
+impl LibraryCache {
     pub fn new() -> Self {
         Self::default()
     }
@@ -22,7 +22,7 @@ impl InstanceCache {
 
     pub fn build_from_mods(
         mods_base: &Utf8PathBuf,
-        config: &crate::models::paths::InstancePaths,
+        config: &crate::models::paths::SPTPaths,
     ) -> Result<Self, SError> {
         let mut cache = Self::default();
 
@@ -51,7 +51,7 @@ impl InstanceCache {
     fn scan_mod_folder(
         mod_path: &Utf8PathBuf,
         id: &str,
-        config: &crate::models::paths::InstancePaths,
+        config: &crate::models::paths::SPTPaths,
     ) -> Result<ModCache, String> {
         let files = Self::collect_mod_files(mod_path)?;
         let mod_type = Self::infer_mod_type(&files, config);
@@ -83,7 +83,7 @@ impl InstanceCache {
 
     pub fn infer_mod_type(
         files: &[Utf8PathBuf],
-        config: &crate::models::paths::InstancePaths,
+        config: &crate::models::paths::SPTPaths,
     ) -> ModType {
         let has_client = files.iter().any(|p| p.starts_with(&config.client_plugins));
         let has_server = files.iter().any(|p| p.starts_with(&config.server_mods));

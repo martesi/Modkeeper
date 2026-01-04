@@ -3586,6 +3586,7 @@ dependencies = [
  "tauri-specta",
  "tokio",
  "toml 0.7.8",
+ "uuid",
  "walkdir",
 ]
 

@@ -1,6 +1,5 @@
 use tauri::State;
-use crate::core::instance::Instance;
-use crate::core::mod_manager::ModManagerInstance;
+use crate::core::instance::Library;
 use crate::core::registry::AppRegistry;
 use crate::models::error::SError;
 use crate::models::instance_dto::ModManagerInstanceDTO;
@@ -37,7 +36,7 @@ pub async fn get_current_instance(state: State<'_, AppRegistry>) -> Result<Optio
 #[specta::specta]
 pub async fn switch_instance(state: State<'_, AppRegistry>, path: String) -> Result<ModManagerInstanceDTO, SError> {
     let path_buf = camino::Utf8PathBuf::from(path);
-    let new_inst = Instance::load(&path_buf)?;
+    let new_inst = Library::load(&path_buf)?;
     let dto = new_inst.to_dto();
 
     // Swap the instance in the Mutex

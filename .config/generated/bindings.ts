@@ -8,11 +8,37 @@ export const commands = {
 async greet(name: string) : Promise<string> {
     return await TAURI_INVOKE("greet", { name });
 },
-async getAppSettings() : Promise<AppSettings | null> {
-    return await TAURI_INVOKE("get_app_settings");
+async addMod(paths: string[]) : Promise<Result<null, SError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("add_mod", { paths }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 },
-async getRepoDef() : Promise<RepoDef | null> {
-    return await TAURI_INVOKE("get_repo_def");
+async removeMod(id: string) : Promise<Result<null, SError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("remove_mod", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getCurrentInstance() : Promise<Result<ModManagerInstanceDTO | null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_current_instance") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async switchInstance(path: string) : Promise<Result<ModManagerInstanceDTO, SError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("switch_instance", { path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -26,11 +52,10 @@ async getRepoDef() : Promise<RepoDef | null> {
 
 /** user-defined types **/
 
-export type AppSettings = { version: number; home: string }
-export type ModDef = { id: string; includes: ModFeat[]; enabled: boolean }
-export type ModFeat = { type: ModType; path: string }
-export type ModType = "Client" | "Server"
-export type RepoDef = { version: number; records: Partial<{ [key in string]: ModDef }> }
+export type Mod = { id: string; is_active: boolean; mod_type: ModType }
+export type ModManagerInstanceDTO = { id: string; game_root: string; repo_root: string; spt_version: string; mods: Mod[] }
+export type ModType = "Client" | "Server" | "Both" | "Unknown"
+export type SError = { UnsupportedSPTVersion: string } | { ParseError: string } | { IOError: string } | "GameOrServerRunning" | "UnableToDetermineModId" | { FileOrDirectoryNotFound: string } | { FileCollision: string[] } | "Unexpected" | { Link: [] }
 
 /** tauri-specta globals **/
 

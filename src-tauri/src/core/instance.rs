@@ -1,50 +1,42 @@
-use crate::core::cache::InstanceCache;
+use crate::core::cache::LibraryCache;
 use crate::core::linker::Linker;
-use crate::core::mod_manager::ModManagerInstance;
+use crate::models::divider::MOD_ID_DIVIDER;
 use crate::models::error::SError;
 use crate::models::instance_dto::ModManagerInstanceDTO;
 use crate::models::mod_dto::{Mod, ModCache, ModManifest};
-use crate::models::paths::{InstancePaths, RepoConfig};
+use crate::models::paths::{LibPaths, SPTPaths};
 use crate::utils::version::read_pe_version;
 use camino::{Utf8Path, Utf8PathBuf};
 use std::collections::{BTreeMap, HashSet};
-use std::io;
 use sysinfo::System;
 
-pub struct Instance {
+pub struct Library {
     pub id: String,
     pub repo_root: Utf8PathBuf,
     pub game_root: Utf8PathBuf,
-    pub paths: InstancePaths,
-    pub repo_conf: RepoConfig,
-    pub cache: InstanceCache,
+    pub spt_paths: SPTPaths,
+    pub lib_paths: LibPaths,
+    pub cache: LibraryCache,
     pub spt_version: String,
 }
 
-impl Instance {
-    pub fn create(
-        repo_root: &Utf8PathBuf,
-        game_root: Option<&Utf8PathBuf>,
-    ) -> Result<Self, SError> {
+impl Library {
+    pub fn create(repo_root: &Utf8PathBuf, game_root: &Utf8PathBuf) -> Result<Self, SError> {
         for dir in ["mods", "backups", "staging"] {
             std::fs::create_dir_all(repo_root.join(dir))
                 .map_err(|e| SError::IOError(e.to_string()))?;
         }
 
-        let config = InstancePaths::default();
-        let game_root = game_root.cloned().unwrap_or_else(|| repo_root.clone());
-        let spt_version = Self::validate_spt_version(&game_root, &config)?;
+        let config = SPTPaths::new(game_root);
+        let spt_version = Self::validate_spt_version(game_root, &config)?;
 
         let inst = Self {
-            id: repo_root
-                .file_name()
-                .map(|s| s.to_string())
-                .unwrap_or_else(|| "unknown".into()),
+            id: uuid::Uuid::new_v4().to_string(),
             repo_root: repo_root.clone(),
-            game_root,
-            paths: config,
-            cache: InstanceCache::default(),
-            repo_conf: RepoConfig::default(),
+            game_root: game_root.clone(),
+            spt_paths: config,
+            cache: LibraryCache::default(),
+            lib_paths: LibPaths::default(),
             spt_version,
         };
 
@@ -55,16 +47,16 @@ impl Instance {
     pub fn read_instance_manifest(
         repo_root: &Utf8PathBuf,
     ) -> Result<ModManagerInstanceDTO, SError> {
-        let manifest_path = repo_root.join(RepoConfig::default().manifest);
+        let manifest_path = repo_root.join(LibPaths::default().manifest);
         if !manifest_path.to_path_buf().exists() {
             return Err(SError::FileOrDirectoryNotFound(repo_root.to_string()));
         }
-        Instance::read_toml::<ModManagerInstanceDTO>(repo_root)
+        Library::read_toml::<ModManagerInstanceDTO>(repo_root)
     }
 
     pub fn load(repo_root: &Utf8PathBuf) -> Result<Self, SError> {
         let dto = Self::read_instance_manifest(repo_root)?;
-        let config = InstancePaths::default();
+        let config = SPTPaths::default();
         let game_root = Utf8PathBuf::from(dto.game_root);
         let spt_version = Self::validate_spt_version(&game_root, &config)?;
 
@@ -72,9 +64,9 @@ impl Instance {
             id: dto.id,
             repo_root: repo_root.clone(),
             game_root,
-            paths: config,
-            repo_conf: RepoConfig::default(),
-            cache: InstanceCache::new(),
+            spt_paths: config,
+            lib_paths: LibPaths::default(),
+            cache: LibraryCache::new(),
             spt_version,
         };
 
@@ -83,13 +75,13 @@ impl Instance {
         Ok(inst)
     }
 
-    pub fn scan_repo_internal(&mut self) -> Result<InstanceCache, SError> {
-        let mods_base = self.repo_root.join(self.repo_conf.mods.as_str());
+    pub fn scan_repo_internal(&mut self) -> Result<LibraryCache, SError> {
+        let mods_base = self.repo_root.join(self.lib_paths.mods.as_str());
 
         let new_cache = if !mods_base.exists() {
-            InstanceCache::default()
+            LibraryCache::default()
         } else {
-            InstanceCache::build_from_mods(&mods_base, &self.paths)?
+            LibraryCache::build_from_mods(&mods_base, &self.spt_paths)?
         };
 
         Ok(new_cache)
@@ -106,13 +98,13 @@ impl Instance {
     */
     fn resolve_id(&self, files: &[Utf8PathBuf]) -> Result<String, SError> {
         self.read_manifest_guid()
-            .or_else(|_| self.collect_ids_from_path(files, &self.paths.server_mods))
-            .or_else(|_| self.collect_ids_from_path(files, &self.paths.client_plugins))
+            .or_else(|_| self.collect_ids_from_path(files, &self.spt_paths.server_mods))
+            .or_else(|_| self.collect_ids_from_path(files, &self.spt_paths.client_plugins))
             .map_err(|_| SError::UnableToDetermineModId)
     }
 
     fn read_manifest_guid(&self) -> Result<String, String> {
-        let manifest_path = self.repo_root.join(&self.paths.manifest_file);
+        let manifest_path = self.repo_root.join(&self.lib_paths.manifest);
         std::fs::read_to_string(&manifest_path)
             .ok()
             .and_then(|json| serde_json::from_str::<ModManifest>(&json).ok())
@@ -136,7 +128,7 @@ impl Instance {
             .collect();
 
         (!ids.is_empty())
-            .then(|| ids.join(self.repo_conf.id_divider.as_str()))
+            .then(|| ids.join(MOD_ID_DIVIDER))
             .ok_or_else(|| "No ids found in path".into())
     }
 
@@ -283,10 +275,7 @@ impl Instance {
             .collect())
     }
 
-    fn validate_spt_version(
-        game_root: &Utf8PathBuf,
-        config: &InstancePaths,
-    ) -> Result<String, SError> {
+    fn validate_spt_version(game_root: &Utf8PathBuf, config: &SPTPaths) -> Result<String, SError> {
         read_pe_version(&game_root.join(&config.server_dll))
             .map_err(SError::ParseError)
             .and_then(|v| {
@@ -298,40 +287,18 @@ impl Instance {
                 }
             })
     }
-}
 
-impl Instance {
-    fn persist_cache(&self) -> Result<(), SError> {
-        let dto = self.to_dto();
-        Instance::write_toml(&self.repo_root.join(&self.repo_conf.manifest), &dto)?;
-        Instance::write_toml(&self.repo_root.join(&self.repo_conf.cache), &self.cache)?;
-        Ok(())
-    }
-
-    fn write_toml<T: serde::Serialize>(path: &Utf8PathBuf, data: &T) -> Result<(), SError> {
-        toml::to_string(data)
-            .map_err(|e| SError::ParseError(e.to_string()))
-            .and_then(|t| std::fs::write(path, t).map_err(|e| SError::IOError(e.to_string())))
-    }
-
-    fn read_toml<T: serde::de::DeserializeOwned>(path: &Utf8PathBuf) -> Result<T, SError> {
-        let s = std::fs::read_to_string(path).map_err(|e| SError::IOError(e.to_string()))?;
-        toml::from_str::<T>(&s).map_err(|e| SError::ParseError(e.to_string()))
-    }
-}
-
-impl ModManagerInstance for Instance {
     fn is_running(&self) -> bool {
         let s = System::new_all();
-        let server_name = self.paths.server_exe.file_name().unwrap_or_default();
-        let client_name = self.paths.client_exe.file_name().unwrap_or_default();
+        let server_name = self.spt_paths.server_exe.file_name().unwrap_or_default();
+        let client_name = self.spt_paths.client_exe.file_name().unwrap_or_default();
 
         s.processes()
             .values()
             .any(|p| p.name() == server_name || p.name() == client_name)
     }
 
-    fn add_mod(&mut self, files: Vec<Utf8PathBuf>) -> Result<(), SError> {
+    pub fn add_mod(&mut self, files: Vec<Utf8PathBuf>) -> Result<(), SError> {
         if self.is_running() {
             return Err(SError::GameOrServerRunning);
         }
@@ -349,7 +316,7 @@ impl ModManagerInstance for Instance {
         std::fs::create_dir_all(&target_base).map_err(|e| SError::IOError(e.to_string()))?;
 
         let stored_paths = self.stage_files_to_repo(&files, &target_base)?;
-        let mod_type = InstanceCache::infer_mod_type(&stored_paths, &self.paths);
+        let mod_type = LibraryCache::infer_mod_type(&stored_paths, &self.spt_paths);
 
         self.cache.mods.insert(
             id.clone(),
@@ -367,7 +334,7 @@ impl ModManagerInstance for Instance {
         Ok(())
     }
 
-    fn remove_mod(&mut self, id: &str) -> Result<(), SError> {
+    pub fn remove_mod(&mut self, id: &str) -> Result<(), SError> {
         if self.is_running() {
             return Err(SError::GameOrServerRunning);
         }
@@ -384,7 +351,7 @@ impl ModManagerInstance for Instance {
         Ok(())
     }
 
-    fn deploy_active_mods(&self) -> Result<(), SError> {
+    pub fn deploy_active_mods(&self) -> Result<(), SError> {
         if self.is_running() {
             return Err(SError::GameOrServerRunning);
         }
@@ -402,8 +369,7 @@ impl ModManagerInstance for Instance {
                 } else {
                     Linker::unlink(&dst)
                 };
-                res.err()
-                    .map(|e| e.to_string())
+                res.err().map(|e| e.to_string())
             })
             .collect();
 
@@ -413,13 +379,13 @@ impl ModManagerInstance for Instance {
             .ok_or_else(|| SError::Link())
     }
 
-    fn scan_repo(&mut self) -> Result<(), SError> {
+    pub fn scan_repo(&mut self) -> Result<(), SError> {
         self.scan_repo_internal()
             .inspect(|v| self.cache = v.clone())
             .and_then(|_| Ok(()))
     }
 
-    fn to_dto(&self) -> ModManagerInstanceDTO {
+    pub fn to_dto(&self) -> ModManagerInstanceDTO {
         ModManagerInstanceDTO {
             id: self.id.clone(),
             game_root: self.game_root.to_string(),
@@ -436,5 +402,23 @@ impl ModManagerInstance for Instance {
                 })
                 .collect(),
         }
+    }
+
+    fn persist_cache(&self) -> Result<(), SError> {
+        let dto = self.to_dto();
+        Library::write_toml(&self.repo_root.join(&self.lib_paths.manifest), &dto)?;
+        Library::write_toml(&self.repo_root.join(&self.lib_paths.cache), &self.cache)?;
+        Ok(())
+    }
+
+    fn write_toml<T: serde::Serialize>(path: &Utf8PathBuf, data: &T) -> Result<(), SError> {
+        toml::to_string(data)
+            .map_err(|e| SError::ParseError(e.to_string()))
+            .and_then(|t| std::fs::write(path, t).map_err(|e| SError::IOError(e.to_string())))
+    }
+
+    fn read_toml<T: serde::de::DeserializeOwned>(path: &Utf8PathBuf) -> Result<T, SError> {
+        let s = std::fs::read_to_string(path).map_err(|e| SError::IOError(e.to_string()))?;
+        toml::from_str::<T>(&s).map_err(|e| SError::ParseError(e.to_string()))
     }
 }

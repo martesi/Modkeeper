@@ -36,4 +36,5 @@ tokio = "1.48.0"   # For backup timestamps
 toml = "0.7"
 walkdir = "2"
 regex = "1.10"
+uuid = { version = "1.19.0", features = ["v4"] }
 
