@@ -2,7 +2,7 @@ use tauri::State;
 use crate::core::library::Library;
 use crate::core::registry::AppRegistry;
 use crate::models::error::SError;
-use crate::models::instance_dto::ModManagerInstanceDTO;
+use crate::models::library_dto::LibraryDTO;
 
 #[tauri::command]
 #[specta::specta]
@@ -10,7 +10,7 @@ pub async fn add_mod(state: State<'_, AppRegistry>, paths: Vec<String>) -> Resul
     let mut active = state.active_instance.lock().await;
     match active.as_mut() {
         Some(inst) => inst.add_mod(paths.into_iter().map(|p| p.into()).collect()),
-        None => Err(SError::Unexpected),
+        None => Err(SError::Unexpected(None)),
     }
 }
 
@@ -20,13 +20,13 @@ pub async fn remove_mod(state: State<'_, AppRegistry>, id: String) -> Result<(),
     let mut active = state.active_instance.lock().await;
     match active.as_mut() {
         Some(inst) => inst.remove_mod(&id),
-        None => Err(SError::Unexpected),
+        None => Err(SError::Unexpected(None)),
     }
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn get_current_instance(state: State<'_, AppRegistry>) -> Result<Option<ModManagerInstanceDTO>, String> {
+pub async fn get_current_instance(state: State<'_, AppRegistry>) -> Result<Option<LibraryDTO>, String> {
     let active = state.active_instance.lock().await;
     // We can call .to_dto() because Instance implements ModManagerInstance
     Ok(active.as_ref().map(|inst| inst.to_dto()))
@@ -34,7 +34,7 @@ pub async fn get_current_instance(state: State<'_, AppRegistry>) -> Result<Optio
 
 #[tauri::command]
 #[specta::specta]
-pub async fn switch_instance(state: State<'_, AppRegistry>, path: String) -> Result<ModManagerInstanceDTO, SError> {
+pub async fn switch_instance(state: State<'_, AppRegistry>, path: String) -> Result<LibraryDTO, SError> {
     let path_buf = camino::Utf8PathBuf::from(path);
     let new_inst = Library::load(&path_buf)?;
     let dto = new_inst.to_dto();

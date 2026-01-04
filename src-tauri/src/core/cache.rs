@@ -58,7 +58,6 @@ impl LibraryCache {
 
         Ok(ModCache {
             id: id.to_string(),
-            is_active: false,
             mod_type,
             files,
         })

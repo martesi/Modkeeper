@@ -1,4 +1,4 @@
-pub mod instance_dto;
+pub mod library_dto;
 pub mod paths;
 pub mod mod_dto;
 pub mod config;

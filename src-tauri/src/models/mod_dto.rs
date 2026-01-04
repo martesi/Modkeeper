@@ -30,7 +30,6 @@ pub struct Mod {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ModCache {
     pub id: String,
-    pub is_active: bool,
     pub mod_type: ModType,
     pub files: Vec<Utf8PathBuf>,
 }

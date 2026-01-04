@@ -10,6 +10,6 @@ pub enum SError {
     UnableToDetermineModId,
     FileOrDirectoryNotFound(String),
     FileCollision(Vec<String>),
-    Unexpected(String),
-    Link(),
+    Unexpected(Option<String>),
+    Link,
 }

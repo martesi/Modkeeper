@@ -2,7 +2,7 @@ use crate::core::cache::LibraryCache;
 use crate::core::linker::Linker;
 use crate::models::divider::MOD_ID_DIVIDER;
 use crate::models::error::SError;
-use crate::models::instance_dto::ModManagerInstanceDTO;
+use crate::models::library_dto::LibraryDTO;
 use crate::models::mod_dto::{Mod, ModCache, ModManifest};
 use crate::models::paths::{LibPaths, SPTPaths};
 use crate::utils::toml::Toml;
@@ -20,73 +20,60 @@ pub struct Library {
     pub lib_paths: LibPaths,
     pub cache: LibraryCache,
     pub spt_version: String,
+    pub mods: BTreeMap<String, Mod>,
 }
 
 impl Library {
     pub fn create(repo_root: &Utf8PathBuf, game_root: &Utf8PathBuf) -> Result<Self, SError> {
-        for dir in ["mods", "backups", "staging"] {
-            std::fs::create_dir_all(repo_root.join(dir))
-                .map_err(|e| SError::IOError(e.to_string()))?;
+        let lib_paths = LibPaths::new(game_root);
+        for dir in [&lib_paths.mods, &lib_paths.backups, &lib_paths.staging] {
+            std::fs::create_dir_all(dir).map_err(|e| SError::IOError(e.to_string()))?;
         }
 
         let config = SPTPaths::new(game_root);
-        let spt_version = Library::fetch_and_validate_spt_version(game_root, &config)?;
 
         let inst = Self {
             id: uuid::Uuid::new_v4().to_string(),
             repo_root: repo_root.clone(),
             game_root: game_root.clone(),
-            spt_paths: config,
+            spt_version: Library::fetch_and_validate_spt_version(&config)?,
             cache: LibraryCache::default(),
-            lib_paths: LibPaths::default(),
-            spt_version,
+            mods: Default::default(),
+            lib_paths,
+            spt_paths: config,
         };
 
-        inst.persist_cache()?;
+        inst.persist()?;
         Ok(inst)
-    }
-
-    pub fn read_instance_manifest(
-        repo_root: &Utf8PathBuf,
-    ) -> Result<ModManagerInstanceDTO, SError> {
-        let manifest_path = repo_root.join(LibPaths::default().manifest);
-        if !manifest_path.to_path_buf().exists() {
-            return Err(SError::FileOrDirectoryNotFound(repo_root.to_string()));
-        }
-        Toml::read::<ModManagerInstanceDTO>(&manifest_path)
     }
 
     pub fn load(repo_root: &Utf8PathBuf) -> Result<Self, SError> {
-        let dto = Self::read_instance_manifest(repo_root)?;
-        let config = SPTPaths::default();
-        let game_root = Utf8PathBuf::from(dto.game_root);
-        let spt_version = Self::fetch_and_validate_spt_version(&game_root, &config)?;
+        let dto = Self::read_library_manifest(repo_root)?;
+        // check the original spt_version when library is created
+        // if not valid, return error directly
+        Self::parse_spt_version(&dto.spt_version)
+            .and_then(|spt_version| Self::validate_spt_version(&spt_version))?;
 
-        let mut inst = Self {
+        let config = SPTPaths::new(repo_root);
+        // When displaying, always use the current spt version
+        let spt_version = Self::fetch_and_validate_spt_version(&config)?;
+        let lib_paths = LibPaths::new(repo_root);
+        let inst = Self {
             id: dto.id,
             repo_root: repo_root.clone(),
-            game_root,
+            game_root: dto.game_root,
             spt_paths: config,
-            lib_paths: LibPaths::default(),
-            cache: LibraryCache::new(),
+            cache: Toml::read(&lib_paths.cache)?,
+            lib_paths,
             spt_version,
+            mods: dto.mods,
         };
-
-        inst.cache = inst.scan_repo_internal()?;
 
         Ok(inst)
     }
 
-    pub fn scan_repo_internal(&mut self) -> Result<LibraryCache, SError> {
-        let mods_base = self.repo_root.join(self.lib_paths.mods.as_str());
-
-        let new_cache = if !mods_base.exists() {
-            LibraryCache::default()
-        } else {
-            LibraryCache::build_from_mods(&mods_base, &self.spt_paths)?
-        };
-
-        Ok(new_cache)
+    pub fn read_library_manifest(lib_root: &Utf8PathBuf) -> Result<LibraryDTO, SError> {
+        Toml::read::<LibraryDTO>(&LibPaths::new(lib_root).manifest)
     }
 
     /**
@@ -277,22 +264,26 @@ impl Library {
             .collect())
     }
 
-    fn fetch_and_validate_spt_version(
-        game_root: &Utf8PathBuf,
-        config: &SPTPaths,
-    ) -> Result<String, SError> {
-        read_pe_version(&game_root.join(&config.server_dll))
+    fn fetch_and_validate_spt_version(config: &SPTPaths) -> Result<String, SError> {
+        read_pe_version(&config.server_dll)
             .map_err(|e| SError::ParseError(e))
-            .and_then(|version| {
-                Version::parse(&version).map_err(|e| SError::ParseError(e.to_string()))
-            })
+            .and_then(|version| Self::parse_spt_version(&version))
             .and_then(|v| {
-                VersionReq::parse(">=4, <5")
-                    .map_err(|e| SError::Unexpected(e.to_string()))?
-                    .matches(&v)
-                    .then(|| v.to_string())
-                    .ok_or_else(|| SError::UnsupportedSPTVersion(v.to_string()))
+                Self::validate_spt_version(&v)
+                    .map(|result| result)
+                    .and_then(|_| Ok(v.to_string()))
+                    .or_else(|_| Err(SError::UnsupportedSPTVersion(v.to_string())))
             })
+    }
+
+    fn parse_spt_version(version_str: &str) -> Result<Version, SError> {
+        Version::parse(version_str).map_err(|e| SError::ParseError(e.to_string()))
+    }
+
+    fn validate_spt_version(version: &Version) -> Result<bool, SError> {
+        VersionReq::parse(">=4, <5")
+            .map(|req| req.matches(&version))
+            .map_err(|e| SError::ParseError(e.to_string()))
     }
 
     fn is_running(&self) -> bool {
@@ -329,13 +320,12 @@ impl Library {
             id.clone(),
             ModCache {
                 id: id.clone(),
-                is_active: false,
                 mod_type,
                 files: stored_paths,
             },
         );
 
-        self.persist_cache()?;
+        self.persist()?;
 
         // @TODO return Mod instead
         Ok(())
@@ -353,7 +343,7 @@ impl Library {
             let _ = std::fs::remove_dir_all(self.repo_root.join("mods").join(id));
         }
 
-        self.persist_cache()?;
+        self.persist()?;
 
         Ok(())
     }
@@ -371,7 +361,8 @@ impl Library {
             .filter_map(|(m, file_path)| {
                 let src = self.repo_root.join("mods").join(&m.id).join(file_path);
                 let dst = self.game_root.join(file_path);
-                let res = if m.is_active {
+                let is_active = self.mods.get(&m.id)?.is_active;
+                let res = if is_active {
                     Linker::link(&src, &dst)
                 } else {
                     Linker::unlink(&dst)
@@ -383,38 +374,23 @@ impl Library {
         errors
             .is_empty()
             .then_some(())
-            .ok_or_else(|| SError::Link())
+            .ok_or_else(|| SError::Link)
     }
 
-    pub fn scan_repo(&mut self) -> Result<(), SError> {
-        self.scan_repo_internal()
-            .inspect(|v| self.cache = v.clone())
-            .and_then(|_| Ok(()))
-    }
-
-    pub fn to_dto(&self) -> ModManagerInstanceDTO {
-        ModManagerInstanceDTO {
-            id: self.id.clone(),
-            game_root: self.game_root.to_string(),
-            repo_root: self.repo_root.to_string(),
-            spt_version: self.spt_version.clone(),
-            mods: self
-                .cache
-                .mods
-                .values()
-                .map(|mc| Mod {
-                    id: mc.id.clone(),
-                    is_active: mc.is_active,
-                    mod_type: mc.mod_type.clone(),
-                })
-                .collect(),
+    pub fn to_dto(&self) -> LibraryDTO {
+        LibraryDTO {
+            id: self.id.to_owned(),
+            game_root: self.game_root.to_owned(),
+            repo_root: self.repo_root.to_owned(),
+            spt_version: self.spt_version.to_owned(),
+            mods: self.mods.to_owned(),
         }
     }
 
-    fn persist_cache(&self) -> Result<(), SError> {
+    fn persist(&self) -> Result<(), SError> {
         let dto = self.to_dto();
-        Toml::write(&self.repo_root.join(&self.lib_paths.manifest), &dto)?;
-        Toml::write(&self.repo_root.join(&self.lib_paths.cache), &self.cache)?;
+        Toml::write(&self.lib_paths.manifest, &dto)?;
+        Toml::write(&self.lib_paths.cache, &self.cache)?;
         Ok(())
     }
 }
