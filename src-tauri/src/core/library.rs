@@ -256,23 +256,21 @@ impl Library {
         }
 
         let fs = ModFS::new(mod_root, &SPTPaths::default())?;
+        let mod_original = self.mods.get(&fs.id);
 
-        /*
-          @hint
-          remove this method, use check_mod_collisions directly;
-          give a cloned mods cache without the current mod id to check collisions;
-        */
-        self.validate_mod_add(&fs.files, &fs.id)?;
+        self.cache
+            .detect_collisions(&fs.files, mod_original.map(|_| fs.id.as_str()).or(None))?;
 
-        let target_base = self.repo_root.join("mods").join(&fs.id);
-        std::fs::create_dir_all(&target_base)?;
+        if let Some(content) = mod_original {
+            // backup
+        }
 
-        let stored_paths = self.stage_files_to_repo(&fs.files, &target_base)?;
+        let dst = &self.lib_paths.mods.join(&fs.id);
+        ModFS::copy_recursive(mod_root, dst)?;
 
-        self.cache.mods.insert(
-            fs.id.clone(),
-            fs,
-        );
+        self.cache.add(dst, fs);
+
+
 
         self.persist()?;
 

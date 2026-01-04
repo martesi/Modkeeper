@@ -92,11 +92,47 @@ impl ModFS {
             .collect()
     }
 
+    pub fn copy_recursive(src: &Utf8Path, dst: &Utf8Path) -> Result<(), SError> {
+        // 1. Ensure the root destination directory exists
+        std::fs::create_dir_all(dst)?;
+
+        for entry in WalkDir::new(src).into_iter().filter_map(|e| e.ok()) {
+            // 2. Convert standard Path to Camino Utf8Path
+            let src_path = Utf8Path::from_path(entry.path())
+                .ok_or_else(|| SError::ParseError(format!("Invalid UTF-8 path: {:?}", entry.path())))?;
+
+            // 3. Calculate the relative path from the source root
+            let rel_path = src_path
+                .strip_prefix(src)?;
+
+            // 4. Construct the final destination path
+            let dst_path = dst.join(rel_path);
+
+            if entry.file_type().is_dir() {
+                // 5. If it's a directory, create it in the destination
+                std::fs::create_dir_all(&dst_path)?;
+            } else {
+                // 6. If it's a file, ensure the parent directory exists (safety check)
+                if let Some(parent) = dst_path.parent() {
+                    if !parent.exists() {
+                        std::fs::create_dir_all(parent)?;
+                    }
+                }
+                // 7. Copy the file (Note: This overwrites existing files at the destination)
+                std::fs::copy(src_path, &dst_path)?;
+            }
+        }
+
+        Ok(())
+    }
+
     pub fn new(root: &Utf8Path, spt_paths: &SPTPaths) -> Result<Self, SError> {
+        let files = Self::collect_files(root); // Call once
+
         Ok(ModFS {
-            id: Self::resolve_id(root, &spt_paths, &Self::collect_files(root))?,
-            mod_type: Self::infer_mod_type(&Self::collect_files(root), &spt_paths),
-            files: Self::collect_files(root),
+            id: Self::resolve_id(root, &spt_paths, &files)?,
+            mod_type: Self::infer_mod_type(&files, &spt_paths),
+            files, // Use the same vector
         })
     }
 }
