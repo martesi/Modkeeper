@@ -1,7 +1,7 @@
 use crate::models::divider::MOD_ID_DIVIDER;
 use crate::models::error::SError;
 use crate::models::mod_dto::{ModManifest, ModType};
-use crate::models::paths::{LibPaths, ModPaths, SPTPaths};
+use crate::models::paths::{LibPathRules, ModPaths, SPTPathRules};
 use camino::{Utf8Path, Utf8PathBuf};
 use serde::{Deserialize, Serialize};
 use walkdir::WalkDir;
@@ -25,7 +25,7 @@ impl ModFS {
 
     pub fn resolve_id(
         mod_root: &Utf8Path,
-        spt_paths: &SPTPaths,
+        spt_paths: &SPTPathRules,
         files: &[Utf8PathBuf],
     ) -> Result<String, SError> {
         // 1. Priority 1: Manifest check
@@ -62,7 +62,7 @@ impl ModFS {
         Ok(ids.into_iter().collect::<Vec<_>>().join(MOD_ID_DIVIDER))
     }
 
-    pub fn infer_mod_type(files: &[Utf8PathBuf], config: &SPTPaths) -> ModType {
+    pub fn infer_mod_type(files: &[Utf8PathBuf], config: &SPTPathRules) -> ModType {
         let has_client = files.iter().any(|p| p.starts_with(&config.client_plugins));
         let has_server = files.iter().any(|p| p.starts_with(&config.server_mods));
 
@@ -126,7 +126,7 @@ impl ModFS {
         Ok(())
     }
 
-    pub fn new(root: &Utf8Path, spt_paths: &SPTPaths) -> Result<Self, SError> {
+    pub fn new(root: &Utf8Path, spt_paths: &SPTPathRules) -> Result<Self, SError> {
         let files = Self::collect_files(root); // Call once
 
         Ok(ModFS {

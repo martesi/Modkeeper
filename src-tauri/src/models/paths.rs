@@ -32,7 +32,7 @@ define_paths!(ModPaths {
     file: "manifest/manifest.json",
 });
 
-define_paths!(SPTPaths {
+define_paths!(SPTPathRules {
     client_plugins: "BepInEx/plugins",
     server_mods: "SPT/user/mods",
     server_dll: "SPT/SPT.Server.dll",
@@ -40,7 +40,7 @@ define_paths!(SPTPaths {
     client_exe: "EscapeFromTarkov.exe",
 });
 
-define_paths!(LibPaths {
+define_paths!(LibPathRules {
     backups: "backups",
     mods: "mods",
     staging: "staging",

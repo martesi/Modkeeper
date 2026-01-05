@@ -5,7 +5,7 @@ use crate::models::divider::MOD_ID_DIVIDER;
 use crate::models::error::SError;
 use crate::models::library_dto::LibraryDTO;
 use crate::models::mod_dto::{Mod, ModManifest};
-use crate::models::paths::{LibPaths, SPTPaths};
+use crate::models::paths::{LibPathRules, SPTPathRules};
 use crate::utils::toml::Toml;
 use crate::utils::version::read_pe_version;
 use camino::{Utf8Path, Utf8PathBuf};
@@ -17,31 +17,35 @@ pub struct Library {
     pub id: String,
     pub repo_root: Utf8PathBuf,
     pub game_root: Utf8PathBuf,
-    pub spt_paths: SPTPaths,
-    pub lib_paths: LibPaths,
+    pub spt_rules: SPTPathRules,
+    pub lib_paths: LibPathRules,
     pub cache: LibraryCache,
     pub spt_version: String,
     pub mods: BTreeMap<String, Mod>,
 }
 
 impl Library {
+    fn spt_paths(&self) -> SPTPathRules {
+        SPTPathRules::new(&self.game_root)
+    }
+
     pub fn create(repo_root: &Utf8PathBuf, game_root: &Utf8PathBuf) -> Result<Self, SError> {
-        let lib_paths = LibPaths::new(game_root);
+        let lib_paths = LibPathRules::new(game_root);
         for dir in [&lib_paths.mods, &lib_paths.backups, &lib_paths.staging] {
             std::fs::create_dir_all(dir)?;
         }
 
-        let config = SPTPaths::new(game_root);
+        let config = SPTPathRules::default();
 
         let inst = Self {
             id: uuid::Uuid::new_v4().to_string(),
             repo_root: repo_root.clone(),
             game_root: game_root.clone(),
-            spt_version: Library::fetch_and_validate_spt_version(&config)?,
+            spt_version: Library::fetch_and_validate_spt_version(&SPTPathRules::new(game_root))?,
             cache: LibraryCache::default(),
             mods: Default::default(),
             lib_paths,
-            spt_paths: config,
+            spt_rules: config,
         };
 
         inst.persist()?;
@@ -55,15 +59,15 @@ impl Library {
         Self::parse_spt_version(&dto.spt_version)
             .and_then(|spt_version| Self::validate_spt_version(&spt_version))?;
 
-        let config = SPTPaths::new(repo_root);
+        let config = SPTPathRules::default();
         // When displaying, always use the current spt version
         let spt_version = Self::fetch_and_validate_spt_version(&config)?;
-        let lib_paths = LibPaths::new(repo_root);
+        let lib_paths = LibPathRules::new(repo_root);
         let inst = Self {
             id: dto.id,
             repo_root: repo_root.clone(),
             game_root: dto.game_root,
-            spt_paths: config,
+            spt_rules: config,
             cache: Toml::read(&lib_paths.cache)?,
             lib_paths,
             spt_version,
@@ -74,10 +78,10 @@ impl Library {
     }
 
     pub fn read_library_manifest(lib_root: &Utf8PathBuf) -> Result<LibraryDTO, SError> {
-        Toml::read::<LibraryDTO>(&LibPaths::new(lib_root).manifest)
+        Toml::read::<LibraryDTO>(&LibPathRules::new(lib_root).manifest)
     }
 
-    fn fetch_and_validate_spt_version(config: &SPTPaths) -> Result<String, SError> {
+    fn fetch_and_validate_spt_version(config: &SPTPathRules) -> Result<String, SError> {
         read_pe_version(&config.server_dll)
             .map_err(|e| SError::ParseError(e))
             .and_then(|version| Self::parse_spt_version(&version))
@@ -101,8 +105,9 @@ impl Library {
 
     fn is_running(&self) -> bool {
         let s = System::new_all();
-        let server_name = self.spt_paths.server_exe.file_name().unwrap_or_default();
-        let client_name = self.spt_paths.client_exe.file_name().unwrap_or_default();
+        let paths = self.spt_paths();
+        let server_name = paths.server_exe.file_name().unwrap_or_default();
+        let client_name = paths.client_exe.file_name().unwrap_or_default();
 
         s.processes()
             .values()
@@ -114,11 +119,11 @@ impl Library {
             return Err(SError::GameOrServerRunning);
         }
 
-        let fs = ModFS::new(mod_root, &SPTPaths::default())?;
+        let fs = ModFS::new(mod_root, &self.spt_rules)?;
         let mod_original = self.mods.get(&fs.id);
 
         self.cache
-            .detect_collisions(&fs.files, mod_original.map(|_| fs.id.as_str()).or(None))?;
+            .detect_collisions(&fs.files, mod_original.map(|_| fs.id.as_str()))?;
 
         if let Some(content) = mod_original {
             // backup
@@ -128,8 +133,6 @@ impl Library {
         ModFS::copy_recursive(mod_root, dst)?;
 
         self.cache.add(dst, fs);
-
-
 
         self.persist()?;
 

@@ -1,7 +1,7 @@
 use crate::core::mod_fs::ModFS;
 use crate::models::error::SError;
 use crate::models::mod_dto::{ModManifest, ModType};
-use crate::models::paths::{ModPaths, SPTPaths};
+use crate::models::paths::{ModPaths, SPTPathRules};
 use camino::{Utf8Path, Utf8PathBuf};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -14,7 +14,7 @@ pub struct LibraryCache {
 }
 
 impl LibraryCache {
-    pub fn build_from_mods(mods_base: &Utf8PathBuf, spt_paths: &SPTPaths) -> Result<Self, SError> {
+    pub fn build_from_mods(mods_base: &Utf8PathBuf, spt_paths: &SPTPathRules) -> Result<Self, SError> {
         let mut cache = Self::default();
 
         let entries = std::fs::read_dir(mods_base)?;
