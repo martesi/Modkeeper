@@ -13,6 +13,8 @@ use semver::{Version, VersionReq};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use sysinfo::System;
 
+type OwnershipMap = HashMap<Utf8PathBuf, Vec<String>>;
+
 pub struct Library {
     pub id: String,
     pub repo_root: Utf8PathBuf,
@@ -174,55 +176,127 @@ impl Library {
         Ok(())
     }
 
-    pub fn deploy_active_mods(&mut self) -> Result<(), SError> {
-        if self.is_running() {
-            return Err(SError::GameOrServerRunning);
-        }
+    /// Validates that no two active mods contain the same file.
+    /// Note: Directories are allowed to overlap; only files cause collisions.
+    fn check_file_collisions(&self) -> Result<(), SError> {
+        // Map of: Relative File Path -> Mod ID that owns it
+        let mut file_ownership: HashMap<&Utf8PathBuf, &String> = HashMap::new();
 
-        // 1. Ownership Tracking: path -> mod_id
-        let mut ownership_map: HashMap<&Utf8PathBuf, &String> = HashMap::new();
-        let mut collisions = BTreeSet::new();
+        // Use BTreeSet to keep errors sorted and unique
+        let mut collision_messages = BTreeSet::new();
 
-        // 2. Identify Collisions among ACTIVE mods
         for (id, m_dto) in &self.mods {
+            // Only check mods the user has marked as active
             if !m_dto.is_active {
                 continue;
             }
 
             if let Some(m_fs) = self.cache.mods.get(id) {
                 for file_path in &m_fs.files {
-                    if let Some(owner_id) = ownership_map.get(file_path) {
-                        collisions.insert(format!(
-                            "Conflict: {} is claimed by both '{}' and '{}'",
-                            file_path, owner_id, id
+                    // Check if another active mod already claimed this specific file
+                    if let Some(existing_owner_id) = file_ownership.get(file_path) {
+                        collision_messages.insert(format!(
+                            "File Conflict: '{}' is provided by both '{}' and '{}'.",
+                            file_path, existing_owner_id, id
                         ));
                     } else {
-                        ownership_map.insert(file_path, id);
+                        file_ownership.insert(file_path, id);
                     }
                 }
             }
         }
 
-        if !collisions.is_empty() {
-            return Err(SError::FileCollision(collisions.into_iter().collect()));
+        if collision_messages.is_empty() {
+            Ok(())
+        } else {
+            // Convert BTreeSet to Vec<String> for the SError variant
+            Err(SError::FileCollision(
+                collision_messages.into_iter().collect(),
+            ))
         }
+    }
 
-        // 3. Deployment (Sync) logic
-        // We walk through the cache. If mod is active, link. If not, unlink.
-        for (id, m_fs) in &self.cache.mods {
-            let is_active = self.mods.get(id).map_or(false, |m| m.is_active);
-
-            for file_path in &m_fs.files {
-                let src = self.lib_paths.mods.join(id).join(file_path);
-                let dst = self.game_root.join(file_path);
-
-                if is_active {
-                    Linker::link(&src, &dst)?;
-                } else {
-                    let _ = Linker::unlink(&dst);
+    fn build_folder_ownership_map(&self) -> HashMap<Utf8PathBuf, Vec<String>> {
+        let mut map: HashMap<Utf8PathBuf, Vec<String>> = HashMap::new();
+        for (id, m_dto) in &self.mods {
+            if !m_dto.is_active {
+                continue;
+            }
+            if let Some(m_fs) = self.cache.mods.get(id) {
+                for file_path in &m_fs.files {
+                    // Add the file itself and every parent directory to the map
+                    for ancestor in file_path.ancestors() {
+                        if ancestor == "" || ancestor == "." {
+                            continue;
+                        }
+                        let entry = map.entry(ancestor.to_path_buf()).or_default();
+                        // Prevent duplicate IDs in the same path list
+                        if !entry.contains(id) {
+                            entry.push(id.clone());
+                        }
+                    }
                 }
             }
         }
+        map
+    }
+
+    fn execute_recursive_link(&self, ownership: &OwnershipMap) -> Result<(), SError> {
+        for (id, m_fs) in &self.cache.mods {
+            let is_active = self.mods.get(id).map_or(false, |m| m.is_active);
+            if !is_active {
+                continue;
+            }
+
+            for file_path in &m_fs.files {
+                let mut current_link_path = Utf8PathBuf::new();
+                let components: Vec<_> = file_path.components().collect();
+
+                for (_, comp) in components.iter().enumerate() {
+                    current_link_path.push(comp);
+
+                    let owners = ownership.get(&current_link_path).unwrap();
+
+                    // If this path is unique to THIS mod, we link it and stop drilling
+                    if owners.len() == 1 {
+                        let src = self.lib_paths.mods.join(id).join(&current_link_path);
+                        let dst = self.game_root.join(&current_link_path);
+
+                        Linker::link(&src, &dst)?;
+                        break; // Move to next file
+                    }
+
+                    // If the path is shared (multiple mods), we must ensure a real directory exists
+                    let shared_dir = self.game_root.join(&current_link_path);
+                    if !shared_dir.exists() {
+                        std::fs::create_dir_all(&shared_dir)?;
+                    }
+
+                    // If we reached the end of the components and it's still shared,
+                    // it means two mods tried to provide the same FILE.
+                    // (Handled by check_file_collisions, but good to keep in mind).
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub fn sync(&mut self) -> Result<(), SError> {
+        if self.is_running() {
+            return Err(SError::GameOrServerRunning);
+        }
+
+        // 1. First, ensure no two mods try to overwrite the same FILE
+        self.check_file_collisions()?;
+
+        // 2. Build the directory-aware ownership map for the recursive linker
+        // (This map includes all parent directories of every file)
+        let folder_ownership = self.build_folder_ownership_map();
+
+        // 3. Perform the recursive deployment
+        // - If folder is shared: create real directory
+        // - If path is unique: link it (even if it's a folder)
+        self.execute_recursive_link(&folder_ownership)?;
 
         self.is_dirty = false;
         self.persist()?;
