@@ -120,7 +120,7 @@ impl Library {
             .any(|p| p.name() == server_name || p.name() == client_name)
     }
 
-    pub fn add_mod(&mut self, mod_root: &Utf8Path) -> Result<(), SError> {
+    pub fn add_mod(&mut self, mod_root: &Utf8Path) -> Result<Mod, SError> {
         if self.is_running() {
             return Err(SError::GameOrServerRunning);
         }
@@ -146,18 +146,22 @@ impl Library {
         std::fs::create_dir_all(&dst)?;
         ModFS::copy_recursive(mod_root, &dst)?;
 
-        self.mods.entry(mod_id.clone()).or_insert(Mod {
-            id: mod_id,
-            is_active: false,
-            mod_type: fs.mod_type.clone(),
-        });
+        let updated_mod = self
+            .mods
+            .entry(mod_id.clone())
+            .and_modify(|m| m.mod_type = fs.mod_type.clone())
+            .or_insert(Mod {
+                id: mod_id,
+                is_active: false,
+                mod_type: fs.mod_type.clone(),
+            })
+            .clone();
         self.cache.add(&dst, fs);
 
         self.is_dirty = true;
         self.persist()?;
 
-        // @TODO return Mod instead
-        Ok(())
+        Ok(updated_mod)
     }
 
     pub fn remove_mod(&mut self, id: &str) -> Result<(), SError> {
@@ -180,106 +184,109 @@ impl Library {
     /// Validates that no two active mods contain the same file.
     /// Note: Directories are allowed to overlap; only files cause collisions.
     fn check_file_collisions(&self) -> Result<(), SError> {
-        // Map of: Relative File Path -> Mod ID that owns it
-        let mut file_ownership: HashMap<&Utf8PathBuf, &String> = HashMap::new();
-
-        // Use BTreeSet to keep errors sorted and unique
-        let mut collision_messages = BTreeSet::new();
-
-        for (id, m_dto) in &self.mods {
-            // Only check mods the user has marked as active
-            if !m_dto.is_active {
-                continue;
-            }
-
-            if let Some(m_fs) = self.cache.mods.get(id) {
-                for file_path in &m_fs.files {
-                    // Check if another active mod already claimed this specific file
-                    if let Some(existing_owner_id) = file_ownership.get(file_path) {
-                        collision_messages.insert(format!(
+        let collisions = self
+            .mods
+            .iter()
+            // 1. Filter for active mods only
+            .filter(|(_, m)| m.is_active)
+            // 2. Map to cache data (safely handling missing cache entries)
+            .filter_map(|(id, _)| self.cache.mods.get(id).map(|fs| (id, fs)))
+            // 3. Flatten into a stream of (FilePath, ModID)
+            .flat_map(|(id, fs)| fs.files.iter().map(move |f| (f, id)))
+            // 4. Fold: Accumulate (OwnershipMap, Errors)
+            .fold(
+                (HashMap::new(), BTreeSet::new()),
+                |(mut owners, mut errors), (path, current_id)| {
+                    if let Some(existing_owner) = owners.get(path) {
+                        // Conflict detected: Add to errors
+                        errors.insert(format!(
                             "File Conflict: '{}' is provided by both '{}' and '{}'.",
-                            file_path, existing_owner_id, id
+                            path, existing_owner, current_id
                         ));
                     } else {
-                        file_ownership.insert(file_path, id);
+                        // No conflict: Claim ownership
+                        owners.insert(path, current_id);
                     }
-                }
-            }
-        }
+                    (owners, errors)
+                },
+            )
+            .1; // 5. Discard ownership map, keep errors
 
-        if collision_messages.is_empty() {
+        // 6. Return Result based on collision set
+        if collisions.is_empty() {
             Ok(())
         } else {
-            // Convert BTreeSet to Vec<String> for the SError variant
-            Err(SError::FileCollision(
-                collision_messages.into_iter().collect(),
-            ))
+            Err(SError::FileCollision(collisions.into_iter().collect()))
         }
     }
 
     fn build_folder_ownership_map(&self) -> HashMap<Utf8PathBuf, Vec<String>> {
-        let mut map: HashMap<Utf8PathBuf, Vec<String>> = HashMap::new();
-        for (id, m_dto) in &self.mods {
-            if !m_dto.is_active {
-                continue;
-            }
-            if let Some(m_fs) = self.cache.mods.get(id) {
-                for file_path in &m_fs.files {
-                    // Add the file itself and every parent directory to the map
-                    for ancestor in file_path.ancestors() {
-                        if ancestor == "" || ancestor == "." {
-                            continue;
-                        }
-                        let entry = map.entry(ancestor.to_path_buf()).or_default();
-                        // Prevent duplicate IDs in the same path list
-                        if !entry.contains(id) {
-                            entry.push(id.clone());
-                        }
-                    }
+        self.mods
+            .iter()
+            // 1. Only process active mods
+            .filter(|(_, m_dto)| m_dto.is_active)
+            // 2. Pair the active mod ID with its cached file system data
+            .filter_map(|(id, _)| self.cache.mods.get(id).map(|m_fs| (id, m_fs)))
+            // 3. Flatten files into their individual ancestors (paths)
+            .flat_map(|(id, m_fs)| {
+                m_fs.files.iter().flat_map(move |file_path| {
+                    file_path
+                        .ancestors()
+                        // Filter out empty or current-dir markers
+                        .filter(|a| !a.as_str().is_empty() && *a != ".")
+                        .map(move |ancestor| (ancestor.to_path_buf(), id.clone()))
+                })
+            })
+            // 4. Fold the stream into the final HashMap
+            .fold(HashMap::new(), |mut acc, (path, id)| {
+                let entry = acc.entry(path).or_default();
+                if !entry.contains(&id) {
+                    entry.push(id);
                 }
-            }
-        }
-        map
+                acc
+            })
     }
 
     fn execute_recursive_link(&self, ownership: &OwnershipMap) -> Result<(), SError> {
-        for (id, m_fs) in &self.cache.mods {
-            let is_active = self.mods.get(id).map_or(false, |m| m.is_active);
-            if !is_active {
-                continue;
-            }
+        self.cache
+            .mods
+            .iter()
+            // 1. Filter for active mods only
+            .filter(|(id, _)| self.mods.get(*id).map_or(false, |m| m.is_active))
+            // 2. Flatten: Mod -> Files -> (ModID, FilePath)
+            .flat_map(|(id, m_fs)| m_fs.files.iter().map(move |f| (id, f)))
+            // 3. Process each file with early-exit logic
+            .try_for_each(|(id, file_path)| {
+                let mut current_path = Utf8PathBuf::new();
 
-            for file_path in &m_fs.files {
-                let mut current_link_path = Utf8PathBuf::new();
-                let components: Vec<_> = file_path.components().collect();
+                // Walk the path components (Root -> File)
+                for component in file_path.components() {
+                    current_path.push(component);
 
-                for (_, comp) in components.iter().enumerate() {
-                    current_link_path.push(comp);
+                    // Retrieve ownership info (Safety: Map is built from the same cache data)
+                    let owners = ownership.get(&current_path).ok_or_else(|| {
+                        SError::ParseError(format!("Missing ownership for '{}'", current_path))
+                    })?;
 
-                    let owners = ownership.get(&current_link_path).unwrap();
-
-                    // If this path is unique to THIS mod, we link it and stop drilling
+                    // Case A: Unique Ownership -> Link this path and STOP processing this file.
+                    // We link the highest possible directory (or file) that is unique to this mod.
                     if owners.len() == 1 {
-                        let src = self.lib_paths.mods.join(id).join(&current_link_path);
-                        let dst = self.game_root.join(&current_link_path);
+                        let src = self.lib_paths.mods.join(id).join(&current_path);
+                        let dst = self.game_root.join(&current_path);
 
                         Linker::link(&src, &dst)?;
-                        break; // Move to next file
+                        return Ok(());
                     }
 
-                    // If the path is shared (multiple mods), we must ensure a real directory exists
-                    let shared_dir = self.game_root.join(&current_link_path);
+                    // Case B: Shared Ownership -> This is a shared parent directory.
+                    // Ensure it exists in the game folder, then continue drilling down.
+                    let shared_dir = self.game_root.join(&current_path);
                     if !shared_dir.exists() {
                         std::fs::create_dir_all(&shared_dir)?;
                     }
-
-                    // If we reached the end of the components and it's still shared,
-                    // it means two mods tried to provide the same FILE.
-                    // (Handled by check_file_collisions, but good to keep in mind).
                 }
-            }
-        }
-        Ok(())
+                Ok(())
+            })
     }
 
     pub fn sync(&mut self) -> Result<(), SError> {
@@ -339,91 +346,76 @@ impl Library {
     /// This uses a "Whitelist" approach: matches Hard Link IDs against the repository
     /// to ensure 100% safety when deleting files.
     pub fn purge_managed_links(&self) -> Result<(), SError> {
-        // 1. Build a Whitelist of physical File IDs from the Repository.
-        // This set represents every physical file we own.
-        let mut managed_ids = HashSet::new();
+        // 1. Build Whitelist of physical File IDs using functional chaining
+        let managed_ids: HashSet<_> = self
+            .cache
+            .mods
+            .iter()
+            .flat_map(|(mod_id, mod_fs)| {
+                mod_fs
+                    .files
+                    .iter()
+                    .map(move |rel_path| self.lib_paths.mods.join(mod_id).join(rel_path))
+            })
+            .filter_map(|abs_path| Linker::get_id(&abs_path).ok())
+            .collect();
 
-        for (id, mod_fs) in &self.cache.mods {
-            for rel_path in &mod_fs.files {
-                let abs_path = self.lib_paths.mods.join(id).join(rel_path);
-
-                // We attempt to get the ID. If a file in the repo is missing/locked,
-                // we skip it (fail-safe: we just won't delete the corresponding link).
-                if let Ok(file_id) = Linker::get_id(&abs_path) {
-                    managed_ids.insert(file_id);
-                }
-            }
-        }
-
-        // 2. Define the roots to scan in the Game Directory
+        // 2. Define roots and create a flattened iterator of all entries
         let roots = [
             self.game_root.join(&self.spt_rules.server_mods),
             self.game_root.join(&self.spt_rules.client_plugins),
         ];
 
-        for root in roots {
-            if !root.exists() { continue; }
+        roots
+            .iter()
+            .filter(|root| root.exists())
+            .flat_map(|root| {
+                WalkDir::new(root)
+                    .contents_first(true)
+                    .into_iter()
+                    .filter_map(|e| e.ok())
+                    .map(move |entry| (root, entry))
+            })
+            .try_for_each(|(root, entry)| -> Result<(), SError> {
+                let path = Utf8Path::from_path(entry.path()).ok_or_else(|| {
+                    SError::ParseError(format!("Invalid path: {:?}", entry.path()))
+                })?;
 
-            // 3. Bottom-Up Walk
-            // We use contents_first(true) so we process files inside a folder
-            // before the folder itself. This allows us to delete empty folders
-            // immediately after clearing their contents.
-            let walker = WalkDir::new(&root)
-                .contents_first(true)
-                .into_iter()
-                .filter_map(|e| e.ok());
+                let meta = entry.path().symlink_metadata().ok();
 
-            for entry in walker {
-                let path = Utf8Path::from_path(entry.path())
-                    .ok_or_else(|| SError::ParseError(format!("Invalid path: {:?}", entry.path())))?;
+                // Determine if this is a path we manage (Repo-linked or Hard-linked)
+                let is_managed = meta
+                    .as_ref()
+                    .map(|m| {
+                        let is_repo_link = (m.is_dir() || m.is_symlink())
+                            && Linker::read_link_target(path)
+                                .map(|t| t.starts_with(&self.repo_root))
+                                .unwrap_or(false);
 
-                // Use symlink_metadata to check the file type without following links
-                let meta = match entry.path().symlink_metadata() {
-                    Ok(m) => m,
-                    Err(_) => continue, // Skip if we can't read metadata
-                };
+                        let is_known_hardlink = m.is_file()
+                            && Linker::get_id(path)
+                                .map(|id| managed_ids.contains(&id))
+                                .unwrap_or(false);
 
-                let mut should_remove = false;
+                        is_repo_link || is_known_hardlink
+                    })
+                    .unwrap_or(false);
 
-                // --- CASE A: Directory or Symbolic Link/Junction ---
-                if meta.is_dir() || meta.is_symlink() {
-                    // If it's a Junction or Symlink, check where it points.
-                    // Linker::read_link_target handles both.
-                    if let Ok(target) = Linker::read_link_target(path) {
-                        // If it points into our repository, it's ours.
-                        if target.starts_with(&self.repo_root) {
-                            should_remove = true;
-                        }
-                    }
-                }
+                // Determine if it's an empty "overlay" directory that needs cleanup
+                let is_removable_folder = !is_managed
+                    && meta.map(|m| m.is_dir()).unwrap_or(false)
+                    && path != root
+                    && self.is_dir_empty(path);
 
-                // --- CASE B: File (Potentially a Hard Link) ---
-                if !should_remove && meta.is_file() {
-                    // Check if the physical File ID matches one in our whitelist.
-                    if let Ok(current_id) = Linker::get_id(path) {
-                        if managed_ids.contains(&current_id) {
-                            should_remove = true;
-                        }
-                    }
-                }
-
-                // --- EXECUTE REMOVAL ---
-                if should_remove {
+                // Execute actions based on derived state
+                if is_managed {
                     Linker::unlink(path)?;
-                } else if meta.is_dir() && path != root {
-                    // --- CASE C: Cleanup Empty Framework Folders ---
-                    // If we didn't delete it explicitly (because it wasn't a link),
-                    // check if it's now empty. This handles the "Virtual Overlay" folders.
-                    if self.is_dir_empty(path) {
-                        // We use standard remove_dir, as Linker::unlink is for targets we own.
-                        // We strictly only remove empty directories here.
-                        let _ = std::fs::remove_dir(path);
-                    }
+                } else if is_removable_folder {
+                    let _ = std::fs::remove_dir(path);
                 }
-            }
-        }
 
-        Ok(())
+                Ok(())
+            })
     }
 
     /// Helper to check if a directory is empty safely
