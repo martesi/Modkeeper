@@ -10,8 +10,9 @@ use crate::utils::toml::Toml;
 use crate::utils::version::read_pe_version;
 use camino::{Utf8Path, Utf8PathBuf};
 use semver::{Version, VersionReq};
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use sysinfo::System;
+use walkdir::WalkDir;
 
 type OwnershipMap = HashMap<Utf8PathBuf, Vec<String>>;
 
@@ -296,6 +297,7 @@ impl Library {
         // 3. Perform the recursive deployment
         // - If folder is shared: create real directory
         // - If path is unique: link it (even if it's a folder)
+        self.purge_managed_links();
         self.execute_recursive_link(&folder_ownership)?;
 
         self.is_dirty = false;
@@ -329,5 +331,105 @@ impl Library {
     fn persist_cache(&self) -> Result<(), SError> {
         Toml::write(&self.lib_paths.cache, &self.cache)?;
         Ok(())
+    }
+
+    /// Scans the game directory and removes any files, links, or empty folders
+    /// that belong to the managed library.
+    ///
+    /// This uses a "Whitelist" approach: matches Hard Link IDs against the repository
+    /// to ensure 100% safety when deleting files.
+    pub fn purge_managed_links(&self) -> Result<(), SError> {
+        // 1. Build a Whitelist of physical File IDs from the Repository.
+        // This set represents every physical file we own.
+        let mut managed_ids = HashSet::new();
+
+        for (id, mod_fs) in &self.cache.mods {
+            for rel_path in &mod_fs.files {
+                let abs_path = self.lib_paths.mods.join(id).join(rel_path);
+
+                // We attempt to get the ID. If a file in the repo is missing/locked,
+                // we skip it (fail-safe: we just won't delete the corresponding link).
+                if let Ok(file_id) = Linker::get_id(&abs_path) {
+                    managed_ids.insert(file_id);
+                }
+            }
+        }
+
+        // 2. Define the roots to scan in the Game Directory
+        let roots = [
+            self.game_root.join(&self.spt_rules.server_mods),
+            self.game_root.join(&self.spt_rules.client_plugins),
+        ];
+
+        for root in roots {
+            if !root.exists() { continue; }
+
+            // 3. Bottom-Up Walk
+            // We use contents_first(true) so we process files inside a folder
+            // before the folder itself. This allows us to delete empty folders
+            // immediately after clearing their contents.
+            let walker = WalkDir::new(&root)
+                .contents_first(true)
+                .into_iter()
+                .filter_map(|e| e.ok());
+
+            for entry in walker {
+                let path = Utf8Path::from_path(entry.path())
+                    .ok_or_else(|| SError::ParseError(format!("Invalid path: {:?}", entry.path())))?;
+
+                // Use symlink_metadata to check the file type without following links
+                let meta = match entry.path().symlink_metadata() {
+                    Ok(m) => m,
+                    Err(_) => continue, // Skip if we can't read metadata
+                };
+
+                let mut should_remove = false;
+
+                // --- CASE A: Directory or Symbolic Link/Junction ---
+                if meta.is_dir() || meta.is_symlink() {
+                    // If it's a Junction or Symlink, check where it points.
+                    // Linker::read_link_target handles both.
+                    if let Ok(target) = Linker::read_link_target(path) {
+                        // If it points into our repository, it's ours.
+                        if target.starts_with(&self.repo_root) {
+                            should_remove = true;
+                        }
+                    }
+                }
+
+                // --- CASE B: File (Potentially a Hard Link) ---
+                if !should_remove && meta.is_file() {
+                    // Check if the physical File ID matches one in our whitelist.
+                    if let Ok(current_id) = Linker::get_id(path) {
+                        if managed_ids.contains(&current_id) {
+                            should_remove = true;
+                        }
+                    }
+                }
+
+                // --- EXECUTE REMOVAL ---
+                if should_remove {
+                    Linker::unlink(path)?;
+                } else if meta.is_dir() && path != root {
+                    // --- CASE C: Cleanup Empty Framework Folders ---
+                    // If we didn't delete it explicitly (because it wasn't a link),
+                    // check if it's now empty. This handles the "Virtual Overlay" folders.
+                    if self.is_dir_empty(path) {
+                        // We use standard remove_dir, as Linker::unlink is for targets we own.
+                        // We strictly only remove empty directories here.
+                        let _ = std::fs::remove_dir(path);
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Helper to check if a directory is empty safely
+    fn is_dir_empty(&self, path: &Utf8Path) -> bool {
+        std::fs::read_dir(path)
+            .map(|mut i| i.next().is_none())
+            .unwrap_or(false)
     }
 }

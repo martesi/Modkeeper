@@ -38,4 +38,5 @@ walkdir = "2"
 regex = "1.10"
 uuid = { version = "1.19.0", features = ["v4"] }
 semver = "1.0.27"
+file-id = "0.2.3"
 
