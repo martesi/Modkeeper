@@ -1,17 +1,16 @@
 use crate::core::cache::LibraryCache;
 use crate::core::linker::Linker;
 use crate::core::mod_fs::ModFS;
-use crate::models::divider::MOD_ID_DIVIDER;
 use crate::models::error::SError;
 use crate::models::library_dto::LibraryDTO;
-use crate::models::mod_dto::{Mod, ModManifest};
+use crate::models::mod_dto::Mod;
 use crate::models::paths::{LibPathRules, SPTPathRules};
 use crate::utils::time::get_unix_timestamp;
 use crate::utils::toml::Toml;
 use crate::utils::version::read_pe_version;
 use camino::{Utf8Path, Utf8PathBuf};
 use semver::{Version, VersionReq};
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use sysinfo::System;
 
 pub struct Library {
