@@ -6,11 +6,12 @@ use crate::models::error::SError;
 use crate::models::library_dto::LibraryDTO;
 use crate::models::mod_dto::{Mod, ModManifest};
 use crate::models::paths::{LibPathRules, SPTPathRules};
+use crate::utils::time::get_unix_timestamp;
 use crate::utils::toml::Toml;
 use crate::utils::version::read_pe_version;
 use camino::{Utf8Path, Utf8PathBuf};
 use semver::{Version, VersionReq};
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use sysinfo::System;
 
 pub struct Library {
@@ -22,6 +23,7 @@ pub struct Library {
     pub cache: LibraryCache,
     pub spt_version: String,
     pub mods: BTreeMap<String, Mod>,
+    is_dirty: bool,
 }
 
 impl Library {
@@ -46,6 +48,7 @@ impl Library {
             mods: Default::default(),
             lib_paths,
             spt_rules: config,
+            is_dirty: false,
         };
 
         inst.persist()?;
@@ -72,6 +75,7 @@ impl Library {
             lib_paths,
             spt_version,
             mods: dto.mods,
+            is_dirty: false,
         };
 
         Ok(inst)
@@ -120,20 +124,34 @@ impl Library {
         }
 
         let fs = ModFS::new(mod_root, &self.spt_rules)?;
-        let mod_original = self.mods.get(&fs.id);
+        let mod_id = fs.id.clone();
 
-        self.cache
-            .detect_collisions(&fs.files, mod_original.map(|_| fs.id.as_str()))?;
+        let dst = self.lib_paths.mods.join(&mod_id);
+        if dst.exists() {
+            // backups/{mod_id}/{unix_seconds}
+            let backup_dir = self
+                .lib_paths
+                .backups
+                .join(&mod_id)
+                .join(get_unix_timestamp().to_string());
 
-        if let Some(content) = mod_original {
-            // backup
+            std::fs::create_dir_all(&backup_dir)?;
+
+            // Copy current state to backup before overwriting
+            ModFS::copy_recursive(&dst, &backup_dir)?;
         }
 
-        let dst = &self.lib_paths.mods.join(&fs.id);
-        ModFS::copy_recursive(mod_root, dst)?;
+        std::fs::create_dir_all(&dst)?;
+        ModFS::copy_recursive(mod_root, &dst)?;
 
-        self.cache.add(dst, fs);
+        self.mods.entry(mod_id.clone()).or_insert(Mod {
+            id: mod_id,
+            is_active: false,
+            mod_type: fs.mod_type.clone(),
+        });
+        self.cache.add(&dst, fs);
 
+        self.is_dirty = true;
         self.persist()?;
 
         // @TODO return Mod instead
@@ -157,30 +175,59 @@ impl Library {
         Ok(())
     }
 
-    pub fn deploy_active_mods(&self) -> Result<(), SError> {
+    pub fn deploy_active_mods(&mut self) -> Result<(), SError> {
         if self.is_running() {
             return Err(SError::GameOrServerRunning);
         }
 
-        let errors: Vec<_> = self
-            .cache
-            .mods
-            .values()
-            .flat_map(|m| m.files.iter().map(move |f| (m, f)))
-            .filter_map(|(m, file_path)| {
-                let src = self.repo_root.join("mods").join(&m.id).join(file_path);
-                let dst = self.game_root.join(file_path);
-                let is_active = self.mods.get(&m.id)?.is_active;
-                let res = if is_active {
-                    Linker::link(&src, &dst)
-                } else {
-                    Linker::unlink(&dst)
-                };
-                res.err().map(|e| e.to_string())
-            })
-            .collect();
+        // 1. Ownership Tracking: path -> mod_id
+        let mut ownership_map: HashMap<&Utf8PathBuf, &String> = HashMap::new();
+        let mut collisions = BTreeSet::new();
 
-        errors.is_empty().then_some(()).ok_or_else(|| SError::Link)
+        // 2. Identify Collisions among ACTIVE mods
+        for (id, m_dto) in &self.mods {
+            if !m_dto.is_active {
+                continue;
+            }
+
+            if let Some(m_fs) = self.cache.mods.get(id) {
+                for file_path in &m_fs.files {
+                    if let Some(owner_id) = ownership_map.get(file_path) {
+                        collisions.insert(format!(
+                            "Conflict: {} is claimed by both '{}' and '{}'",
+                            file_path, owner_id, id
+                        ));
+                    } else {
+                        ownership_map.insert(file_path, id);
+                    }
+                }
+            }
+        }
+
+        if !collisions.is_empty() {
+            return Err(SError::FileCollision(collisions.into_iter().collect()));
+        }
+
+        // 3. Deployment (Sync) logic
+        // We walk through the cache. If mod is active, link. If not, unlink.
+        for (id, m_fs) in &self.cache.mods {
+            let is_active = self.mods.get(id).map_or(false, |m| m.is_active);
+
+            for file_path in &m_fs.files {
+                let src = self.lib_paths.mods.join(id).join(file_path);
+                let dst = self.game_root.join(file_path);
+
+                if is_active {
+                    Linker::link(&src, &dst)?;
+                } else {
+                    let _ = Linker::unlink(&dst);
+                }
+            }
+        }
+
+        self.is_dirty = false;
+        self.persist()?;
+        Ok(())
     }
 
     pub fn to_dto(&self) -> LibraryDTO {
@@ -190,12 +237,23 @@ impl Library {
             repo_root: self.repo_root.to_owned(),
             spt_version: self.spt_version.to_owned(),
             mods: self.mods.to_owned(),
+            is_dirty: self.is_dirty,
         }
     }
 
     fn persist(&self) -> Result<(), SError> {
+        self.persist_manifest()?;
+        self.persist_cache()?;
+        Ok(())
+    }
+
+    fn persist_manifest(&self) -> Result<(), SError> {
         let dto = self.to_dto();
         Toml::write(&self.lib_paths.manifest, &dto)?;
+        Ok(())
+    }
+
+    fn persist_cache(&self) -> Result<(), SError> {
         Toml::write(&self.lib_paths.cache, &self.cache)?;
         Ok(())
     }

@@ -13,4 +13,5 @@ pub struct LibraryDTO {
     pub repo_root: Utf8PathBuf,
     pub spt_version: String,
     pub mods: BTreeMap<String, Mod>,
+    pub is_dirty: bool,
 }
