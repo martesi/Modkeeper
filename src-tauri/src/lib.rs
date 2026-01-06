@@ -7,7 +7,6 @@ mod utils;
 use crate::commands::instance::{get_current_instance, switch_instance};
 use commands::instance::{add_mod, remove_mod};
 use specta_typescript::Typescript;
-use tauri::{DragDropEvent, Window, WindowEvent};
 use tauri_specta::{collect_commands, Builder};
 use crate::core::registry::AppRegistry; // added import
 
@@ -15,20 +14,6 @@ use crate::core::registry::AppRegistry; // added import
 #[specta::specta]
 fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
-}
-
-fn handle_drop_event(window: &Window, event: &WindowEvent) {
-    if let WindowEvent::DragDrop(DragDropEvent::Drop { paths, .. }) = event {
-        println!("File dropped on window: {}", window.label());
-        for path in paths {
-            println!(
-                "Path: {:?}, name: {:?}, extension: {:?}",
-                path,
-                path.file_name(),
-                path.extension(),
-            );
-        }
-    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -55,7 +40,6 @@ pub fn run() {
                 .level(tauri_plugin_log::log::LevelFilter::Info)
                 .build(),
         )
-        .on_window_event(handle_drop_event)
         // and finally tell Tauri how to invoke them
         .invoke_handler(builder.invoke_handler())
         .manage(app_registry) // register the shared AppRegistry state

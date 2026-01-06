@@ -17,6 +17,7 @@ pub enum SError {
     AsyncRuntimeError(String),
     ContextUnprovided,
     UpdateStatusError(String),
+    NoActiveLibrary
 }
 
 macro_rules! impl_from {

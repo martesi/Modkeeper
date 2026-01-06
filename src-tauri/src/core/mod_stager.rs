@@ -5,15 +5,24 @@ use crate::models::paths::SPTPathRules;
 use crate::utils::process::ProcessChecker;
 use camino::{Utf8Path, Utf8PathBuf};
 use std::fs;
+use std::fs::remove_dir_all;
+use log::debug;
 use sysinfo::System;
 use uuid::Uuid;
 
 pub struct ModStager;
 
+#[derive( Debug)]
 pub struct StagedMod {
     pub fs: ModFS,
     pub source_path: Utf8PathBuf, // The location in staging (or original folder)
     pub is_staging: bool,         // True if this is a temp folder we need to delete later
+}
+
+#[derive(Debug)]
+pub struct StageMaterial {
+    pub rules: SPTPathRules,
+    pub root: Utf8PathBuf,
 }
 
 impl ModStager {
@@ -21,14 +30,12 @@ impl ModStager {
     /// Uses a functional pipeline to resolve inputs.
     pub fn resolve(
         inputs: &[Utf8PathBuf],
-        rules: &SPTPathRules,
-        staging_root: &Utf8Path,
+        StageMaterial { root, rules }: &StageMaterial,
     ) -> Result<Vec<StagedMod>, SError> {
         // 1. Guard Clause: Collective "Loose File" Check
         // If the inputs collectively form a mod root, treat them as one unit immediately.
-        if Self::is_game_root_structure(inputs, rules) {
-            return Self::stage_loose_files(inputs, rules, staging_root)
-                .map(|staged| vec![staged]);
+        if Self::is_game_root_structure(inputs, &rules) {
+            return Self::stage_loose_files(inputs, &rules, &root).map(|staged| vec![staged]);
         }
 
         // 2. Functional Pipeline: Process individual inputs
@@ -36,8 +43,8 @@ impl ModStager {
             .iter()
             .map(|input| {
                 // Chain strategies: Try Directory -> If None, Try Archive
-                Self::process_as_directory(input, rules)
-                    .or_else(|| Self::process_as_archive(input, rules, staging_root))
+                Self::process_as_directory(input, &rules)
+                    .or_else(|| Self::process_as_archive(input, &rules, &root))
             })
             // Remove inputs that matched no strategy (Option::None)
             .filter_map(|res_opt| res_opt)
@@ -52,11 +59,7 @@ impl ModStager {
     ) -> Result<(), SError> {
         let specific_paths: Vec<_> = mods_to_install
             .iter()
-            .flat_map(|m| {
-                m.fs.executables
-                    .iter()
-                    .map(|exe| m.source_path.join(exe))
-            })
+            .flat_map(|m| m.fs.executables.iter().map(|exe| m.source_path.join(exe)))
             .collect();
 
         if ProcessChecker::is_running(sys, &specific_paths) {
@@ -83,8 +86,8 @@ impl ModStager {
 
         // Sub-strategy A1: Folder has strict Game Root structure (user/ or BepInEx/)
         // We use boolean matching to avoid deep nesting.
-        let is_game_structure = Self::folder_matches_game_structure(input, rules)
-            .map_err(SError::from); // Propagate IO errors if they happen
+        let is_game_structure =
+            Self::folder_matches_game_structure(input, rules).map_err(SError::from); // Propagate IO errors if they happen
 
         match is_game_structure {
             Ok(true) => {
@@ -203,5 +206,19 @@ impl ModStager {
 
     fn get_root_component(path: &Utf8Path) -> Option<&str> {
         path.components().next().map(|c| c.as_str())
+    }
+
+    pub fn clean_up(
+        StagedMod {
+            is_staging,
+            source_path,
+            ..
+        }: &StagedMod,
+    ) -> Result<(), SError> {
+        if !is_staging {
+            return Ok(());
+        }
+        debug!("clean up for {source_path}");
+        remove_dir_all(source_path).map_err(Into::into)
     }
 }

@@ -1,12 +1,21 @@
-use std::path::{Path, PathBuf};
 // src/core/registry.rs
 use crate::config::global::{load_config, GlobalConfig};
 use crate::core::library::Library;
-use crate::models::paths::SPTPathCanonical;
+use crate::core::mod_stager::StageMaterial;
+use crate::models::error::SError;
 use crate::utils::process::ProcessChecker;
 use parking_lot::Mutex;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use sysinfo::System;
+
+macro_rules! lock_active {
+    ($state:expr) => {
+        parking_lot::MutexGuard::try_map($state.active_instance.lock(), |opt| {
+            opt.as_mut()
+        }).map_err(|_| SError::NoActiveLibrary)?
+    };
+}
 
 pub struct AppRegistry {
     // Arc<Mutex<Option>> allows us to "swap" the entire instance safely
@@ -20,7 +29,7 @@ impl AppRegistry {
         ProcessChecker::is_running(&mut self.sys.lock(), canonical_paths)
     }
 
-    pub fn get_canonical_spt_paths_from_active_instance(&self) -> Option<Vec<PathBuf>> {
+    pub fn get_canonical_spt_paths(&self) -> Option<Vec<PathBuf>> {
         self.active_instance.lock().as_ref().map(|v| {
             vec![
                 v.spt_paths_canonical.client_exe.clone(),
@@ -29,9 +38,20 @@ impl AppRegistry {
         })
     }
     pub fn is_game_or_server_running(&self) -> bool {
-        self.get_canonical_spt_paths_from_active_instance()
+        self.get_canonical_spt_paths()
             .map(|v| self.is_running(&v))
             .unwrap_or(false)
+    }
+
+    pub fn get_stage_material(&self) -> Result<StageMaterial, SError> {
+        self.active_instance
+            .lock()
+            .as_ref()
+            .map(|v| StageMaterial {
+                rules: v.spt_rules.clone(),
+                root: v.lib_paths.staging.clone(),
+            })
+            .ok_or(SError::NoActiveLibrary)
     }
 }
 
@@ -44,3 +64,5 @@ impl Default for AppRegistry {
         }
     }
 }
+
+

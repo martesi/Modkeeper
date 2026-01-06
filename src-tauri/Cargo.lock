@@ -3742,6 +3742,7 @@ dependencies = [
  "dunce",
  "file-id",
  "junction",
+ "log",
  "parking_lot",
  "regex",
  "semver",

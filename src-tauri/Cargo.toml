@@ -41,4 +41,5 @@ dunce = "1.0.5"
 parking_lot = "0.12.5"
 zip = "7.0.0"
 tokio = { version = "1.49.0", features = ["macros"] }
+log = "0.4.29"
 

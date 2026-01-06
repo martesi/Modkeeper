@@ -2,4 +2,4 @@ pub mod version;
 pub mod toml;
 pub mod time;
 pub mod process;
-mod context;
+pub mod context;

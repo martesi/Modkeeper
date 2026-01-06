@@ -1,6 +1,7 @@
 use crate::core::cache::LibraryCache;
 use crate::core::linker::Linker;
 use crate::core::mod_fs::ModFS;
+use crate::core::mod_stager::StagedMod;
 use crate::models::error::SError;
 use crate::models::library_dto::LibraryDTO;
 use crate::models::mod_dto::Mod;
@@ -110,8 +111,7 @@ impl Library {
             .map_err(|e| SError::ParseError(e.to_string()))
     }
 
-    pub fn add_mod(&mut self, mod_root: &Utf8Path) -> Result<Mod, SError> {
-        let fs = ModFS::new(mod_root, &self.spt_rules)?;
+    pub fn add_mod(&mut self, mod_root: &Utf8Path, fs:ModFS) -> Result<Mod, SError> {
         let mod_id = fs.id.clone();
 
         let dst = self.lib_paths.mods.join(&mod_id);
