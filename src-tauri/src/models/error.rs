@@ -13,7 +13,10 @@ pub enum SError {
     FileCollision(Vec<String>),
     Unexpected,
     Link,
-    UnhandledCompression(String)
+    UnhandledCompression(String),
+    AsyncRuntimeError(String),
+    ContextUnprovided,
+    UpdateStatusError(String),
 }
 
 macro_rules! impl_from {

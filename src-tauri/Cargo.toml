@@ -31,7 +31,6 @@ tauri-plugin-log = "2"
 camino = { version = "1.2.2", features = ["serde1"] }
 junction = "1.2" # Essential for Windows Junctions
 sysinfo = "0.30" # For process checking
-tokio = "1.48.0"   # For backup timestamps
 toml = "0.7"
 walkdir = "2"
 regex = "1.10"
@@ -41,4 +40,5 @@ file-id = "0.2.3"
 dunce = "1.0.5"
 parking_lot = "0.12.5"
 zip = "7.0.0"
+tokio = { version = "1.49.0", features = ["macros"] }
 
