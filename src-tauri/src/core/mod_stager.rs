@@ -1,3 +1,4 @@
+use crate::core::decompression::Decompression;
 use crate::core::mod_fs::ModFS;
 use crate::models::error::SError;
 use crate::models::paths::SPTPathRules;
@@ -6,7 +7,6 @@ use camino::{Utf8Path, Utf8PathBuf};
 use std::fs;
 use sysinfo::System;
 use uuid::Uuid;
-use crate::core::decompression::Decompression;
 
 pub struct ModStager;
 
@@ -18,68 +18,46 @@ pub struct StagedMod {
 
 impl ModStager {
     /// Takes raw user inputs and converts them into validated ModFS objects ready for installation.
-    /// Does NOT touch the active Library.
+    /// Uses a functional pipeline to resolve inputs.
     pub fn resolve(
         inputs: &[Utf8PathBuf],
         rules: &SPTPathRules,
         staging_root: &Utf8Path,
     ) -> Result<Vec<StagedMod>, SError> {
-        let mut results = Vec::new();
-
-        // 1. Check if the input list is a "Loose File" mod (Game Root structure)
+        // 1. Guard Clause: Collective "Loose File" Check
+        // If the inputs collectively form a mod root, treat them as one unit immediately.
         if Self::is_game_root_structure(inputs, rules) {
-            let staged = Self::stage_loose_files(inputs, rules, staging_root)?;
-            results.push(staged);
-            return Ok(results);
+            return Self::stage_loose_files(inputs, rules, staging_root)
+                .map(|staged| vec![staged]);
         }
 
-        // 2. Process individual inputs
-        for input in inputs {
-            if input.is_dir() {
-                // Case A: The folder itself is a Game Root (contains user/ or BepInEx/)
-                if Self::folder_matches_game_structure(input, rules)? {
-                    // Use directly "On Spot"
-                    let fs = ModFS::new(input, rules)?;
-                    results.push(StagedMod {
-                        fs,
-                        source_path: input.clone(),
-                        is_staging: false,
-                    });
-                }
-                // Case B: Standard Mod Folder
-                else if let Ok(fs) = ModFS::new(input, rules) {
-                    results.push(StagedMod {
-                        fs,
-                        source_path: input.clone(),
-                        is_staging: false,
-                    });
-                }
-            }
-            // Case C: Archive (Zip/7z)
-            else if Self::is_archive(input) {
-                let staged = Self::stage_archive(input, rules, staging_root)?;
-                results.push(staged);
-            }
-        }
-
-        Ok(results)
+        // 2. Functional Pipeline: Process individual inputs
+        inputs
+            .iter()
+            .map(|input| {
+                // Chain strategies: Try Directory -> If None, Try Archive
+                Self::process_as_directory(input, rules)
+                    .or_else(|| Self::process_as_archive(input, rules, staging_root))
+            })
+            // Remove inputs that matched no strategy (Option::None)
+            .filter_map(|res_opt| res_opt)
+            // Collect into Result<Vec<_>>, returning the first Error if any occur
+            .collect()
     }
 
     /// Checks if it is safe to install these mods.
-    /// Requires the System lock and lists of currently active/installed executables.
     pub fn any_mod_tool_running(
         sys: &mut System,
         mods_to_install: &[StagedMod],
     ) -> Result<(), SError> {
-        // 2. Check if the NEW mods contain executables that are currently running
-        // (e.g. user is trying to update a tool that is currently open)
-        let mut specific_paths = Vec::new();
-        for m in mods_to_install {
-            for exe in &m.fs.executables {
-                // Check the executable at its source location
-                specific_paths.push(m.source_path.join(exe));
-            }
-        }
+        let specific_paths: Vec<_> = mods_to_install
+            .iter()
+            .flat_map(|m| {
+                m.fs.executables
+                    .iter()
+                    .map(|exe| m.source_path.join(exe))
+            })
+            .collect();
 
         if ProcessChecker::is_running(sys, &specific_paths) {
             return Err(SError::ProcessRunning);
@@ -88,7 +66,60 @@ impl ModStager {
         Ok(())
     }
 
-    // --- Internal Logic (Pure Functions) ---
+    // --- Strategy Functions (Option<Result<...>>) ---
+
+    /// Strategy A: Input is a directory.
+    /// Returns:
+    /// - Some(Ok): Valid mod found.
+    /// - Some(Err): Valid mod structure found but failed to parse (Critical Error).
+    /// - None: Not a directory, or not a mod (safe to try next strategy).
+    fn process_as_directory(
+        input: &Utf8PathBuf,
+        rules: &SPTPathRules,
+    ) -> Option<Result<StagedMod, SError>> {
+        if !input.is_dir() {
+            return None;
+        }
+
+        // Sub-strategy A1: Folder has strict Game Root structure (user/ or BepInEx/)
+        // We use boolean matching to avoid deep nesting.
+        let is_game_structure = Self::folder_matches_game_structure(input, rules)
+            .map_err(SError::from); // Propagate IO errors if they happen
+
+        match is_game_structure {
+            Ok(true) => {
+                // It IS a game structure, so it MUST be a valid mod. Fail if ModFS::new fails.
+                Some(ModFS::new(input, rules).map(|fs| StagedMod {
+                    fs,
+                    source_path: input.clone(),
+                    is_staging: false,
+                }))
+            }
+            Ok(false) => {
+                // Sub-strategy A2: Folder is a standard mod folder.
+                // We try ModFS::new. If it succeeds, Good. If it fails, we treat it as "Not a mod" (None).
+                ModFS::new(input, rules).ok().map(|fs| {
+                    Ok(StagedMod {
+                        fs,
+                        source_path: input.clone(),
+                        is_staging: false,
+                    })
+                })
+            }
+            Err(e) => Some(Err(e)), // Critical IO error reading dir
+        }
+    }
+
+    /// Strategy B: Input is an archive.
+    fn process_as_archive(
+        input: &Utf8PathBuf,
+        rules: &SPTPathRules,
+        staging_root: &Utf8Path,
+    ) -> Option<Result<StagedMod, SError>> {
+        Self::is_archive(input).then(|| Self::stage_archive(input, rules, staging_root))
+    }
+
+    // --- Internal Helpers ---
 
     fn is_game_root_structure(inputs: &[Utf8PathBuf], rules: &SPTPathRules) -> bool {
         let roots = [
@@ -112,15 +143,13 @@ impl ModStager {
             Self::get_root_component(&rules.client_plugins),
         ];
 
-        for entry in fs::read_dir(folder)? {
-            let entry = entry?;
-            if let Ok(name) = entry.file_name().into_string() {
-                if roots.contains(&Some(name.as_str())) {
-                    return Ok(true);
-                }
-            }
-        }
-        Ok(false)
+        // Using iterator to avoid manual loop
+        let has_match = fs::read_dir(folder)?
+            .filter_map(|e| e.ok())
+            .filter_map(|e| e.file_name().into_string().ok())
+            .any(|name| roots.contains(&Some(name.as_str())));
+
+        Ok(has_match)
     }
 
     fn stage_loose_files(
@@ -167,8 +196,9 @@ impl ModStager {
     }
 
     fn is_archive(path: &Utf8Path) -> bool {
-        let ext = path.extension().unwrap_or("").to_lowercase();
-        matches!(ext.as_str(), "zip")
+        path.extension()
+            .map(|ext| ext.to_lowercase() == "zip")
+            .unwrap_or(false)
     }
 
     fn get_root_component(path: &Utf8Path) -> Option<&str> {
