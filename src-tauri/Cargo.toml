@@ -40,4 +40,5 @@ semver = "1.0.27"
 file-id = "0.2.3"
 dunce = "1.0.5"
 parking_lot = "0.12.5"
+zip = "7.0.0"
 

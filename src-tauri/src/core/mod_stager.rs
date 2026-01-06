@@ -6,6 +6,7 @@ use camino::{Utf8Path, Utf8PathBuf};
 use std::fs;
 use sysinfo::System;
 use uuid::Uuid;
+use crate::core::decompression::Decompression;
 
 pub struct ModStager;
 
@@ -155,8 +156,7 @@ impl ModStager {
         let dest_dir = staging_root.join(uuid);
         fs::create_dir_all(&dest_dir)?;
 
-        // Extraction logic goes here (omitted for brevity)
-        // extract(archive, &dest_dir)?;
+        Decompression::extract(archive, &dest_dir)?;
 
         let fs = ModFS::new(&dest_dir, rules)?;
         Ok(StagedMod {
@@ -168,7 +168,7 @@ impl ModStager {
 
     fn is_archive(path: &Utf8Path) -> bool {
         let ext = path.extension().unwrap_or("").to_lowercase();
-        matches!(ext.as_str(), "zip" | "7z" | "rar")
+        matches!(ext.as_str(), "zip")
     }
 
     fn get_root_component(path: &Utf8Path) -> Option<&str> {

@@ -18,7 +18,7 @@ type OwnershipMap = HashMap<Utf8PathBuf, Vec<String>>;
 pub struct Library {
     id: String,
     repo_root: Utf8PathBuf,
-    pub(crate) game_root: Utf8PathBuf,
+    pub game_root: Utf8PathBuf,
     pub spt_rules: SPTPathRules,
     spt_paths: SPTPathRules,
     pub lib_paths: LibPathRules,

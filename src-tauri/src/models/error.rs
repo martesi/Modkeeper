@@ -13,6 +13,7 @@ pub enum SError {
     FileCollision(Vec<String>),
     Unexpected,
     Link,
+    UnhandledCompression(String)
 }
 
 macro_rules! impl_from {
@@ -31,3 +32,4 @@ impl_from!(semver::Error, ParseError);
 impl_from!(std::io::Error, IOError);
 impl_from!(serde_json::Error, ParseError);
 impl_from!(std::path::StripPrefixError, ParseError);
+impl_from!(zip::result::ZipError, UnhandledCompression);
