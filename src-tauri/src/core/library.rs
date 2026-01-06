@@ -282,7 +282,7 @@ impl Library {
         // 3. Perform the recursive deployment
         // - If folder is shared: create real directory
         // - If path is unique: link it (even if it's a folder)
-        self.purge_managed_links();
+        self.purge_managed_links()?;
         self.execute_recursive_link(&folder_ownership)?;
 
         self.is_dirty = false;

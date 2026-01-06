@@ -4,17 +4,17 @@ mod core;
 mod models;
 mod utils;
 
-use commands::instance::{add_mods, remove_mods};
+use crate::commands::library::sync_mods;
+use crate::core::registry::AppRegistry;
+use commands::library::{add_mods, remove_mods};
 use specta_typescript::Typescript;
 use tauri_specta::{collect_commands, Builder};
-use crate::core::registry::AppRegistry; // added import
+// added import
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let builder = Builder::<tauri::Wry>::new().commands(collect_commands![
-        add_mods,
-        remove_mods,
-    ]);
+    let builder =
+        Builder::<tauri::Wry>::new().commands(collect_commands![add_mods, remove_mods, sync_mods]);
 
     #[cfg(debug_assertions)] // <- Only export on non-release builds
     builder

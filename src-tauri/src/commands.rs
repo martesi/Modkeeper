@@ -1,2 +1,2 @@
-pub mod instance;
+pub mod library;
 pub mod global;

@@ -9,9 +9,9 @@ pub struct GlobalConfig {
 }
 
 pub fn load_config() -> GlobalConfig {
-    confy::load("shooter", "config").unwrap_or_default()
+    confy::load("mod_keeper", "config").unwrap_or_default()
 }
 
 pub fn save_config(config: GlobalConfig) {
-    let _ = confy::store("shooter", "config", config);
+    let _ = confy::store("mod_keeper", "config", config);
 }

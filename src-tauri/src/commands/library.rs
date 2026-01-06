@@ -40,7 +40,7 @@ pub async fn add_mods(
         // 2. Lock (Synchronous)
         // Since we are now in a blocking thread, we can safely park the thread
         let mut active = instance_handle.lock();
-        let inst = active.as_mut().ok_or(SError::Unexpected)?;
+        let inst = active.as_mut().ok_or(SError::NoActiveLibrary)?;
 
         info!("Adding mods to library");
         // 3. Install & Cleanup
@@ -72,13 +72,31 @@ pub async fn remove_mods(
     // Offload synchronous file IO and locking to a blocking thread
     TaskContext::provide(channel, move || {
         let mut active = instance_handle.lock();
-        let inst = active.as_mut().ok_or(SError::Unexpected)?;
+        let inst = active.as_mut().ok_or(SError::NoActiveLibrary)?;
 
         // Iterate and remove each mod, exiting immediately on the first error
         ids.iter().try_for_each(|mod_id| {
             debug!("Removing mod {}", mod_id);
             inst.remove_mod(mod_id)
         })
+    })
+    .await?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn sync_mods(
+    state: State<'_, AppRegistry>,
+    channel: Channel<TaskStatus>,
+) -> Result<(), SError> {
+    info!("Starting task sync");
+
+    let instance_handle = state.active_instance.clone();
+    TaskContext::provide(channel, move || {
+        let mut active = instance_handle.lock();
+        let inst = active.as_mut().ok_or(SError::NoActiveLibrary)?;
+
+        inst.sync()
     })
     .await?
 }
