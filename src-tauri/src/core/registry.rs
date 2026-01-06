@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use sysinfo::System;
 
+#[macro_export]
 macro_rules! lock_active {
     ($state:expr) => {
         parking_lot::MutexGuard::try_map($state.active_instance.lock(), |opt| {

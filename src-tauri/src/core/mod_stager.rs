@@ -4,15 +4,15 @@ use crate::models::error::SError;
 use crate::models::paths::SPTPathRules;
 use crate::utils::process::ProcessChecker;
 use camino::{Utf8Path, Utf8PathBuf};
+use log::debug;
 use std::fs;
 use std::fs::remove_dir_all;
-use log::debug;
 use sysinfo::System;
 use uuid::Uuid;
 
 pub struct ModStager;
 
-#[derive( Debug)]
+#[derive(Debug)]
 pub struct StagedMod {
     pub fs: ModFS,
     pub source_path: Utf8PathBuf, // The location in staging (or original folder)

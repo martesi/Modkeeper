@@ -4,26 +4,16 @@ mod core;
 mod models;
 mod utils;
 
-use crate::commands::instance::{get_current_instance, switch_instance};
-use commands::instance::{add_mod, remove_mod};
+use commands::instance::{add_mods, remove_mods};
 use specta_typescript::Typescript;
 use tauri_specta::{collect_commands, Builder};
 use crate::core::registry::AppRegistry; // added import
 
-#[tauri::command]
-#[specta::specta]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = Builder::<tauri::Wry>::new().commands(collect_commands![
-        greet,
-        add_mod,
-        remove_mod,
-        get_current_instance,
-        switch_instance,
+        add_mods,
+        remove_mods,
     ]);
 
     #[cfg(debug_assertions)] // <- Only export on non-release builds
