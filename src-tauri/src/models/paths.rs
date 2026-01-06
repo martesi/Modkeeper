@@ -1,7 +1,11 @@
+use crate::models::error::SError;
 use camino::{Utf8Path, Utf8PathBuf};
+use dunce::canonicalize;
+use std::path::PathBuf;
 
 macro_rules! define_paths {
     ($name:ident { $($field:ident : $default:expr),* $(,)? }) => {
+        #[derive(Clone, Debug)]
         pub struct $name {
             $(pub $field: Utf8PathBuf,)*
         }
@@ -47,3 +51,17 @@ define_paths!(LibPathRules {
     manifest: "manifest.toml",
     cache: "cache.toml",
 });
+#[derive(Clone, Debug)]
+pub struct SPTPathCanonical {
+    pub server_exe: PathBuf,
+    pub client_exe: PathBuf,
+}
+
+impl SPTPathCanonical {
+    pub fn from_spt_paths(paths: SPTPathRules) -> Result<Self, SError> {
+        Ok(Self {
+            server_exe: canonicalize(paths.server_exe)?,
+            client_exe: canonicalize(paths.client_exe)?,
+        })
+    }
+}

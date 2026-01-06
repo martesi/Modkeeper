@@ -22,9 +22,7 @@ impl LibraryCache {
             let path = Utf8PathBuf::from_path_buf(entry.path())
                 .map_err(|p| SError::ParseError(p.to_string_lossy().to_string()))?;
             if !path.is_dir() {
-                return Err(SError::Unexpected(Some(format!(
-                    "Expected mod folder, found file: {path}"
-                ))));
+                return Err(SError::Unexpected);
             }
 
             cache.add(&path, ModFS::new(&path, spt_paths)?);

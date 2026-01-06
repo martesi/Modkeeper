@@ -10,7 +10,7 @@ pub async fn add_mod(state: State<'_, AppRegistry>, paths: Vec<String>) -> Resul
     let mut active = state.active_instance.lock().await;
     match active.as_mut() {
         Some(inst) => inst.add_mod(paths.into_iter().map(|p| p.into()).collect()),
-        None => Err(SError::Unexpected(None)),
+        None => Err(SError::Unexpected),
     }
 }
 
@@ -20,7 +20,7 @@ pub async fn remove_mod(state: State<'_, AppRegistry>, id: String) -> Result<(),
     let mut active = state.active_instance.lock().await;
     match active.as_mut() {
         Some(inst) => inst.remove_mod(&id),
-        None => Err(SError::Unexpected(None)),
+        None => Err(SError::Unexpected),
     }
 }
 

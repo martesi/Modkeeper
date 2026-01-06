@@ -47,7 +47,7 @@ pub fn run() {
         .expect("Failed to export typescript bindings");
 
     // create the shared AppRegistry and manage it in the Tauri app state
-    let app_registry = AppRegistry::new();
+    let app_registry = AppRegistry::default();
 
     tauri::Builder::default()
         .plugin(

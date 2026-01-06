@@ -4,52 +4,50 @@ use crate::core::mod_fs::ModFS;
 use crate::models::error::SError;
 use crate::models::library_dto::LibraryDTO;
 use crate::models::mod_dto::Mod;
-use crate::models::paths::{LibPathRules, SPTPathRules};
+use crate::models::paths::{LibPathRules, SPTPathCanonical, SPTPathRules};
 use crate::utils::time::get_unix_timestamp;
 use crate::utils::toml::Toml;
 use crate::utils::version::read_pe_version;
 use camino::{Utf8Path, Utf8PathBuf};
 use semver::{Version, VersionReq};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
-use sysinfo::System;
 use walkdir::WalkDir;
 
 type OwnershipMap = HashMap<Utf8PathBuf, Vec<String>>;
 
 pub struct Library {
-    pub id: String,
-    pub repo_root: Utf8PathBuf,
-    pub game_root: Utf8PathBuf,
+    id: String,
+    repo_root: Utf8PathBuf,
+    pub(crate) game_root: Utf8PathBuf,
     pub spt_rules: SPTPathRules,
+    spt_paths: SPTPathRules,
     pub lib_paths: LibPathRules,
+    pub spt_paths_canonical: SPTPathCanonical,
     pub cache: LibraryCache,
-    pub spt_version: String,
+    spt_version: String,
     pub mods: BTreeMap<String, Mod>,
     is_dirty: bool,
 }
 
 impl Library {
-    fn spt_paths(&self) -> SPTPathRules {
-        SPTPathRules::new(&self.game_root)
-    }
-
     pub fn create(repo_root: &Utf8PathBuf, game_root: &Utf8PathBuf) -> Result<Self, SError> {
         let lib_paths = LibPathRules::new(game_root);
         for dir in [&lib_paths.mods, &lib_paths.backups, &lib_paths.staging] {
             std::fs::create_dir_all(dir)?;
         }
 
-        let config = SPTPathRules::default();
-
+        let spt_paths = SPTPathRules::new(game_root);
         let inst = Self {
             id: uuid::Uuid::new_v4().to_string(),
             repo_root: repo_root.clone(),
             game_root: game_root.clone(),
-            spt_version: Library::fetch_and_validate_spt_version(&SPTPathRules::new(game_root))?,
+            spt_version: Library::fetch_and_validate_spt_version(&spt_paths)?,
             cache: LibraryCache::default(),
             mods: Default::default(),
+            spt_paths_canonical: SPTPathCanonical::from_spt_paths(spt_paths.clone())?,
+            spt_paths,
             lib_paths,
-            spt_rules: config,
+            spt_rules: SPTPathRules::default(),
             is_dirty: false,
         };
 
@@ -68,9 +66,12 @@ impl Library {
         // When displaying, always use the current spt version
         let spt_version = Self::fetch_and_validate_spt_version(&config)?;
         let lib_paths = LibPathRules::new(repo_root);
+        let spt_paths = SPTPathRules::new(&dto.game_root);
         let inst = Self {
             id: dto.id,
             repo_root: repo_root.clone(),
+            spt_paths_canonical: SPTPathCanonical::from_spt_paths(spt_paths.clone())?,
+            spt_paths,
             game_root: dto.game_root,
             spt_rules: config,
             cache: Toml::read(&lib_paths.cache)?,
@@ -109,22 +110,7 @@ impl Library {
             .map_err(|e| SError::ParseError(e.to_string()))
     }
 
-    fn is_running(&self) -> bool {
-        let s = System::new_all();
-        let paths = self.spt_paths();
-        let server_name = paths.server_exe.file_name().unwrap_or_default();
-        let client_name = paths.client_exe.file_name().unwrap_or_default();
-
-        s.processes()
-            .values()
-            .any(|p| p.name() == server_name || p.name() == client_name)
-    }
-
     pub fn add_mod(&mut self, mod_root: &Utf8Path) -> Result<Mod, SError> {
-        if self.is_running() {
-            return Err(SError::GameOrServerRunning);
-        }
-
         let fs = ModFS::new(mod_root, &self.spt_rules)?;
         let mod_id = fs.id.clone();
 
@@ -165,10 +151,6 @@ impl Library {
     }
 
     pub fn remove_mod(&mut self, id: &str) -> Result<(), SError> {
-        if self.is_running() {
-            return Err(SError::GameOrServerRunning);
-        }
-
         if let Some(m) = self.cache.mods.remove(id) {
             m.files.iter().for_each(|f| {
                 let _ = Linker::unlink(&self.game_root.join(f));
@@ -290,10 +272,6 @@ impl Library {
     }
 
     pub fn sync(&mut self) -> Result<(), SError> {
-        if self.is_running() {
-            return Err(SError::GameOrServerRunning);
-        }
-
         // 1. First, ensure no two mods try to overwrite the same FILE
         self.check_file_collisions()?;
 

@@ -7,10 +7,11 @@ pub enum SError {
     ParseError(String),
     IOError(String),
     GameOrServerRunning,
+    ProcessRunning,
     UnableToDetermineModId,
     FileOrDirectoryNotFound(String),
     FileCollision(Vec<String>),
-    Unexpected(Option<String>),
+    Unexpected,
     Link,
 }
 

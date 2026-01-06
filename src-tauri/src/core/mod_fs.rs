@@ -12,6 +12,7 @@ pub struct ModFS {
     pub id: String,
     pub mod_type: ModType,
     pub files: Vec<Utf8PathBuf>,
+    pub executables: Vec<Utf8PathBuf>
 }
 
 impl ModFS {
@@ -74,22 +75,32 @@ impl ModFS {
         }
     }
 
-    fn collect_files(base: &Utf8Path) -> Vec<Utf8PathBuf> {
-        let manifest_folder_name = ModPaths::default().folder;
+    fn collect_files(base: &Utf8Path) -> (Vec<Utf8PathBuf>, Vec<Utf8PathBuf>) {
+        let manifest_folder = ModPaths::default().folder;
+
         WalkDir::new(base)
             .into_iter()
-            .filter_map(|e| e.ok())
+            // 1. Convert Result<DirEntry> to Option<DirEntry>
+            .filter_map(Result::ok)
+            // 2. Filter for files only
             .filter(|e| e.path().is_file())
-            .filter_map(|e| {
-                let path = Utf8PathBuf::from_path_buf(e.path().to_path_buf()).ok()?;
-                let rel = path.strip_prefix(base).ok()?;
-                // Skip files inside the 'manifest' directory
-                if rel.starts_with(&manifest_folder_name) {
-                    return None;
-                }
-                Some(rel.to_path_buf())
+            // 3. Transform to Utf8PathBuf and strip prefix using Result/Option combinators
+            .filter_map(|entry| {
+                Utf8PathBuf::from_path_buf(entry.path().to_path_buf()).ok()
+                    .and_then(|path| path.strip_prefix(base).ok().map(|p| p.to_path_buf()))
             })
-            .collect()
+            // 4. Remove manifest files
+            .filter(|rel| !rel.starts_with(&manifest_folder))
+            // 5. Fold into a tuple of (AllFiles, Executables)
+            .fold((Vec::new(), Vec::new()), |(mut all, mut exes), path| {
+                // Use Option::filter to handle the conditional push without an "if"
+                path.extension()
+                    .filter(|&ext| ext == "exe")
+                    .inspect(|_| exes.push(path.clone()));
+
+                all.push(path);
+                (all, exes)
+            })
     }
 
     pub fn copy_recursive(src: &Utf8Path, dst: &Utf8Path) -> Result<(), SError> {
@@ -127,12 +138,13 @@ impl ModFS {
     }
 
     pub fn new(root: &Utf8Path, spt_paths: &SPTPathRules) -> Result<Self, SError> {
-        let files = Self::collect_files(root); // Call once
+        let (files,executables) = Self::collect_files(root); // Call once
 
         Ok(ModFS {
             id: Self::resolve_id(root, &spt_paths, &files)?,
             mod_type: Self::infer_mod_type(&files, &spt_paths),
             files, // Use the same vector
+            executables
         })
     }
 }
