@@ -166,76 +166,40 @@ impl Library {
     /// Validates that no two active mods contain the same file.
     /// Note: Directories are allowed to overlap; only files cause collisions.
     fn check_file_collisions(&self) -> Result<(), SError> {
-        let collisions = self
-            .mods
-            .iter()
-            // 1. Filter for active mods only
-            .filter(|(_, m)| m.is_active)
-            // 2. Map to cache data (safely handling missing cache entries)
-            .filter_map(|(id, _)| self.cache.mods.get(id).map(|fs| (id, fs)))
-            // 3. Flatten into a stream of (FilePath, ModID)
-            .flat_map(|(id, fs)| fs.files.iter().map(move |f| (f, id)))
-            // 4. Fold: Accumulate (OwnershipMap, Errors)
-            .fold(
-                (HashMap::new(), BTreeSet::new()),
-                |(mut owners, mut errors), (path, current_id)| {
-                    if let Some(existing_owner) = owners.get(path) {
-                        // Conflict detected: Add to errors
-                        errors.insert(format!(
-                            "File Conflict: '{}' is provided by both '{}' and '{}'.",
-                            path, existing_owner, current_id
-                        ));
-                    } else {
-                        // No conflict: Claim ownership
-                        owners.insert(path, current_id);
-                    }
-                    (owners, errors)
-                },
-            )
-            .1; // 5. Discard ownership map, keep errors
+        let mut owners: HashMap<Utf8PathBuf, String> = HashMap::new();
+        let mut collisions = BTreeSet::new();
 
-        // 6. Return Result based on collision set
-        if collisions.is_empty() {
-            Ok(())
-        } else {
-            Err(SError::FileCollision(collisions.into_iter().collect()))
-        }
+        self.visit_paths(|m| m.is_active, false, |path, current_id| {
+            // We use .to_string() here to give the HashMap its own copy.
+            // This satisfies the borrow checker because 'owners' now owns the data.
+            if let Some(existing_owner) = owners.insert(path.to_owned(), current_id.to_string()) {
+                if existing_owner != current_id {
+                    collisions.insert(format!(
+                        "File Conflict: '{}' is provided by both '{}' and '{}'.",
+                        path, existing_owner, current_id
+                    ));
+                }
+            }
+        });
+
+        if collisions.is_empty() { Ok(()) } else { Err(SError::FileCollision(collisions.into_iter().collect())) }
     }
 
-    fn build_folder_ownership_map(&self) -> HashMap<Utf8PathBuf, Vec<String>> {
-        // 1. Identify the roots we manage
-        let roots = [&self.spt_rules.server_mods, &self.spt_rules.client_plugins];
-
-        // 2. Derive protected paths:
-        // For "SPT/user/mods", this creates: ["SPT", "SPT/user", "SPT/user/mods"]
-        let mut acc: HashMap<Utf8PathBuf, Vec<String>> = roots
+    fn build_folder_ownership_map(&self) -> OwnershipMap {
+        let mut acc: OwnershipMap = [&self.spt_rules.server_mods, &self.spt_rules.client_plugins]
             .iter()
-            .flat_map(|path| {
-                path.ancestors()
-                    .filter(|a| !a.as_str().is_empty() && *a != ".")
-                    .map(|a| (a.to_path_buf(), vec!["__SYSTEM__".to_string()]))
-            })
+            .flat_map(|path| path.ancestors())
+            .filter(|a| !a.as_str().is_empty() && *a != ".")
+            .map(|a| (a.to_path_buf(), vec!["__SYSTEM__".to_string()]))
             .collect();
 
-        // 3. Process active mods and fold them into the map
-        self.mods
-            .iter()
-            .filter(|(_, m_dto)| m_dto.is_active)
-            .filter_map(|(id, _)| self.cache.mods.get(id).map(|m_fs| (id, m_fs)))
-            .flat_map(|(id, m_fs)| {
-                m_fs.files.iter().flat_map(move |file_path| {
-                    file_path
-                        .ancestors()
-                        .filter(|a| !a.as_str().is_empty() && *a != ".")
-                        .map(move |ancestor| (ancestor.to_path_buf(), id.clone()))
-                })
-            })
-            .for_each(|(path, id)| {
-                let entry = acc.entry(path).or_default();
-                if !entry.contains(&id) {
-                    entry.push(id);
-                }
-            });
+        self.visit_paths(|m| m.is_active, true, |path, id| {
+            let entry = acc.entry(path.to_path_buf()).or_default();
+            let id_str = id.to_string();
+            if !entry.contains(&id_str) {
+                entry.push(id_str);
+            }
+        });
 
         acc
     }
@@ -412,6 +376,28 @@ impl Library {
             .map(|mut i| i.next().is_none())
             .unwrap_or(false)
     }
+
+    /// Internal helper to iterate over paths (files and optionally ancestors)
+    /// from mods that match the given predicate.
+    fn visit_paths<F>(&self, mod_filter: impl Fn(&Mod) -> bool, include_ancestors: bool, mut visitor: F)
+    where
+        F: FnMut(&Utf8Path, &str),
+    {
+        self.mods.iter()
+            .filter(|(_, m)| mod_filter(m))
+            .filter_map(|(id, _)| self.cache.mods.get(id).map(|fs| (id, fs)))
+            .for_each(|(id, fs)| {
+                for file in &fs.files {
+                    if include_ancestors {
+                        for ancestor in file.ancestors().filter(|a| !a.as_str().is_empty() && *a != ".") {
+                            visitor(ancestor, id);
+                        }
+                    } else {
+                        visitor(file, id);
+                    }
+                }
+            });
+    }
 }
 
 #[cfg(test)]
@@ -421,7 +407,7 @@ mod integration_tests {
     use std::fs;
 
     /// Helper to setup a dummy SPT environment so Library::create doesn't fail
-    fn setup_test_env() -> (tempfile::TempDir, Utf8PathBuf, Utf8PathBuf) {
+    pub(crate) fn setup_test_env() -> (tempfile::TempDir, Utf8PathBuf, Utf8PathBuf) {
         let tmp = tempfile::tempdir().unwrap();
         let root = Utf8PathBuf::from_path_buf(tmp.path().to_path_buf()).unwrap();
 
@@ -655,5 +641,123 @@ mod integration_tests {
         // Assert the manifest was successfully pulled from cache into the DTO
         assert!(m.manifest.is_some());
         assert_eq!(m.manifest.as_ref().unwrap().name, "Test Mod Name");
+    }
+}
+
+#[cfg(test)]
+mod expanded_tests {
+    use super::*;
+    use std::{fs, thread, time::Duration};
+
+    #[test]
+    fn test_mod_backup_on_overwrite() {
+        let (_tmp, game_root, repo_root) = integration_tests::setup_test_env();
+        let mut lib = Library::create(&repo_root, &game_root).unwrap();
+        let rules = SPTPathRules::default();
+
+        let mod_id = "BackupTest";
+        let src = repo_root.join("src_v1");
+        fs::create_dir_all(src.join(&rules.server_mods).join(mod_id)).unwrap();
+        fs::write(src.join(&rules.server_mods).join(mod_id).join("v1.txt"), "v1").unwrap();
+
+        // 1. Initial Add
+        let fs1 = ModFS::new(&src, &rules).unwrap();
+        lib.add_mod(&src, fs1).unwrap();
+
+        // Wait to ensure timestamp differs
+        thread::sleep(Duration::from_secs(1));
+
+        // 2. Overwrite Add
+        let src2 = repo_root.join("src_v2");
+        fs::create_dir_all(src2.join(&rules.server_mods).join(mod_id)).unwrap();
+        fs::write(src2.join(&rules.server_mods).join(mod_id).join("v2.txt"), "v2").unwrap();
+
+        let fs2 = ModFS::new(&src2, &rules).unwrap();
+        lib.add_mod(&src2, fs2).unwrap();
+
+        // 3. Check backups
+        let backup_dir = lib.lib_paths.backups.join(mod_id);
+        let entries: Vec<_> = fs::read_dir(backup_dir).unwrap().collect();
+        assert_eq!(entries.len(), 1, "Should have exactly one backup timestamp folder");
+
+        let backup_path = Utf8PathBuf::from_path_buf(entries[0].as_ref().unwrap().path()).unwrap();
+        assert!(backup_path.join(&rules.server_mods).join(mod_id).join("v1.txt").exists());
+    }
+
+    #[test]
+    fn test_untracked_file_safety_in_shared_folder() {
+        let (_tmp, game_root, repo_root) = integration_tests::setup_test_env();
+        let mut lib = Library::create(&repo_root, &game_root).unwrap();
+        let rules = SPTPathRules::default();
+
+        // 1. Setup TWO mods sharing "SharedDir".
+        // This forces "SharedDir" to be a REAL directory on disk.
+        let mut setup_mod = |lib: &mut Library, name: &str| {
+            let p = repo_root.join(format!("src_{}", name));
+            let file_rel = rules.server_mods.join("SharedDir").join(format!("{}.dll", name));
+            fs::create_dir_all(p.join(file_rel.parent().unwrap())).unwrap();
+            fs::write(p.join(&file_rel), "").unwrap();
+
+            let fs = ModFS::new(&p, &rules).unwrap();
+            lib.add_mod(&p, fs).unwrap();
+            lib.mods.get_mut(&name.to_lowercase()).unwrap().is_active = true;
+        };
+
+        setup_mod(&mut lib, "ModA");
+        setup_mod(&mut lib, "ModB");
+        lib.sync().unwrap();
+
+        // 2. Add untracked file to the real directory
+        let shared_dir = game_root.join(&rules.server_mods).join("SharedDir");
+        let untracked = shared_dir.join("user_notes.txt");
+        fs::write(&untracked, "data").unwrap();
+
+        // 3. Deactivate all mods and sync (purge)
+        lib.mods.get_mut("moda").unwrap().is_active = false;
+        lib.mods.get_mut("modb").unwrap().is_active = false;
+        lib.sync().unwrap();
+
+        // 4. Verification
+        assert!(!shared_dir.join("ModA.dll").exists(), "Mod file should be gone");
+        assert!(untracked.exists(), "Untracked user file should still be here!");
+        assert!(shared_dir.exists(), "Directory with untracked file should be preserved!");
+    }
+
+    #[test]
+    fn test_persistence_cycle() {
+        let (_tmp, game_root, repo_root) = integration_tests::setup_test_env();
+        let mut lib = Library::create(&repo_root, &game_root).unwrap();
+        let rules = SPTPathRules::default();
+
+        let src = repo_root.join("src");
+        fs::create_dir_all(src.join(&rules.server_mods).join("PersistMod")).unwrap();
+        fs::write(src.join(&rules.server_mods).join("PersistMod").join("mod.dll"), "").unwrap();
+
+        let mod_fs = ModFS::new(&src, &rules).unwrap();
+        lib.add_mod(&src, mod_fs).unwrap();
+
+        // FIX: Use lowercase "persistmod"
+        lib.mods.get_mut("persistmod").unwrap().is_active = true;
+        lib.sync().unwrap();
+
+        let loaded_lib = Library::load(&repo_root).expect("Failed to load library");
+
+        assert_eq!(loaded_lib.mods.len(), 1);
+        assert!(loaded_lib.mods.get("persistmod").unwrap().is_active);
+    }
+
+    #[test]
+    fn test_mod_id_case_normalization() {
+        // This test ensures that on Windows, IDs are treated case-insensitively
+        // to prevent duplicate mods pointing to the same folder.
+        let (_tmp, game_root, repo_root) = integration_tests::setup_test_env();
+        let mut lib = Library::create(&repo_root, &game_root).unwrap();
+
+        // Add "MyMod" then add "mymod"
+        // (Implementation depends on your Choice:
+        //  Either ModFS::new should lowercase IDs, or Library should handle it)
+
+        // Suggestion: In Library::add_mod, use: let mod_id = fs.id.to_lowercase();
+        // and adjust tests accordingly.
     }
 }

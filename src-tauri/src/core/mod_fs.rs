@@ -60,7 +60,7 @@ impl ModFS {
         }
 
         // 3. Final join (ids is already sorted because it's a BTreeSet)
-        Ok(ids.into_iter().collect::<Vec<_>>().join(MOD_ID_DIVIDER))
+        Ok(ids.into_iter().collect::<Vec<_>>().join(MOD_ID_DIVIDER).to_lowercase())
     }
 
     pub fn infer_mod_type(files: &[Utf8PathBuf], config: &SPTPathRules) -> ModType {
