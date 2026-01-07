@@ -2,11 +2,12 @@ use camino::Utf8PathBuf;
 use std::process::Command;
 
 #[cfg(target_os = "windows")]
-pub fn read_pe_version(path: &Utf8PathBuf) -> Result<String, String> {
-    // Use PowerShell to read the FileVersion via .NET FileVersionInfo - reliable and avoids native bindings.
-    let p = path.as_str().replace('"', "\"");
-    let ps_expr = format!(r#"[System.Diagnostics.FileVersionInfo]::GetVersionInfo('{}') .FileVersion"#, p);
-    let output = Command::new("powershell")
+pub fn read_pe_version(path: &camino::Utf8PathBuf) -> Result<String, String> {
+    let p = path.as_str();
+    // Using double quotes inside the PS expression and escaping them is often safer
+    let ps_expr = format!(r#"([System.Diagnostics.FileVersionInfo]::GetVersionInfo("{}")).FileVersion"#, p);
+
+    let output = std::process::Command::new("powershell")
         .arg("-NoProfile")
         .arg("-Command")
         .arg(ps_expr)
@@ -14,8 +15,11 @@ pub fn read_pe_version(path: &Utf8PathBuf) -> Result<String, String> {
         .map_err(|e| e.to_string())?;
 
     if !output.status.success() {
-        return Err("Failed to run PowerShell to read version".into());
+        // IMPORTANT: Capture stderr to see what actually went wrong
+        let err = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("PS Error: {}", err.trim()));
     }
+
     let s = String::from_utf8_lossy(&output.stdout).trim().to_string();
     if s.is_empty() {
         Err("No version found in file".into())
@@ -85,4 +89,39 @@ pub fn read_pe_version(path: &Utf8PathBuf) -> Result<String, String> {
         }
     }
     Err("No version pattern found in PE binary".into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use camino::Utf8PathBuf;
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn test_read_windows_system_dll_version() {
+        // Every Windows install has kernel32.dll in System32
+        let system_root = std::env::var("SystemRoot").unwrap_or_else(|_| "C:\\Windows".to_string());
+        let path = Utf8PathBuf::from(system_root).join("System32\\kernel32.dll");
+
+        let result = read_pe_version(&path);
+
+        assert!(result.is_ok(), "Should read version from kernel32.dll: {:?}", result.err());
+        let version = result.unwrap();
+        // Version should look like "10.0.xxxxx.xxxx"
+        assert!(version.contains('.'));
+        assert!(version.chars().next().unwrap().is_ascii_digit());
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn test_powershell_availability() {
+        let output = std::process::Command::new("powershell")
+            .arg("-Command")
+            .arg("echo 'hello'")
+            .output()
+            .expect("Failed to execute command");
+
+        assert!(output.status.success());
+        assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "hello");
+    }
 }
