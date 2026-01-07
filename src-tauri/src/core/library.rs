@@ -14,18 +14,21 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::default::Default;
 use tracing::Instrument;
 use walkdir::WalkDir;
+use crate::core::cleanup::Cleaner;
+use crate::core::deployment::Deployer;
+use crate::core::versioning::SptVersionChecker;
 
 type OwnershipMap = HashMap<Utf8PathBuf, Vec<String>>;
 
 pub struct Library {
-    id: String,
-    repo_root: Utf8PathBuf,
+    pub id: String,
+    pub repo_root: Utf8PathBuf,
     pub game_root: Utf8PathBuf,
     pub spt_rules: SPTPathRules,
     pub lib_paths: LibPathRules,
     pub spt_paths_canonical: SPTPathCanonical,
     pub cache: LibraryCache,
-    spt_version: String,
+    pub spt_version: String,
     pub mods: BTreeMap<String, Mod>,
     is_dirty: bool,
 }
@@ -38,11 +41,13 @@ impl Library {
         }
 
         let spt_paths = SPTPathRules::new(game_root);
+        let spt_version = SptVersionChecker::fetch_and_validate(&spt_paths)?;
+
         let inst = Self {
             id: uuid::Uuid::new_v4().to_string(),
             repo_root: repo_root.to_owned(),
             game_root: game_root.to_owned(),
-            spt_version: Library::fetch_and_validate_spt_version(&spt_paths)?,
+            spt_version,
             cache: LibraryCache::default(),
             mods: Default::default(),
             spt_paths_canonical: SPTPathCanonical::from_spt_paths(spt_paths.clone())?,
@@ -57,20 +62,21 @@ impl Library {
 
     pub fn load(repo_root: &Utf8Path) -> Result<Self, SError> {
         let dto = Self::read_library_manifest(repo_root)?;
-        // check the original spt_version when library is created
-        // if not valid, return error directly
-        Self::parse_spt_version(&dto.spt_version)
-            .and_then(|spt_version| Self::validate_spt_version(&spt_version))?;
+
+        // Validate historical version
+        SptVersionChecker::validate_string(&dto.spt_version)?;
 
         let config = SPTPathRules::default();
-        // When displaying, always use the current spt version
-        let spt_version = Self::fetch_and_validate_spt_version(&config)?;
+        // Validate current physical version
+        let spt_version = SptVersionChecker::fetch_and_validate(&config)?;
+
         let lib_paths = LibPathRules::new(repo_root);
         let spt_paths = SPTPathRules::new(&dto.game_root);
-        let inst = Self {
+
+        Ok(Self {
             id: dto.id,
             repo_root: repo_root.to_owned(),
-            spt_paths_canonical: SPTPathCanonical::from_spt_paths(spt_paths.clone())?,
+            spt_paths_canonical: SPTPathCanonical::from_spt_paths(spt_paths)?,
             game_root: dto.game_root,
             spt_rules: config,
             cache: Toml::read(&lib_paths.cache)?,
@@ -78,54 +84,22 @@ impl Library {
             spt_version,
             mods: dto.mods,
             is_dirty: false,
-        };
-
-        Ok(inst)
+        })
     }
 
     pub fn read_library_manifest(lib_root: &Utf8Path) -> Result<LibraryDTO, SError> {
         Toml::read::<LibraryDTO>(&LibPathRules::new(lib_root).manifest)
     }
 
-    fn fetch_and_validate_spt_version(config: &SPTPathRules) -> Result<String, SError> {
-        return Ok("4.0.0".into());
-
-        read_pe_version(&config.server_dll)
-            .map_err(|e| SError::ParseError(e))
-            .and_then(|version| Self::parse_spt_version(&version))
-            .and_then(|v| {
-                Self::validate_spt_version(&v)
-                    .map(|result| result)
-                    .and_then(|_| Ok(v.to_string()))
-                    .or_else(|_| Err(SError::UnsupportedSPTVersion(v.to_string())))
-            })
-    }
-
-    fn parse_spt_version(version_str: &str) -> Result<Version, SError> {
-        Version::parse(version_str).map_err(|e| SError::ParseError(e.to_string()))
-    }
-
-    fn validate_spt_version(version: &Version) -> Result<bool, SError> {
-        VersionReq::parse(">=4, <5")
-            .map(|req| req.matches(&version))
-            .map_err(|e| SError::ParseError(e.to_string()))
-    }
-
     pub fn add_mod(&mut self, mod_root: &Utf8Path, fs: ModFS) -> Result<(), SError> {
         let mod_id = fs.id.clone();
-
         let dst = self.lib_paths.mods.join(&mod_id);
+
         if dst.exists() {
-            // backups/{mod_id}/{unix_seconds}
-            let backup_dir = self
-                .lib_paths
-                .backups
-                .join(&mod_id)
-                .join(get_unix_timestamp().to_string());
+            let timestamp = get_unix_timestamp().to_string();
+            let backup_dir = self.lib_paths.backups.join(&mod_id).join(timestamp);
 
             std::fs::create_dir_all(&backup_dir)?;
-
-            // Copy current state to backup before overwriting
             ModFS::copy_recursive(&dst, &backup_dir)?;
         }
 
@@ -135,7 +109,7 @@ impl Library {
         self.mods
             .entry(mod_id.clone())
             .and_modify(|m| m.mod_type = fs.mod_type.clone())
-            .or_insert(Mod {
+            .or_insert_with(|| Mod {
                 id: mod_id.clone(),
                 is_active: false,
                 mod_type: fs.mod_type.clone(),
@@ -144,121 +118,38 @@ impl Library {
             });
 
         self.cache.add(&dst, fs);
-
         self.is_dirty = true;
         self.persist()?;
         Ok(())
     }
 
     pub fn remove_mod(&mut self, id: &str) -> Result<(), SError> {
+        // Remove from Cache and Filesystem
         if let Some(m) = self.cache.mods.remove(id) {
-            m.files.iter().for_each(|f| {
-                let _ = Linker::unlink(&self.game_root.join(f));
-            });
+            // Note: We deliberately do not unlink here individually.
+            // A full sync() is required to properly clean up state,
+            // otherwise we risk leaving broken links if the user doesn't sync immediately.
+            // However, to strictly follow previous logic, we unlink specific files:
+            for f in &m.files {
+                let _ = crate::core::linker::Linker::unlink(&self.game_root.join(f));
+            }
             let _ = std::fs::remove_dir_all(self.repo_root.join("mods").join(id));
         }
 
+        self.mods.remove(id);
+        self.is_dirty = true;
         self.persist()?;
-
         Ok(())
     }
 
-    /// Validates that no two active mods contain the same file.
-    /// Note: Directories are allowed to overlap; only files cause collisions.
-    fn check_file_collisions(&self) -> Result<(), SError> {
-        let mut owners: HashMap<Utf8PathBuf, String> = HashMap::new();
-        let mut collisions = BTreeSet::new();
-
-        self.visit_paths(|m| m.is_active, false, |path, current_id| {
-            // We use .to_string() here to give the HashMap its own copy.
-            // This satisfies the borrow checker because 'owners' now owns the data.
-            if let Some(existing_owner) = owners.insert(path.to_owned(), current_id.to_string()) {
-                if existing_owner != current_id {
-                    collisions.insert(format!(
-                        "File Conflict: '{}' is provided by both '{}' and '{}'.",
-                        path, existing_owner, current_id
-                    ));
-                }
-            }
-        });
-
-        if collisions.is_empty() { Ok(()) } else { Err(SError::FileCollision(collisions.into_iter().collect())) }
-    }
-
-    fn build_folder_ownership_map(&self) -> OwnershipMap {
-        let mut acc: OwnershipMap = [&self.spt_rules.server_mods, &self.spt_rules.client_plugins]
-            .iter()
-            .flat_map(|path| path.ancestors())
-            .filter(|a| !a.as_str().is_empty() && *a != ".")
-            .map(|a| (a.to_path_buf(), vec!["__SYSTEM__".to_string()]))
-            .collect();
-
-        self.visit_paths(|m| m.is_active, true, |path, id| {
-            let entry = acc.entry(path.to_path_buf()).or_default();
-            let id_str = id.to_string();
-            if !entry.contains(&id_str) {
-                entry.push(id_str);
-            }
-        });
-
-        acc
-    }
-
-    fn execute_recursive_link(&self, ownership: &OwnershipMap) -> Result<(), SError> {
-        self.cache
-            .mods
-            .iter()
-            // 1. Filter for active mods only
-            .filter(|(id, _)| self.mods.get(*id).map_or(false, |m| m.is_active))
-            // 2. Flatten: Mod -> Files -> (ModID, FilePath)
-            .flat_map(|(id, m_fs)| m_fs.files.iter().map(move |f| (id, f)))
-            // 3. Process each file with early-exit logic
-            .try_for_each(|(id, file_path)| {
-                let mut current_path = Utf8PathBuf::new();
-
-                // Walk the path components (Root -> File)
-                for component in file_path.components() {
-                    current_path.push(component);
-
-                    // Retrieve ownership info (Safety: Map is built from the same cache data)
-                    let owners = ownership.get(&current_path).ok_or_else(|| {
-                        SError::ParseError(format!("Missing ownership for '{}'", current_path))
-                    })?;
-
-                    // Case A: Unique Ownership -> Link this path and STOP processing this file.
-                    // We link the highest possible directory (or file) that is unique to this mod.
-                    if owners.len() == 1 {
-                        let src = self.lib_paths.mods.join(id).join(&current_path);
-                        let dst = self.game_root.join(&current_path);
-
-                        Linker::link(&src, &dst)?;
-                        return Ok(());
-                    }
-
-                    // Case B: Shared Ownership -> This is a shared parent directory.
-                    // Ensure it exists in the game folder, then continue drilling down.
-                    let shared_dir = self.game_root.join(&current_path);
-                    if !shared_dir.exists() {
-                        std::fs::create_dir_all(&shared_dir)?;
-                    }
-                }
-                Ok(())
-            })
-    }
-
     pub fn sync(&mut self) -> Result<(), SError> {
-        // 1. First, ensure no two mods try to overwrite the same FILE
-        self.check_file_collisions()?;
+        // 1. Purge existing managed links
+        Cleaner::new(&self.game_root, &self.repo_root, &self.spt_rules, &self.lib_paths)
+            .purge(&self.cache)?;
 
-        // 2. Build the directory-aware ownership map for the recursive linker
-        // (This map includes all parent directories of every file)
-        let folder_ownership = self.build_folder_ownership_map();
-
-        // 3. Perform the recursive deployment
-        // - If folder is shared: create real directory
-        // - If path is unique: link it (even if it's a folder)
-        self.purge_managed_links()?;
-        self.execute_recursive_link(&folder_ownership)?;
+        // 2. Deploy active mods
+        Deployer::new(&self.game_root, &self.lib_paths, &self.spt_rules)
+            .deploy(&self.mods, &self.cache)?;
 
         self.is_dirty = false;
         self.persist()?;
@@ -278,125 +169,16 @@ impl Library {
 
     pub fn to_frontend_dto(&self) -> LibraryDTO {
         let mut dto = self.to_dto();
-
-        // Enrich the DTO mods with manifest data stored in the cache
-        dto.mods.iter_mut().for_each(|(id, m)| {
+        for (id, m) in &mut dto.mods {
             m.manifest = self.cache.manifests.get(id).cloned();
-        });
-
+        }
         dto
     }
 
     fn persist(&self) -> Result<(), SError> {
-        self.persist_manifest()?;
-        self.persist_cache()?;
-        Ok(())
-    }
-
-    fn persist_manifest(&self) -> Result<(), SError> {
-        let dto = self.to_dto();
-        Toml::write(&self.lib_paths.manifest, &dto)?;
-        Ok(())
-    }
-
-    fn persist_cache(&self) -> Result<(), SError> {
+        Toml::write(&self.lib_paths.manifest, &self.to_dto())?;
         Toml::write(&self.lib_paths.cache, &self.cache)?;
         Ok(())
-    }
-
-    /// Scans the game directory and removes any files, links, or empty folders
-    /// that belong to the managed library.
-    ///
-    /// This uses a "Whitelist" approach: matches Hard Link IDs against the repository
-    /// to ensure 100% safety when deleting files.
-    pub fn purge_managed_links(&self) -> Result<(), SError> {
-        // 1. Calculate the "Managed Scope"
-        // This includes every file and parent folder our library knows about (active or inactive)
-        let managed_scope: HashSet<Utf8PathBuf> = self.cache.mods.values()
-            .flat_map(|m_fs| m_fs.files.iter().flat_map(|f| f.ancestors().map(|a| a.to_path_buf())))
-            .filter(|a| !a.as_str().is_empty() && *a != ".")
-            .collect();
-
-        // 2. Physical IDs for Hard Link detection
-        let managed_ids: HashSet<_> = self.cache.mods.iter()
-            .flat_map(|(id, fs)| fs.files.iter().map(move |f| self.lib_paths.mods.join(id).join(f)))
-            .filter_map(|p| Linker::get_id(&p).ok())
-            .collect();
-
-        let roots = [
-            self.game_root.join(&self.spt_rules.server_mods),
-            self.game_root.join(&self.spt_rules.client_plugins),
-        ];
-
-        for root in roots.iter().filter(|r| r.exists()) {
-            let mut it = WalkDir::new(root).contents_first(false).into_iter();
-
-            while let Some(entry) = it.next() {
-                let entry = entry.map_err(|e| SError::IOError(e.to_string()))?;
-                let path = Utf8Path::from_path(entry.path()).ok_or(SError::Unexpected)?;
-                if path == root { continue; }
-
-                let rel_path = path.strip_prefix(&self.game_root).unwrap_or(path);
-                let meta = entry.path().symlink_metadata()?;
-
-                // Case A: Managed Junctions/Symlinks
-                if !meta.is_file() {
-                    if let Ok(target) = Linker::read_link_target(path) {
-                        if target.starts_with(&self.repo_root) {
-                            Linker::unlink(path)?;
-                            it.skip_current_dir();
-                            continue;
-                        }
-                    }
-                }
-
-                // Case B: Managed Hardlinks
-                if meta.is_file() {
-                    if let Ok(id) = Linker::get_id(path) {
-                        if managed_ids.contains(&id) {
-                            Linker::unlink(path)?;
-                        }
-                    }
-                }
-
-                // Case C: Ancestor-only Empty Directory Cleanup
-                // We ONLY remove the directory if it's empty AND it's in our managed_scope
-                if meta.is_dir() && !meta.file_type().is_symlink() {
-                    if self.is_dir_empty(path) && managed_scope.contains(rel_path) {
-                        let _ = std::fs::remove_dir(path);
-                    }
-                }
-            }
-        }
-        Ok(())
-    }
-    /// Helper to check if a directory is empty safely
-    fn is_dir_empty(&self, path: &Utf8Path) -> bool {
-        std::fs::read_dir(path)
-            .map(|mut i| i.next().is_none())
-            .unwrap_or(false)
-    }
-
-    /// Internal helper to iterate over paths (files and optionally ancestors)
-    /// from mods that match the given predicate.
-    fn visit_paths<F>(&self, mod_filter: impl Fn(&Mod) -> bool, include_ancestors: bool, mut visitor: F)
-    where
-        F: FnMut(&Utf8Path, &str),
-    {
-        self.mods.iter()
-            .filter(|(_, m)| mod_filter(m))
-            .filter_map(|(id, _)| self.cache.mods.get(id).map(|fs| (id, fs)))
-            .for_each(|(id, fs)| {
-                for file in &fs.files {
-                    if include_ancestors {
-                        for ancestor in file.ancestors().filter(|a| !a.as_str().is_empty() && *a != ".") {
-                            visitor(ancestor, id);
-                        }
-                    } else {
-                        visitor(file, id);
-                    }
-                }
-            });
     }
 }
 

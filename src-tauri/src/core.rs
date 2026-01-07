@@ -5,3 +5,6 @@ pub mod registry;
 pub mod mod_fs;
 pub mod mod_stager;
 pub mod decompression;
+pub mod deployment;
+pub mod cleanup;
+pub mod versioning;
