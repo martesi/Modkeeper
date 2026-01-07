@@ -23,7 +23,7 @@ impl GlobalConfig {
 
     /// Loads a library and updates the global configuration (MRU list and last_opened).
     pub fn open_library(&mut self, path: &Utf8Path) -> Result<Library, SError> {
-        let path_buf = path.to_owned();
+        let _path_buf = path.to_owned();
 
         // 1. Attempt to load the library first.
         // If this fails (e.g., path invalid, manifest missing), we propagate the error

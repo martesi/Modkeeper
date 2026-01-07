@@ -1,5 +1,3 @@
-use camino::Utf8PathBuf;
-use std::process::Command;
 
 #[cfg(target_os = "windows")]
 pub fn read_pe_version(path: &camino::Utf8PathBuf) -> Result<String, String> {

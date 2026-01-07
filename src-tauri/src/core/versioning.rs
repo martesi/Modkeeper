@@ -1,12 +1,11 @@
 use crate::models::error::SError;
 use crate::models::paths::SPTPathRules;
-use crate::utils::version::read_pe_version;
 use semver::{Version, VersionReq};
 
 pub struct SptVersionChecker;
 
 impl SptVersionChecker {
-    pub fn fetch_and_validate(config: &SPTPathRules) -> Result<String, SError> {
+    pub fn fetch_and_validate(_config: &SPTPathRules) -> Result<String, SError> {
         // Temp bypass preserved from original code
         return Ok("4.0.0".into());
 

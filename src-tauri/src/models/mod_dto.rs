@@ -1,4 +1,3 @@
-use camino::Utf8PathBuf;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 

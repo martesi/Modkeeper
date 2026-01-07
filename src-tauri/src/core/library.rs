@@ -1,22 +1,17 @@
 use crate::core::cache::LibraryCache;
-use crate::core::linker::Linker;
+use crate::core::cleanup::Cleaner;
+use crate::core::deployment::Deployer;
 use crate::core::mod_fs::ModFS;
+use crate::core::versioning::SptVersionChecker;
 use crate::models::error::SError;
 use crate::models::library_dto::LibraryDTO;
 use crate::models::mod_dto::Mod;
-use crate::models::paths::{LibPathRules, ModPaths, SPTPathCanonical, SPTPathRules};
+use crate::models::paths::{LibPathRules, SPTPathCanonical, SPTPathRules};
 use crate::utils::time::get_unix_timestamp;
 use crate::utils::toml::Toml;
-use crate::utils::version::read_pe_version;
 use camino::{Utf8Path, Utf8PathBuf};
-use semver::{Version, VersionReq};
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap};
 use std::default::Default;
-use tracing::Instrument;
-use walkdir::WalkDir;
-use crate::core::cleanup::Cleaner;
-use crate::core::deployment::Deployer;
-use crate::core::versioning::SptVersionChecker;
 
 type OwnershipMap = HashMap<Utf8PathBuf, Vec<String>>;
 
