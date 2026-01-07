@@ -85,6 +85,10 @@ pub async fn sync_mods(
     state: State<'_, AppRegistry>,
     channel: Channel<TaskStatus>,
 ) -> Result<LibraryDTO, SError> {
+    if state.is_game_or_server_running() {
+        return Err(SError::GameOrServerRunning.into());
+    }
+
     let instance_handle = state.active_instance.clone();
     TaskContext::provide(channel, move || {
         with_lib_arc_mut(instance_handle, |inst| {
