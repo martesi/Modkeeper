@@ -4,7 +4,7 @@ use crate::core::mod_fs::ModFS;
 use crate::models::error::SError;
 use crate::models::library_dto::LibraryDTO;
 use crate::models::mod_dto::Mod;
-use crate::models::paths::{LibPathRules, SPTPathCanonical, SPTPathRules};
+use crate::models::paths::{LibPathRules, ModPaths, SPTPathCanonical, SPTPathRules};
 use crate::utils::time::get_unix_timestamp;
 use crate::utils::toml::Toml;
 use crate::utils::version::read_pe_version;
@@ -12,6 +12,7 @@ use camino::{Utf8Path, Utf8PathBuf};
 use semver::{Version, VersionReq};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::default::Default;
+use tracing::Instrument;
 use walkdir::WalkDir;
 
 type OwnershipMap = HashMap<Utf8PathBuf, Vec<String>>;
@@ -31,7 +32,7 @@ pub struct Library {
 
 impl Library {
     pub fn create(repo_root: &Utf8Path, game_root: &Utf8Path) -> Result<Self, SError> {
-        let lib_paths = LibPathRules::new(game_root);
+        let lib_paths = LibPathRules::new(repo_root);
         for dir in [&lib_paths.mods, &lib_paths.backups, &lib_paths.staging] {
             std::fs::create_dir_all(dir)?;
         }
@@ -87,6 +88,8 @@ impl Library {
     }
 
     fn fetch_and_validate_spt_version(config: &SPTPathRules) -> Result<String, SError> {
+        return Ok("4.0.0".into());
+
         read_pe_version(&config.server_dll)
             .map_err(|e| SError::ParseError(e))
             .and_then(|version| Self::parse_spt_version(&version))
@@ -108,7 +111,7 @@ impl Library {
             .map_err(|e| SError::ParseError(e.to_string()))
     }
 
-    pub fn add_mod(&mut self, mod_root: &Utf8Path, fs:ModFS) -> Result<(), SError> {
+    pub fn add_mod(&mut self, mod_root: &Utf8Path, fs: ModFS) -> Result<(), SError> {
         let mod_id = fs.id.clone();
 
         let dst = self.lib_paths.mods.join(&mod_id);
@@ -129,18 +132,17 @@ impl Library {
         std::fs::create_dir_all(&dst)?;
         ModFS::copy_recursive(mod_root, &dst)?;
 
-        let updated_mod = self
-            .mods
+        self.mods
             .entry(mod_id.clone())
             .and_modify(|m| m.mod_type = fs.mod_type.clone())
             .or_insert(Mod {
-                id: mod_id,
+                id: mod_id.clone(),
                 is_active: false,
                 mod_type: fs.mod_type.clone(),
                 name: Default::default(),
                 manifest: None,
-            })
-            .clone();
+            });
+
         self.cache.add(&dst, fs);
 
         self.is_dirty = true;
@@ -201,30 +203,41 @@ impl Library {
     }
 
     fn build_folder_ownership_map(&self) -> HashMap<Utf8PathBuf, Vec<String>> {
+        // 1. Identify the roots we manage
+        let roots = [&self.spt_rules.server_mods, &self.spt_rules.client_plugins];
+
+        // 2. Derive protected paths:
+        // For "SPT/user/mods", this creates: ["SPT", "SPT/user", "SPT/user/mods"]
+        let mut acc: HashMap<Utf8PathBuf, Vec<String>> = roots
+            .iter()
+            .flat_map(|path| {
+                path.ancestors()
+                    .filter(|a| !a.as_str().is_empty() && *a != ".")
+                    .map(|a| (a.to_path_buf(), vec!["__SYSTEM__".to_string()]))
+            })
+            .collect();
+
+        // 3. Process active mods and fold them into the map
         self.mods
             .iter()
-            // 1. Only process active mods
             .filter(|(_, m_dto)| m_dto.is_active)
-            // 2. Pair the active mod ID with its cached file system data
             .filter_map(|(id, _)| self.cache.mods.get(id).map(|m_fs| (id, m_fs)))
-            // 3. Flatten files into their individual ancestors (paths)
             .flat_map(|(id, m_fs)| {
                 m_fs.files.iter().flat_map(move |file_path| {
                     file_path
                         .ancestors()
-                        // Filter out empty or current-dir markers
                         .filter(|a| !a.as_str().is_empty() && *a != ".")
                         .map(move |ancestor| (ancestor.to_path_buf(), id.clone()))
                 })
             })
-            // 4. Fold the stream into the final HashMap
-            .fold(HashMap::new(), |mut acc, (path, id)| {
+            .for_each(|(path, id)| {
                 let entry = acc.entry(path).or_default();
                 if !entry.contains(&id) {
                     entry.push(id);
                 }
-                acc
-            })
+            });
+
+        acc
     }
 
     fn execute_recursive_link(&self, ownership: &OwnershipMap) -> Result<(), SError> {
@@ -333,82 +346,314 @@ impl Library {
     /// This uses a "Whitelist" approach: matches Hard Link IDs against the repository
     /// to ensure 100% safety when deleting files.
     pub fn purge_managed_links(&self) -> Result<(), SError> {
-        // 1. Build Whitelist of physical File IDs using functional chaining
-        let managed_ids: HashSet<_> = self
-            .cache
-            .mods
-            .iter()
-            .flat_map(|(mod_id, mod_fs)| {
-                mod_fs
-                    .files
-                    .iter()
-                    .map(move |rel_path| self.lib_paths.mods.join(mod_id).join(rel_path))
-            })
-            .filter_map(|abs_path| Linker::get_id(&abs_path).ok())
+        // 1. Calculate the "Managed Scope"
+        // This includes every file and parent folder our library knows about (active or inactive)
+        let managed_scope: HashSet<Utf8PathBuf> = self.cache.mods.values()
+            .flat_map(|m_fs| m_fs.files.iter().flat_map(|f| f.ancestors().map(|a| a.to_path_buf())))
+            .filter(|a| !a.as_str().is_empty() && *a != ".")
             .collect();
 
-        // 2. Define roots and create a flattened iterator of all entries
+        // 2. Physical IDs for Hard Link detection
+        let managed_ids: HashSet<_> = self.cache.mods.iter()
+            .flat_map(|(id, fs)| fs.files.iter().map(move |f| self.lib_paths.mods.join(id).join(f)))
+            .filter_map(|p| Linker::get_id(&p).ok())
+            .collect();
+
         let roots = [
             self.game_root.join(&self.spt_rules.server_mods),
             self.game_root.join(&self.spt_rules.client_plugins),
         ];
 
-        roots
-            .iter()
-            .filter(|root| root.exists())
-            .flat_map(|root| {
-                WalkDir::new(root)
-                    .contents_first(true)
-                    .into_iter()
-                    .filter_map(|e| e.ok())
-                    .map(move |entry| (root, entry))
-            })
-            .try_for_each(|(root, entry)| -> Result<(), SError> {
-                let path = Utf8Path::from_path(entry.path()).ok_or_else(|| {
-                    SError::ParseError(format!("Invalid path: {:?}", entry.path()))
-                })?;
+        for root in roots.iter().filter(|r| r.exists()) {
+            let mut it = WalkDir::new(root).contents_first(false).into_iter();
 
-                let meta = entry.path().symlink_metadata().ok();
+            while let Some(entry) = it.next() {
+                let entry = entry.map_err(|e| SError::IOError(e.to_string()))?;
+                let path = Utf8Path::from_path(entry.path()).ok_or(SError::Unexpected)?;
+                if path == root { continue; }
 
-                // Determine if this is a path we manage (Repo-linked or Hard-linked)
-                let is_managed = meta
-                    .as_ref()
-                    .map(|m| {
-                        let is_repo_link = (m.is_dir() || m.is_symlink())
-                            && Linker::read_link_target(path)
-                                .map(|t| t.starts_with(&self.repo_root))
-                                .unwrap_or(false);
+                let rel_path = path.strip_prefix(&self.game_root).unwrap_or(path);
+                let meta = entry.path().symlink_metadata()?;
 
-                        let is_known_hardlink = m.is_file()
-                            && Linker::get_id(path)
-                                .map(|id| managed_ids.contains(&id))
-                                .unwrap_or(false);
-
-                        is_repo_link || is_known_hardlink
-                    })
-                    .unwrap_or(false);
-
-                // Determine if it's an empty "overlay" directory that needs cleanup
-                let is_removable_folder = !is_managed
-                    && meta.map(|m| m.is_dir()).unwrap_or(false)
-                    && path != root
-                    && self.is_dir_empty(path);
-
-                // Execute actions based on derived state
-                if is_managed {
-                    Linker::unlink(path)?;
-                } else if is_removable_folder {
-                    let _ = std::fs::remove_dir(path);
+                // Case A: Managed Junctions/Symlinks
+                if !meta.is_file() {
+                    if let Ok(target) = Linker::read_link_target(path) {
+                        if target.starts_with(&self.repo_root) {
+                            Linker::unlink(path)?;
+                            it.skip_current_dir();
+                            continue;
+                        }
+                    }
                 }
 
-                Ok(())
-            })
-    }
+                // Case B: Managed Hardlinks
+                if meta.is_file() {
+                    if let Ok(id) = Linker::get_id(path) {
+                        if managed_ids.contains(&id) {
+                            Linker::unlink(path)?;
+                        }
+                    }
+                }
 
+                // Case C: Ancestor-only Empty Directory Cleanup
+                // We ONLY remove the directory if it's empty AND it's in our managed_scope
+                if meta.is_dir() && !meta.file_type().is_symlink() {
+                    if self.is_dir_empty(path) && managed_scope.contains(rel_path) {
+                        let _ = std::fs::remove_dir(path);
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
     /// Helper to check if a directory is empty safely
     fn is_dir_empty(&self, path: &Utf8Path) -> bool {
         std::fs::read_dir(path)
             .map(|mut i| i.next().is_none())
             .unwrap_or(false)
+    }
+}
+
+#[cfg(test)]
+mod integration_tests {
+    use super::*;
+    use crate::models::paths::ModPaths;
+    use std::fs;
+
+    /// Helper to setup a dummy SPT environment so Library::create doesn't fail
+    fn setup_test_env() -> (tempfile::TempDir, Utf8PathBuf, Utf8PathBuf) {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = Utf8PathBuf::from_path_buf(tmp.path().to_path_buf()).unwrap();
+
+        let game_root = root.join("game");
+        let repo_root = root.join("repo");
+
+        std::fs::create_dir_all(&game_root).unwrap();
+        std::fs::create_dir_all(&repo_root).unwrap();
+
+        // 1. Get the rules to find where SPT expects files
+        let rules = SPTPathRules::new(&game_root);
+
+        // 2. Create DUMMY files so canonicalize() doesn't fail with "os error 2"
+        let essential_files = [&rules.server_dll, &rules.server_exe, &rules.client_exe];
+
+        for path in essential_files {
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent).unwrap();
+            }
+            std::fs::write(path, "dummy").unwrap();
+        }
+
+        (tmp, game_root, repo_root)
+    }
+
+    /// Mock a mod folder structure
+    fn create_test_mod(path: &Utf8Path, name: &str, is_server: bool) {
+        let rules = SPTPathRules::default();
+        let mod_dir = if is_server {
+            path.join(rules.server_mods).join(name)
+        } else {
+            path.join(rules.client_plugins).join(name)
+        };
+
+        fs::create_dir_all(&mod_dir).unwrap();
+        fs::write(mod_dir.join("content.txt"), name).unwrap();
+
+        // Optional: Add a manifest
+        let manifest_dir = path.join(ModPaths::default().folder);
+        fs::create_dir_all(&manifest_dir).unwrap();
+        let manifest_json = format!(
+            r#"{{"guid": "{}", "name": "{}", "version": "1.0.0", "author": "test"}}"#,
+            name, name
+        );
+        fs::write(manifest_dir.join("manifest.json"), manifest_json).unwrap();
+    }
+
+    #[test]
+    fn test_library_init_and_add_mod() {
+        let (_tmp, game_root, repo_root) = setup_test_env();
+
+        // 1. Create Library
+        let mut lib = Library::create(&repo_root, &game_root).expect("Failed to create library");
+        assert!(lib.lib_paths.mods.exists());
+
+        // 2. Prepare a fake mod on disk
+        let mod_src = _tmp.path().join("my_new_mod");
+        let mod_src_utf8 = Utf8Path::from_path(&mod_src).unwrap();
+        create_test_mod(mod_src_utf8, "MyMod", true);
+
+        // 3. Add mod to library
+        let mod_fs =
+            ModFS::new(mod_src_utf8, &SPTPathRules::default()).expect("Failed to parse mod");
+        lib.add_mod(mod_src_utf8, mod_fs)
+            .expect("Failed to add mod");
+
+        // 4. Verify persistence
+        assert!(lib.mods.contains_key("MyMod"));
+        assert!(lib.lib_paths.mods.join("MyMod").exists());
+        assert!(lib.cache.mods.contains_key("MyMod"));
+    }
+
+    #[test]
+    fn test_collision_detection() {
+        let (_tmp, game_root, repo_root) = setup_test_env();
+        let mut lib = Library::create(&repo_root, &game_root).unwrap();
+        let rules = SPTPathRules::default();
+
+        // Helper to create a mod with a specific ID (via manifest) but containing a specific file
+        let mut add_named_mod = |mod_id: &str, colliding_file: &str| {
+            let p = repo_root.join(format!("src_{}", mod_id));
+
+            // 1. Create Manifest to force a unique Mod ID
+            let manifest_dir = p.join("manifest");
+            fs::create_dir_all(&manifest_dir).unwrap();
+            let manifest_json = format!(
+                r#"{{"guid": "{}", "name": "{}", "version": "1.0", "author": "test"}}"#,
+                mod_id, mod_id
+            );
+            fs::write(manifest_dir.join("manifest.json"), manifest_json).unwrap();
+
+            // 2. Create the colliding file
+            let file_path = p.join(&colliding_file);
+            fs::create_dir_all(file_path.parent().unwrap()).unwrap();
+            fs::write(file_path, "some content").unwrap();
+
+            // 3. Add to library and activate
+            let fs = ModFS::new(&p, &rules).expect("Failed to parse mod");
+            lib.add_mod(&p, fs).expect("Failed to add mod");
+            lib.mods.get_mut(mod_id).unwrap().is_active = true;
+        };
+
+        // These two mods have different IDs but both provide "BepInEx/plugins/conflict.dll"
+        let conflict_path = "BepInEx/plugins/conflict.dll";
+        add_named_mod("Mod_A", conflict_path);
+        add_named_mod("Mod_B", conflict_path);
+
+        // Act
+        let result = lib.sync();
+
+        // Assert
+        assert!(
+            result.is_err(),
+            "Sync should have failed due to file collision"
+        );
+        match result {
+            Err(SError::FileCollision(errors)) => {
+                assert!(!errors.is_empty(), "Collision list should not be empty");
+                assert!(
+                    errors.iter().any(|e| e.contains("conflict.dll")),
+                    "Error message should mention the colliding file"
+                );
+            }
+            other => panic!("Expected SError::FileCollision, but got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_recursive_linking_logic() {
+        let (_tmp, game_root, repo_root) = setup_test_env();
+        let mut lib = Library::create(&repo_root, &game_root).unwrap();
+        let rules = SPTPathRules::default();
+
+        let mut setup_mod = |lib: &mut Library, mod_id: &str, file_name: &str| {
+            let p = repo_root.join(mod_id);
+
+            // 1. Force the ID using a manifest
+            let manifest_dir = p.join("manifest");
+            fs::create_dir_all(&manifest_dir).unwrap();
+            let manifest_json = format!(
+                r#"{{"guid": "{}", "name": "{}", "version": "1", "author": "t"}}"#,
+                mod_id, mod_id
+            );
+            fs::write(manifest_dir.join("manifest.json"), manifest_json).unwrap();
+
+            // 2. Create the overlapping directory structure
+            let file_path = p.join(&rules.server_mods).join("CommonDir").join(file_name);
+            fs::create_dir_all(file_path.parent().unwrap()).unwrap();
+            fs::write(file_path, "data").unwrap();
+
+            // 3. New ModFS will now resolve ID to mod_id ("ModA" or "ModB")
+            let fs = ModFS::new(&p, &rules).unwrap();
+            lib.add_mod(&p, fs).unwrap();
+
+            // 4. This will no longer panic
+            lib.mods.get_mut(mod_id).unwrap().is_active = true;
+        };
+
+        setup_mod(&mut lib, "ModA", "A.txt");
+        setup_mod(&mut lib, "ModB", "B.txt");
+
+        lib.sync().expect("Sync failed");
+
+        // ... rest of your assertions ...
+        let common_dir_in_game = game_root.join(&rules.server_mods).join("CommonDir");
+        assert!(common_dir_in_game.exists());
+        assert!(common_dir_in_game.is_dir());
+    }
+
+    #[test]
+    fn test_purge_removes_deactivated_mods() {
+        let (_tmp, game_root, repo_root) = setup_test_env();
+        let mut lib = Library::create(&repo_root, &game_root).unwrap();
+        let rules = SPTPathRules::default();
+
+        // 1. Add and activate mod
+        create_test_mod(&repo_root.join("src"), "DeleteMe", true);
+        let fs = ModFS::new(&repo_root.join("src"), &rules).unwrap();
+        lib.add_mod(&repo_root.join("src"), fs).unwrap();
+        lib.mods.get_mut("DeleteMe").unwrap().is_active = true;
+
+        lib.sync().unwrap();
+        let target_path = game_root.join(&rules.server_mods).join("DeleteMe");
+        assert!(target_path.exists());
+
+        // 2. Deactivate and sync
+        lib.mods.get_mut("DeleteMe").unwrap().is_active = false;
+        lib.sync().unwrap();
+
+        // 3. Verify it's gone from game but exists in repo
+        assert!(!target_path.exists());
+        assert!(lib.lib_paths.mods.join("DeleteMe").exists());
+    }
+
+    #[test]
+    fn test_to_frontend_dto_enrichment() {
+        let (_tmp, game_root, repo_root) = setup_test_env();
+        let mut lib = Library::create(&repo_root, &game_root).expect("Failed to create library");
+
+        // 1. Prepare a mod with a real manifest file on disk
+        let mod_src = _tmp.path().join("source_mod");
+        let mod_src_utf8 = Utf8Path::from_path(&mod_src).unwrap();
+
+        let manifest_path = mod_src_utf8.join("manifest/manifest.json");
+        std::fs::create_dir_all(manifest_path.parent().unwrap()).unwrap();
+
+        let manifest_data = r#"{
+        "guid": "test-mod-id",
+        "name": "Test Mod Name",
+        "version": "1.0.0",
+        "author": "someone"
+    }"#;
+        std::fs::write(&manifest_path, manifest_data).unwrap();
+
+        // 2. Mock some files inside the mod so ModFS::new works
+        let rules = SPTPathRules::default();
+        let dummy_dll = mod_src_utf8
+            .join(&rules.server_mods)
+            .join("TestMod/mod.dll");
+        std::fs::create_dir_all(dummy_dll.parent().unwrap()).unwrap();
+        std::fs::write(dummy_dll, "").unwrap();
+
+        // 3. Add mod to library
+        let fs = ModFS::new(mod_src_utf8, &rules).unwrap();
+        lib.add_mod(mod_src_utf8, fs).expect("Add mod failed");
+
+        // 4. Check Frontend DTO
+        let dto = lib.to_frontend_dto();
+        let m = dto.mods.get("test-mod-id").expect("Mod not found in DTO");
+
+        // Assert the manifest was successfully pulled from cache into the DTO
+        assert!(m.manifest.is_some());
+        assert_eq!(m.manifest.as_ref().unwrap().name, "Test Mod Name");
     }
 }

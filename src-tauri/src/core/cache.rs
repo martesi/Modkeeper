@@ -1,7 +1,7 @@
 use crate::core::mod_fs::ModFS;
 use crate::models::error::SError;
 use crate::models::mod_dto::ModManifest;
-use crate::models::paths::SPTPathRules;
+use crate::models::paths::{ModPaths, SPTPathRules};
 use camino::{Utf8Path, Utf8PathBuf};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -32,7 +32,7 @@ impl LibraryCache {
     }
 
     pub fn add(&mut self, root: &Utf8Path, fs: ModFS) {
-        if let Ok(m) = ModFS::read_manifest(root) {
+        if let Ok(m) = ModFS::read_manifest(&ModPaths::new(root).file) {
             self.manifests.insert(fs.id.clone(), m);
         }
 

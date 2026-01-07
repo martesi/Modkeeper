@@ -90,12 +90,12 @@ impl Linker {
 
         #[cfg(windows)]
         {
-            // On Windows, a Junction is a directory reparse point.
-            // fs::remove_dir removes Junctions (without deleting contents) and empty dirs.
-            if meta.is_dir() {
-                fs::remove_dir(target)
+            // On Windows, if it's a directory OR any kind of link (Junction/Symlink),
+            // we should try remove_dir first.
+            if meta.is_dir() || meta.file_type().is_symlink() {
+                // If remove_dir fails (e.g. it was actually a file symlink), fall back to remove_file
+                fs::remove_dir(target).or_else(|_| fs::remove_file(target))
             } else {
-                // fs::remove_file removes files and hard links.
                 fs::remove_file(target)
             }
         }
