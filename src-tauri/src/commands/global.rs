@@ -2,12 +2,13 @@ use crate::core::library::Library;
 use crate::core::registry::AppRegistry;
 use crate::models::error::SError;
 use crate::models::global::LibrarySwitch;
-use crate::utils::context::TaskContext;
 use camino::Utf8PathBuf;
 use tauri::State;
+use tracing::instrument;
 
 #[tauri::command]
 #[specta::specta]
+#[instrument(skip(state))]
 pub async fn open_library(
     state: State<'_, AppRegistry>,
     path: String,
@@ -42,6 +43,7 @@ pub async fn open_library(
 
 #[tauri::command]
 #[specta::specta]
+#[instrument(skip(state))]
 pub async fn create_library(
     state: State<'_, AppRegistry>,
     game_root: String,

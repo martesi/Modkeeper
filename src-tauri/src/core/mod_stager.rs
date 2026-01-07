@@ -4,10 +4,10 @@ use crate::models::error::SError;
 use crate::models::paths::SPTPathRules;
 use crate::utils::process::ProcessChecker;
 use camino::{Utf8Path, Utf8PathBuf};
-use log::debug;
 use std::fs;
 use std::fs::remove_dir_all;
 use sysinfo::System;
+use tracing::debug;
 use uuid::Uuid;
 
 pub struct ModStager;

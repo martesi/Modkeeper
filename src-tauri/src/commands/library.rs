@@ -5,20 +5,18 @@ use crate::models::library_dto::LibraryDTO;
 use crate::models::task_status::TaskStatus;
 use crate::utils::context::TaskContext;
 use camino::Utf8PathBuf;
-use log::{debug, info};
 use tauri::ipc::Channel;
 use tauri::State;
+use tracing::{debug, info, instrument};
 
 #[tauri::command]
 #[specta::specta]
+#[instrument(skip(channel, state))]
 pub async fn add_mods(
     state: State<'_, AppRegistry>,
     paths: Vec<String>,
     channel: Channel<TaskStatus>,
 ) -> Result<LibraryDTO, SError> {
-    info!("Starting task add");
-    debug!("paths: {:?}", paths);
-
     let inputs = paths
         .into_iter()
         .map(Utf8PathBuf::from)
@@ -60,14 +58,12 @@ pub async fn add_mods(
 
 #[tauri::command]
 #[specta::specta]
+#[instrument(skip(channel, state))]
 pub async fn remove_mods(
     state: State<'_, AppRegistry>,
     ids: Vec<String>,
     channel: Channel<TaskStatus>,
 ) -> Result<LibraryDTO, SError> {
-    info!("Starting task remove");
-    debug!("ids: {:?}", ids);
-
     let instance_handle = state.active_instance.clone();
     // Offload synchronous file IO and locking to a blocking thread
     TaskContext::provide(channel, move || {
@@ -87,12 +83,11 @@ pub async fn remove_mods(
 
 #[tauri::command]
 #[specta::specta]
+#[instrument(skip_all)]
 pub async fn sync_mods(
     state: State<'_, AppRegistry>,
     channel: Channel<TaskStatus>,
 ) -> Result<LibraryDTO, SError> {
-    info!("Starting task sync");
-
     let instance_handle = state.active_instance.clone();
     TaskContext::provide(channel, move || {
         let mut active = instance_handle.lock();

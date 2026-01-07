@@ -3,8 +3,8 @@ use crate::models::error::SError;
 use crate::models::global::LibrarySwitch;
 use crate::models::library_dto::LibraryDTO;
 use camino::{Utf8Path, Utf8PathBuf};
-use log::error;
 use serde::{Deserialize, Serialize};
+use tracing::error;
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct GlobalConfig {
