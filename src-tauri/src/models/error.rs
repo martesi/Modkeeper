@@ -1,7 +1,8 @@
+use derive_more::Display;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-#[derive(Type, Serialize, Deserialize, Debug)]
+#[derive(Type, Serialize, Deserialize, Debug, Display)]
 pub enum SError {
     UnsupportedSPTVersion(String),
     ParseError(String),
@@ -10,6 +11,7 @@ pub enum SError {
     ProcessRunning,
     UnableToDetermineModId,
     FileOrDirectoryNotFound(String),
+    #[display("File collisions detected: {}", "_0.join(\", \")")]
     FileCollision(Vec<String>),
     Unexpected,
     Link,
@@ -17,7 +19,7 @@ pub enum SError {
     AsyncRuntimeError(String),
     ContextUnprovided,
     UpdateStatusError(String),
-    NoActiveLibrary
+    NoActiveLibrary,
 }
 
 macro_rules! impl_from {

@@ -31,7 +31,7 @@ pub struct Library {
 }
 
 impl Library {
-    pub fn create(repo_root: &Utf8PathBuf, game_root: &Utf8PathBuf) -> Result<Self, SError> {
+    pub fn create(repo_root: &Utf8Path, game_root: &Utf8Path) -> Result<Self, SError> {
         let lib_paths = LibPathRules::new(game_root);
         for dir in [&lib_paths.mods, &lib_paths.backups, &lib_paths.staging] {
             std::fs::create_dir_all(dir)?;
@@ -40,8 +40,8 @@ impl Library {
         let spt_paths = SPTPathRules::new(game_root);
         let inst = Self {
             id: uuid::Uuid::new_v4().to_string(),
-            repo_root: repo_root.clone(),
-            game_root: game_root.clone(),
+            repo_root: repo_root.to_owned(),
+            game_root: game_root.to_owned(),
             spt_version: Library::fetch_and_validate_spt_version(&spt_paths)?,
             cache: LibraryCache::default(),
             mods: Default::default(),
@@ -56,7 +56,7 @@ impl Library {
         Ok(inst)
     }
 
-    pub fn load(repo_root: &Utf8PathBuf) -> Result<Self, SError> {
+    pub fn load(repo_root: &Utf8Path) -> Result<Self, SError> {
         let dto = Self::read_library_manifest(repo_root)?;
         // check the original spt_version when library is created
         // if not valid, return error directly
@@ -70,7 +70,7 @@ impl Library {
         let spt_paths = SPTPathRules::new(&dto.game_root);
         let inst = Self {
             id: dto.id,
-            repo_root: repo_root.clone(),
+            repo_root: repo_root.to_owned(),
             spt_paths_canonical: SPTPathCanonical::from_spt_paths(spt_paths.clone())?,
             spt_paths,
             game_root: dto.game_root,
@@ -85,7 +85,7 @@ impl Library {
         Ok(inst)
     }
 
-    pub fn read_library_manifest(lib_root: &Utf8PathBuf) -> Result<LibraryDTO, SError> {
+    pub fn read_library_manifest(lib_root: &Utf8Path) -> Result<LibraryDTO, SError> {
         Toml::read::<LibraryDTO>(&LibPathRules::new(lib_root).manifest)
     }
 

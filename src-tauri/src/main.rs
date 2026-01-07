@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    shooter_lib::run()
+    mod_keeper_lib::run()
 }

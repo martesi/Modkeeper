@@ -5,36 +5,25 @@
 
 
 export const commands = {
-async greet(name: string) : Promise<string> {
-    return await TAURI_INVOKE("greet", { name });
-},
-async addMod(paths: string[]) : Promise<Result<null, SError>> {
+async addMods(paths: string[], channel: TAURI_CHANNEL<TaskStatus>) : Promise<Result<null, SError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("add_mod", { paths }) };
+    return { status: "ok", data: await TAURI_INVOKE("add_mods", { paths, channel }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
-async removeMod(id: string) : Promise<Result<null, SError>> {
+async removeMods(ids: string[], channel: TAURI_CHANNEL<TaskStatus>) : Promise<Result<null, SError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("remove_mod", { id }) };
+    return { status: "ok", data: await TAURI_INVOKE("remove_mods", { ids, channel }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
-async getCurrentInstance() : Promise<Result<ModManagerInstanceDTO | null, string>> {
+async syncMods(channel: TAURI_CHANNEL<TaskStatus>) : Promise<Result<null, SError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("get_current_instance") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async switchInstance(path: string) : Promise<Result<ModManagerInstanceDTO, SError>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("switch_instance", { path }) };
+    return { status: "ok", data: await TAURI_INVOKE("sync_mods", { channel }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -52,10 +41,9 @@ async switchInstance(path: string) : Promise<Result<ModManagerInstanceDTO, SErro
 
 /** user-defined types **/
 
-export type Mod = { id: string; is_active: boolean; mod_type: ModType }
-export type ModManagerInstanceDTO = { id: string; game_root: string; repo_root: string; spt_version: string; mods: Mod[] }
-export type ModType = "Client" | "Server" | "Both" | "Unknown"
-export type SError = { UnsupportedSPTVersion: string } | { ParseError: string } | { IOError: string } | "GameOrServerRunning" | "UnableToDetermineModId" | { FileOrDirectoryNotFound: string } | { FileCollision: string[] } | "Unexpected" | { Link: [] }
+export type SError = { UnsupportedSPTVersion: string } | { ParseError: string } | { IOError: string } | "GameOrServerRunning" | "ProcessRunning" | "UnableToDetermineModId" | { FileOrDirectoryNotFound: string } | { FileCollision: string[] } | "Unexpected" | "Link" | { UnhandledCompression: string } | { AsyncRuntimeError: string } | "ContextUnprovided" | { UpdateStatusError: string } | "NoActiveLibrary"
+export type TAURI_CHANNEL<TSend> = null
+export type TaskStatus = never
 
 /** tauri-specta globals **/
 

@@ -15,3 +15,4 @@ pub struct LibraryDTO {
     pub mods: BTreeMap<String, Mod>,
     pub is_dirty: bool,
 }
+

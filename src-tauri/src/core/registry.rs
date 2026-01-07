@@ -1,5 +1,5 @@
 // src/core/registry.rs
-use crate::config::global::{load_config, GlobalConfig};
+use crate::config::global::GlobalConfig;
 use crate::core::library::Library;
 use crate::core::mod_stager::StageMaterial;
 use crate::models::error::SError;
@@ -8,15 +8,6 @@ use parking_lot::Mutex;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use sysinfo::System;
-
-#[macro_export]
-macro_rules! lock_active {
-    ($state:expr) => {
-        parking_lot::MutexGuard::try_map($state.active_instance.lock(), |opt| {
-            opt.as_mut()
-        }).map_err(|_| SError::NoActiveLibrary)?
-    };
-}
 
 pub struct AppRegistry {
     // Arc<Mutex<Option>> allows us to "swap" the entire instance safely
@@ -60,10 +51,8 @@ impl Default for AppRegistry {
     fn default() -> Self {
         Self {
             active_instance: Arc::new(Mutex::new(None)),
-            global_config: Arc::new(Mutex::new(load_config())),
+            global_config: Arc::new(Mutex::new(GlobalConfig::load())),
             sys: Mutex::new(System::new()),
         }
     }
 }
-
-
