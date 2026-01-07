@@ -1,7 +1,6 @@
 use crate::core::cache::LibraryCache;
 use crate::core::linker::Linker;
 use crate::core::mod_fs::ModFS;
-use crate::core::mod_stager::StagedMod;
 use crate::models::error::SError;
 use crate::models::library_dto::LibraryDTO;
 use crate::models::mod_dto::Mod;
@@ -12,6 +11,7 @@ use crate::utils::version::read_pe_version;
 use camino::{Utf8Path, Utf8PathBuf};
 use semver::{Version, VersionReq};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::default::Default;
 use walkdir::WalkDir;
 
 type OwnershipMap = HashMap<Utf8PathBuf, Vec<String>>;
@@ -111,7 +111,7 @@ impl Library {
             .map_err(|e| SError::ParseError(e.to_string()))
     }
 
-    pub fn add_mod(&mut self, mod_root: &Utf8Path, fs:ModFS) -> Result<Mod, SError> {
+    pub fn add_mod(&mut self, mod_root: &Utf8Path, fs:ModFS) -> Result<(), SError> {
         let mod_id = fs.id.clone();
 
         let dst = self.lib_paths.mods.join(&mod_id);
@@ -140,14 +140,15 @@ impl Library {
                 id: mod_id,
                 is_active: false,
                 mod_type: fs.mod_type.clone(),
+                name: Default::default(),
+                manifest: None,
             })
             .clone();
         self.cache.add(&dst, fs);
 
         self.is_dirty = true;
         self.persist()?;
-
-        Ok(updated_mod)
+        Ok(())
     }
 
     pub fn remove_mod(&mut self, id: &str) -> Result<(), SError> {
@@ -299,6 +300,17 @@ impl Library {
             mods: self.mods.to_owned(),
             is_dirty: self.is_dirty,
         }
+    }
+
+    pub fn to_frontend_dto(&self) -> LibraryDTO {
+        let mut dto = self.to_dto();
+
+        // Enrich the DTO mods with manifest data stored in the cache
+        dto.mods.iter_mut().for_each(|(id, m)| {
+            m.manifest = self.cache.manifests.get(id).cloned();
+        });
+
+        dto
     }
 
     fn persist(&self) -> Result<(), SError> {

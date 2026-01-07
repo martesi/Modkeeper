@@ -23,6 +23,8 @@ pub struct Mod {
     pub id: String,
     pub is_active: bool,
     pub mod_type: ModType,
+    pub name: String,
+    pub manifest: Option<ModManifest>,
     // files removed: only needed in cache, not for frontend display
 }
 
