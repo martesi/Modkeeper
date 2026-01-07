@@ -1,8 +1,6 @@
 use crate::core::cache::LibraryCache;
-use crate::core::cleanup::Cleaner;
-use crate::core::deployment::Deployer;
 use crate::core::mod_fs::ModFS;
-use crate::core::versioning::SptVersionChecker;
+use crate::core::{cleanup, deployment, versioning};
 use crate::models::error::SError;
 use crate::models::library_dto::LibraryDTO;
 use crate::models::mod_dto::Mod;
@@ -12,8 +10,6 @@ use crate::utils::toml::Toml;
 use camino::{Utf8Path, Utf8PathBuf};
 use std::collections::{BTreeMap, HashMap};
 use std::default::Default;
-
-type OwnershipMap = HashMap<Utf8PathBuf, Vec<String>>;
 
 pub struct Library {
     pub id: String,
@@ -36,7 +32,7 @@ impl Library {
         }
 
         let spt_paths = SPTPathRules::new(game_root);
-        let spt_version = SptVersionChecker::fetch_and_validate(&spt_paths)?;
+        let spt_version = versioning::fetch_and_validate(&spt_paths)?;
 
         let inst = Self {
             id: uuid::Uuid::new_v4().to_string(),
@@ -59,11 +55,11 @@ impl Library {
         let dto = Self::read_library_manifest(repo_root)?;
 
         // Validate historical version
-        SptVersionChecker::validate_string(&dto.spt_version)?;
+        versioning::validate_string(&dto.spt_version)?;
 
         let config = SPTPathRules::default();
         // Validate current physical version
-        let spt_version = SptVersionChecker::fetch_and_validate(&config)?;
+        let spt_version = versioning::fetch_and_validate(&config)?;
 
         let lib_paths = LibPathRules::new(repo_root);
         let spt_paths = SPTPathRules::new(&dto.game_root);
@@ -139,12 +135,22 @@ impl Library {
 
     pub fn sync(&mut self) -> Result<(), SError> {
         // 1. Purge existing managed links
-        Cleaner::new(&self.game_root, &self.repo_root, &self.spt_rules, &self.lib_paths)
-            .purge(&self.cache)?;
+        cleanup::purge(
+            &self.game_root,
+            &self.repo_root,
+            &self.spt_rules,
+            &self.lib_paths,
+            &self.cache,
+        )?;
 
         // 2. Deploy active mods
-        Deployer::new(&self.game_root, &self.lib_paths, &self.spt_rules)
-            .deploy(&self.mods, &self.cache)?;
+        deployment::deploy(
+            &self.game_root,
+            &self.lib_paths,
+            &self.spt_rules,
+            &self.mods,
+            &self.cache,
+        )?;
 
         self.is_dirty = false;
         self.persist()?;
@@ -435,7 +441,11 @@ mod expanded_tests {
         let mod_id = "BackupTest";
         let src = repo_root.join("src_v1");
         fs::create_dir_all(src.join(&rules.server_mods).join(mod_id)).unwrap();
-        fs::write(src.join(&rules.server_mods).join(mod_id).join("v1.txt"), "v1").unwrap();
+        fs::write(
+            src.join(&rules.server_mods).join(mod_id).join("v1.txt"),
+            "v1",
+        )
+        .unwrap();
 
         // 1. Initial Add
         let fs1 = ModFS::new(&src, &rules).unwrap();
@@ -447,7 +457,11 @@ mod expanded_tests {
         // 2. Overwrite Add
         let src2 = repo_root.join("src_v2");
         fs::create_dir_all(src2.join(&rules.server_mods).join(mod_id)).unwrap();
-        fs::write(src2.join(&rules.server_mods).join(mod_id).join("v2.txt"), "v2").unwrap();
+        fs::write(
+            src2.join(&rules.server_mods).join(mod_id).join("v2.txt"),
+            "v2",
+        )
+        .unwrap();
 
         let fs2 = ModFS::new(&src2, &rules).unwrap();
         lib.add_mod(&src2, fs2).unwrap();
@@ -455,10 +469,18 @@ mod expanded_tests {
         // 3. Check backups
         let backup_dir = lib.lib_paths.backups.join(mod_id);
         let entries: Vec<_> = fs::read_dir(backup_dir).unwrap().collect();
-        assert_eq!(entries.len(), 1, "Should have exactly one backup timestamp folder");
+        assert_eq!(
+            entries.len(),
+            1,
+            "Should have exactly one backup timestamp folder"
+        );
 
         let backup_path = Utf8PathBuf::from_path_buf(entries[0].as_ref().unwrap().path()).unwrap();
-        assert!(backup_path.join(&rules.server_mods).join(mod_id).join("v1.txt").exists());
+        assert!(backup_path
+            .join(&rules.server_mods)
+            .join(mod_id)
+            .join("v1.txt")
+            .exists());
     }
 
     #[test]
@@ -476,7 +498,10 @@ mod expanded_tests {
             let p = repo_root.join(format!("src_{}", name));
 
             // Target: BepInEx/plugins/SharedDir/{name}.dll
-            let file_rel = rules.client_plugins.join("SharedDir").join(format!("{}.dll", name));
+            let file_rel = rules
+                .client_plugins
+                .join("SharedDir")
+                .join(format!("{}.dll", name));
 
             fs::create_dir_all(p.join(file_rel.parent().unwrap())).unwrap();
             fs::write(p.join(&file_rel), "dll content").unwrap();
@@ -509,12 +534,21 @@ mod expanded_tests {
         lib.sync().unwrap();
 
         // 4. Verification
-        assert!(!shared_dir.join("ModA.dll").exists(), "ModA.dll should be cleaned up");
-        assert!(!shared_dir.join("ModB.dll").exists(), "ModB.dll should be cleaned up");
+        assert!(
+            !shared_dir.join("ModA.dll").exists(),
+            "ModA.dll should be cleaned up"
+        );
+        assert!(
+            !shared_dir.join("ModB.dll").exists(),
+            "ModB.dll should be cleaned up"
+        );
 
         // Crucial Check: The folder and user file must remain
         assert!(untracked.exists(), "Untracked user file must be preserved");
-        assert!(shared_dir.exists(), "Shared directory must be preserved because it contains user data");
+        assert!(
+            shared_dir.exists(),
+            "Shared directory must be preserved because it contains user data"
+        );
     }
 
     #[test]
@@ -525,7 +559,13 @@ mod expanded_tests {
 
         let src = repo_root.join("src");
         fs::create_dir_all(src.join(&rules.server_mods).join("PersistMod")).unwrap();
-        fs::write(src.join(&rules.server_mods).join("PersistMod").join("mod.dll"), "").unwrap();
+        fs::write(
+            src.join(&rules.server_mods)
+                .join("PersistMod")
+                .join("mod.dll"),
+            "",
+        )
+        .unwrap();
 
         let mod_fs = ModFS::new(&src, &rules).unwrap();
         lib.add_mod(&src, mod_fs).unwrap();
