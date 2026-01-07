@@ -4,6 +4,7 @@ mod core;
 mod models;
 mod utils;
 
+use crate::commands::global::{create_library, open_library};
 use crate::commands::library::sync_mods;
 use crate::core::registry::AppRegistry;
 use commands::library::{add_mods, remove_mods};
@@ -13,8 +14,15 @@ use tauri_specta::{collect_commands, Builder};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let builder =
-        Builder::<tauri::Wry>::new().commands(collect_commands![add_mods, remove_mods, sync_mods]);
+    let builder = Builder::<tauri::Wry>::new().commands(collect_commands![
+        // library
+        add_mods,
+        remove_mods,
+        sync_mods,
+        // global
+        open_library,
+        create_library
+    ]);
 
     #[cfg(debug_assertions)] // <- Only export on non-release builds
     builder

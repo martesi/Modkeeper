@@ -39,3 +39,36 @@ pub async fn open_library(
         .await
         .map_err(|e| SError::AsyncRuntimeError(e.to_string()))? // Unwraps JoinError
 }
+
+#[tauri::command]
+#[specta::specta]
+pub async fn create_library(
+    state: State<'_, AppRegistry>,
+    game_root: String,
+    lib_root: String,
+) -> Result<LibrarySwitch, SError> {
+    let game_root_path = Utf8PathBuf::from(game_root);
+    let lib_root_path = Utf8PathBuf::from(lib_root);
+
+    // Clone handles to move into the blocking thread
+    let config_handle = state.global_config.clone();
+    let instance_handle = state.active_instance.clone();
+
+    tauri::async_runtime::spawn_blocking(move || {
+        // 1. Lock Config, Create Library on disk, Update MRU
+        let (lib, switch) = {
+            let mut config = config_handle.lock();
+            // Note: Ensure the argument order matches your GlobalConfig::create_library definition
+            let lib = config.create_library(&game_root_path, &lib_root_path)?;
+            (lib, config.to_library_switch())
+        };
+
+        // 2. Lock Instance and Swap
+        // This overwrites the old instance, triggering its Drop (cleanup) on this worker thread.
+        *instance_handle.lock() = Some(lib);
+
+        Ok(switch)
+    })
+        .await
+        .map_err(|e| SError::AsyncRuntimeError(e.to_string()))? // Unwrap the JoinHandle error
+}
