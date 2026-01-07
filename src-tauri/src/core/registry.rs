@@ -22,12 +22,10 @@ impl AppRegistry {
     }
 
     pub fn get_canonical_spt_paths(&self) -> Option<Vec<PathBuf>> {
-        self.active_instance.lock().as_ref().map(|v| {
-            vec![
-                v.spt_paths_canonical.client_exe.clone(),
-                v.spt_paths_canonical.server_exe.clone(),
-            ]
-        })
+        self.active_instance
+            .lock()
+            .as_ref()
+            .map(|v| v.spt_canonical_paths())
     }
     pub fn is_game_or_server_running(&self) -> bool {
         self.get_canonical_spt_paths()
@@ -39,13 +37,12 @@ impl AppRegistry {
         self.active_instance
             .lock()
             .as_ref()
-            .map(|v| StageMaterial {
-                rules: v.spt_rules.clone(),
-                root: v.lib_paths.staging.clone(),
-            })
+            .map(|v| v.stage_material())
             .ok_or(SError::NoActiveLibrary)
     }
 }
+
+
 
 impl Default for AppRegistry {
     fn default() -> Self {

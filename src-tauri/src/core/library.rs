@@ -1,5 +1,6 @@
 use crate::core::cache::LibraryCache;
 use crate::core::mod_fs::ModFS;
+use crate::core::mod_stager::StageMaterial;
 use crate::core::{cleanup, deployment, versioning};
 use crate::models::error::SError;
 use crate::models::library_dto::LibraryDTO;
@@ -10,6 +11,7 @@ use crate::utils::toml::Toml;
 use camino::{Utf8Path, Utf8PathBuf};
 use std::collections::{BTreeMap, HashMap};
 use std::default::Default;
+use std::path::PathBuf;
 
 pub struct Library {
     pub id: String,
@@ -174,6 +176,20 @@ impl Library {
             m.manifest = self.cache.manifests.get(id).cloned();
         }
         dto
+    }
+
+    pub fn stage_material(&self) -> StageMaterial {
+        StageMaterial {
+            rules: self.spt_rules.clone(),
+            root: self.lib_paths.staging.clone(),
+        }
+    }
+
+    pub fn spt_canonical_paths(&self) -> Vec<PathBuf> {
+        vec![
+            self.spt_paths_canonical.client_exe.clone(),
+            self.spt_paths_canonical.server_exe.clone(),
+        ]
     }
 
     fn persist(&self) -> Result<(), SError> {

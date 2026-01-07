@@ -4,6 +4,7 @@ use crate::models::error::SError;
 use crate::models::library_dto::LibraryDTO;
 use crate::models::task_status::TaskStatus;
 use crate::utils::context::TaskContext;
+use crate::utils::thread::with_lib_arc_mut;
 use camino::Utf8PathBuf;
 use tauri::ipc::Channel;
 use tauri::State;
@@ -36,24 +37,21 @@ pub async fn add_mods(
         let staged_mods = ModStager::resolve(&inputs, &material)?;
         debug!("staged_mods: {:?}", staged_mods);
 
-        // 2. Lock (Synchronous)
-        // Since we are now in a blocking thread, we can safely park the thread
-        let mut active = instance_handle.lock();
-        let inst = active.as_mut().ok_or(SError::NoActiveLibrary)?;
-
-        info!("Adding mods to library");
-        // 3. Install & Cleanup
-        // Using try_for_each for early exit on error
-        staged_mods
-            .into_iter()
-            .try_for_each(|staged| {
-                debug!("current: {:?}", staged);
-                inst.add_mod(&staged.source_path, staged.fs.clone())
-                    .and_then(|_| ModStager::clean_up(&staged))
-            })
-            .map(|_| inst.to_frontend_dto())
+        with_lib_arc_mut(instance_handle, |inst| {
+            info!("Adding mods to library");
+            // 3. Install & Cleanup
+            // Using try_for_each for early exit on error
+            staged_mods
+                .into_iter()
+                .try_for_each(|staged| {
+                    debug!("current: {:?}", staged);
+                    inst.add_mod(&staged.source_path, staged.fs.clone())
+                        .and_then(|_| ModStager::clean_up(&staged))
+                })
+                .map(|_| inst.to_frontend_dto())
+        })
     })
-    .await?
+    .await??
 }
 
 #[tauri::command]
@@ -67,18 +65,17 @@ pub async fn remove_mods(
     let instance_handle = state.active_instance.clone();
     // Offload synchronous file IO and locking to a blocking thread
     TaskContext::provide(channel, move || {
-        let mut active = instance_handle.lock();
-        let inst = active.as_mut().ok_or(SError::NoActiveLibrary)?;
-
+        with_lib_arc_mut(instance_handle, |inst| -> Result<LibraryDTO, SError> {
+            ids.iter()
+                .try_for_each(|mod_id| {
+                    debug!("Removing mod {}", mod_id);
+                    inst.remove_mod(mod_id)
+                })
+                .map(|_| inst.to_frontend_dto())
+        })
         // Iterate and remove each mod, exiting immediately on the first error
-        ids.iter()
-            .try_for_each(|mod_id| {
-                debug!("Removing mod {}", mod_id);
-                inst.remove_mod(mod_id)
-            })
-            .map(|_| inst.to_frontend_dto())
     })
-    .await?
+    .await??
 }
 
 #[tauri::command]
@@ -90,9 +87,9 @@ pub async fn sync_mods(
 ) -> Result<LibraryDTO, SError> {
     let instance_handle = state.active_instance.clone();
     TaskContext::provide(channel, move || {
-        let mut active = instance_handle.lock();
-        let inst = active.as_mut().ok_or(SError::NoActiveLibrary)?;
-        inst.sync().map(|_| inst.to_frontend_dto())
+        with_lib_arc_mut(instance_handle, |inst| {
+            inst.sync().map(|_| inst.to_frontend_dto())
+        })
     })
-    .await?
+    .await??
 }
