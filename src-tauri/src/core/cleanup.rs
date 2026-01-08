@@ -1,5 +1,5 @@
 use crate::core::cache::LibraryCache;
-use crate::core::linker::Linker;
+use crate::core::linker;
 use crate::models::error::SError;
 use crate::models::paths::{LibPathRules, SPTPathRules};
 use camino::{Utf8Path, Utf8PathBuf};
@@ -65,24 +65,24 @@ fn process_entry(
 
     // Case A: Managed Junctions/Symlinks (pointing back to our repo)
     if !meta.is_file() {
-        let Ok(target) = Linker::read_link_target(path) else {
+        let Ok(target) = linker::read_link_target(path) else {
             return Ok(false);
         };
 
         if target.starts_with(repo_root) {
-            Linker::unlink(path)?;
+            linker::unlink(path)?;
             return Ok(true);
         }
     }
 
     // Case B: Managed Hardlinks (matched by physical file ID)
     if meta.is_file() {
-        let Ok(id) = Linker::get_id(path) else {
+        let Ok(id) = linker::get_id(path) else {
             return Ok(false);
         };
 
         if managed_ids.contains(&id) {
-            Linker::unlink(path)?;
+            linker::unlink(path)?;
         }
         return Ok(false);
     }
@@ -123,7 +123,7 @@ fn build_managed_ids(lib_paths: &LibPathRules, cache: &LibraryCache) -> HashSet<
                 .iter()
                 .map(move |f| lib_paths.mods.join(id).join(f))
         })
-        .filter_map(|p| Linker::get_id(&p).ok())
+        .filter_map(|p| linker::get_id(&p).ok())
         .collect()
 }
 

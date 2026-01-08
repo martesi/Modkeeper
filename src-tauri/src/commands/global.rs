@@ -1,4 +1,4 @@
-use crate::core::library_service::LibraryService;
+use crate::core::library_service;
 use crate::core::registry::AppRegistry;
 use crate::models::error::SError;
 use crate::models::global::LibrarySwitch;
@@ -26,9 +26,8 @@ pub async fn open_library(
         // (though keeping it held is also safe here since the order is fixed).
         let (lib, switch_dto) = {
             let mut config = config_handle.lock();
-            let service = LibraryService::new();
-            let lib = service.open_library(&mut config, &path_buf)?;
-            let switch = service.to_library_switch(&config);
+            let lib = library_service::open_library(&mut config, &path_buf)?;
+            let switch = library_service::to_library_switch(&config);
             (lib, switch)
         };
 
@@ -59,9 +58,8 @@ pub async fn create_library(
         // 1. Lock Config, Create Library on disk, Update MRU
         let (lib, switch) = {
             let mut config = config_handle.lock();
-            let service = LibraryService::new();
-            let lib = service.create_library(&mut config, requirement)?;
-            let switch = service.to_library_switch(&config);
+            let lib = library_service::create_library(&mut config, requirement)?;
+            let switch = library_service::to_library_switch(&config);
             (lib, switch)
         };
 

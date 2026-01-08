@@ -1,4 +1,4 @@
-use crate::core::mod_stager::ModStager;
+use crate::core::mod_stager;
 use crate::core::registry::AppRegistry;
 use crate::models::error::SError;
 use crate::models::library::LibraryDTO;
@@ -34,7 +34,7 @@ pub async fn add_mods(
         info!("Staging mod files");
         // 1. Resolve (Heavy Compute/IO)
         // We do this here to avoid blocking the async runtime
-        let staged_mods = ModStager::resolve(&inputs, &material)?;
+        let staged_mods = mod_stager::resolve(&inputs, &material)?;
         debug!("staged_mods: {:?}", staged_mods);
 
         with_lib_arc_mut(instance_handle, |inst| {
@@ -46,7 +46,7 @@ pub async fn add_mods(
                 .try_for_each(|staged| {
                     debug!("current: {:?}", staged);
                     inst.add_mod(&staged.source_path, staged.fs.clone())
-                        .and_then(|_| ModStager::clean_up(&staged))
+                        .and_then(|_| mod_stager::clean_up(&staged))
                 })
                 .map(|_| inst.to_frontend_dto())
         })

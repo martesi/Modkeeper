@@ -1,9 +1,3 @@
-//! Global configuration persistence module.
-//!
-//! This module handles only configuration storage and persistence.
-//! Library lifecycle operations (opening, creating, querying libraries) are handled
-//! by [`crate::core::library_service::LibraryService`].
-
 use camino::{Utf8Path, Utf8PathBuf};
 use serde::{Deserialize, Serialize};
 

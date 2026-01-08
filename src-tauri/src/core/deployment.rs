@@ -1,5 +1,5 @@
 use crate::core::cache::LibraryCache;
-use crate::core::linker::Linker;
+use crate::core::linker;
 use crate::models::error::SError;
 use crate::models::mod_dto::Mod;
 use crate::models::paths::{LibPathRules, SPTPathRules};
@@ -99,7 +99,7 @@ fn execute_recursive_link(
                 if owners.len() == 1 {
                     let src = lib_paths.mods.join(id).join(&current_path);
                     let dst = game_root.join(&current_path);
-                    Linker::link(&src, &dst)?;
+                    linker::link(&src, &dst)?;
                     return Ok(());
                 }
 

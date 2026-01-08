@@ -125,7 +125,7 @@ impl Library {
             // otherwise we risk leaving broken links if the user doesn't sync immediately.
             // However, to strictly follow previous logic, we unlink specific files:
             for f in &m.files {
-                let _ = crate::core::linker::Linker::unlink(&self.game_root.join(f));
+                let _ = crate::core::linker::unlink(&self.game_root.join(f));
             }
             let _ = std::fs::remove_dir_all(self.repo_root.join("mods").join(id));
         }
