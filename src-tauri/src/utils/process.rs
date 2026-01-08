@@ -13,7 +13,9 @@ impl ProcessChecker {
         sys.processes().values().any(|p| {
             if let Some(exe_path) = p.exe() {
                 // Check if the current process path matches any of our targets
-                return target_paths.iter().any(|target| exe_path == target.as_ref());
+                return target_paths
+                    .iter()
+                    .any(|target| exe_path == target.as_ref());
             }
             false
         })

@@ -3,8 +3,8 @@ use crate::core::linker::Linker;
 use crate::models::error::SError;
 use crate::models::paths::{LibPathRules, SPTPathRules};
 use camino::{Utf8Path, Utf8PathBuf};
-use std::collections::HashSet;
 use file_id::FileId;
+use std::collections::HashSet;
 use walkdir::WalkDir;
 
 /// Entry point for the cleanup logic.
@@ -36,7 +36,14 @@ pub fn purge(
             }
 
             // Process the entry. If it returns true, we skip children (e.g., directory was removed).
-            if process_entry(path, game_root, repo_root, &managed_scope, &managed_ids, &entry)? {
+            if process_entry(
+                path,
+                game_root,
+                repo_root,
+                &managed_scope,
+                &managed_ids,
+                &entry,
+            )? {
                 it.skip_current_dir();
             }
         }

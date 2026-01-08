@@ -45,6 +45,7 @@ tokio = { version = "1.49.0", features = ["macros"] }
 derive_more = { version = "2.1.1", features = ["display"] }
 help = "0.0.0"
 tracing = "0.1.44"
+tauri-plugin-dialog = "2"
 
 [dev-dependencies]
 tempfile = "3"

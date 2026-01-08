@@ -1,10 +1,10 @@
 pub mod cache;
-pub mod library;
-pub mod linker;
-pub mod registry;
-pub mod mod_fs;
-pub mod mod_stager;
+pub mod cleanup;
 pub mod decompression;
 pub mod deployment;
-pub mod cleanup;
+pub mod library;
+pub mod linker;
+pub mod mod_fs;
+pub mod mod_stager;
+pub mod registry;
 pub mod versioning;

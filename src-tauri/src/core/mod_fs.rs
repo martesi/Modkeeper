@@ -12,7 +12,7 @@ pub struct ModFS {
     pub id: String,
     pub mod_type: ModType,
     pub files: Vec<Utf8PathBuf>,
-    pub executables: Vec<Utf8PathBuf>
+    pub executables: Vec<Utf8PathBuf>,
 }
 
 impl ModFS {
@@ -60,7 +60,11 @@ impl ModFS {
         }
 
         // 3. Final join (ids is already sorted because it's a BTreeSet)
-        Ok(ids.into_iter().collect::<Vec<_>>().join(MOD_ID_DIVIDER).to_lowercase())
+        Ok(ids
+            .into_iter()
+            .collect::<Vec<_>>()
+            .join(MOD_ID_DIVIDER)
+            .to_lowercase())
     }
 
     pub fn infer_mod_type(files: &[Utf8PathBuf], config: &SPTPathRules) -> ModType {
@@ -86,7 +90,8 @@ impl ModFS {
             .filter(|e| e.path().is_file())
             // 3. Transform to Utf8PathBuf and strip prefix using Result/Option combinators
             .filter_map(|entry| {
-                Utf8PathBuf::from_path_buf(entry.path().to_path_buf()).ok()
+                Utf8PathBuf::from_path_buf(entry.path().to_path_buf())
+                    .ok()
                     .and_then(|path| path.strip_prefix(base).ok().map(|p| p.to_path_buf()))
             })
             // 4. Remove manifest files
@@ -109,12 +114,12 @@ impl ModFS {
 
         for entry in WalkDir::new(src).into_iter().filter_map(|e| e.ok()) {
             // 2. Convert standard Path to Camino Utf8Path
-            let src_path = Utf8Path::from_path(entry.path())
-                .ok_or_else(|| SError::ParseError(format!("Invalid UTF-8 path: {:?}", entry.path())))?;
+            let src_path = Utf8Path::from_path(entry.path()).ok_or_else(|| {
+                SError::ParseError(format!("Invalid UTF-8 path: {:?}", entry.path()))
+            })?;
 
             // 3. Calculate the relative path from the source root
-            let rel_path = src_path
-                .strip_prefix(src)?;
+            let rel_path = src_path.strip_prefix(src)?;
 
             // 4. Construct the final destination path
             let dst_path = dst.join(rel_path);
@@ -138,13 +143,13 @@ impl ModFS {
     }
 
     pub fn new(root: &Utf8Path, spt_paths: &SPTPathRules) -> Result<Self, SError> {
-        let (files,executables) = Self::collect_files(root); // Call once
+        let (files, executables) = Self::collect_files(root); // Call once
 
         Ok(ModFS {
             id: Self::resolve_id(root, &spt_paths, &files)?,
             mod_type: Self::infer_mod_type(&files, &spt_paths),
             files, // Use the same vector
-            executables
+            executables,
         })
     }
 }
@@ -181,7 +186,9 @@ mod tests {
         let rules = SPTPathRules::default();
 
         // Client structure: BepInEx/plugins/AuthorName/Logic.dll
-        let client_path = root.join(&rules.client_plugins).join("AuthorName/Logic.dll");
+        let client_path = root
+            .join(&rules.client_plugins)
+            .join("AuthorName/Logic.dll");
         fs::create_dir_all(client_path.parent().unwrap()).unwrap();
         fs::write(client_path, "").unwrap();
 
@@ -284,8 +291,14 @@ mod tests {
         let mod_fs = ModFS::new(&root, &rules).unwrap();
 
         assert_eq!(mod_fs.executables.len(), 2);
-        assert!(mod_fs.executables.iter().any(|e| e.ends_with("root_tool.exe")));
-        assert!(mod_fs.executables.iter().any(|e| e.ends_with("nested_tool.exe")));
+        assert!(mod_fs
+            .executables
+            .iter()
+            .any(|e| e.ends_with("root_tool.exe")));
+        assert!(mod_fs
+            .executables
+            .iter()
+            .any(|e| e.ends_with("nested_tool.exe")));
     }
 
     #[test]
@@ -328,7 +341,7 @@ mod tests {
         assert!(result.is_err());
         // Match against your specific error variant
         match result.unwrap_err() {
-            SError::UnableToDetermineModId => {},
+            SError::UnableToDetermineModId => {}
             e => panic!("Expected UnableToDetermineModId, got {:?}", e),
         }
     }

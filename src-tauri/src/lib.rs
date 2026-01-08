@@ -5,9 +5,10 @@ mod models;
 mod utils;
 
 use crate::commands::global::{create_library, open_library};
-use crate::commands::library::sync_mods;
+use crate::commands::library::{
+    add_mods, get_backups, get_library, remove_mods, restore_backup, sync_mods, toggle_mod,
+};
 use crate::core::registry::AppRegistry;
-use commands::library::{add_mods, remove_mods};
 use specta_typescript::Typescript;
 use tauri_specta::{collect_commands, Builder};
 // added import
@@ -19,6 +20,10 @@ pub fn run() {
         add_mods,
         remove_mods,
         sync_mods,
+        get_library,
+        toggle_mod,
+        get_backups,
+        restore_backup,
         // global
         open_library,
         create_library
@@ -26,13 +31,14 @@ pub fn run() {
 
     #[cfg(debug_assertions)] // <- Only export on non-release builds
     builder
-        .export(Typescript::default(), "../.config/generated/bindings.ts")
+        .export(Typescript::default(), "../src/gen/bindings.ts")
         .expect("Failed to export typescript bindings");
 
     // create the shared AppRegistry and manage it in the Tauri app state
     let app_registry = AppRegistry::default();
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .plugin(
             tauri_plugin_log::Builder::new()
                 .level(tauri_plugin_log::log::LevelFilter::Info)

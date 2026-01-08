@@ -1,5 +1,5 @@
-use camino::Utf8PathBuf;
 use crate::models::error::SError;
+use camino::Utf8PathBuf;
 
 pub struct Toml;
 
@@ -15,4 +15,3 @@ impl Toml {
         toml::from_str::<T>(&s).map_err(|e| SError::ParseError(e.to_string()))
     }
 }
-

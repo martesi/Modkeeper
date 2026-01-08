@@ -194,9 +194,10 @@ impl Library {
     }
 
     pub fn toggle_mod(&mut self, id: &str, is_active: bool) -> Result<(), SError> {
-        let mod_entry = self.mods.get_mut(id).ok_or_else(|| {
-            SError::ModNotFound(id.to_string())
-        })?;
+        let mod_entry = self
+            .mods
+            .get_mut(id)
+            .ok_or_else(|| SError::ModNotFound(id.to_string()))?;
         mod_entry.is_active = is_active;
         self.is_dirty = true;
         self.persist()?;
@@ -212,11 +213,7 @@ impl Library {
 
         let entries = std::fs::read_dir(&backup_dir)?;
         let mut timestamps: Vec<String> = entries
-            .filter_map(|entry| {
-                entry.ok().and_then(|e| {
-                    e.file_name().into_string().ok()
-                })
-            })
+            .filter_map(|entry| entry.ok().and_then(|e| e.file_name().into_string().ok()))
             .collect();
 
         // Sort descending (newest first)

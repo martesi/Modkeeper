@@ -1,9 +1,11 @@
-
 #[cfg(target_os = "windows")]
 pub fn read_pe_version(path: &camino::Utf8PathBuf) -> Result<String, String> {
     let p = path.as_str();
     // Using double quotes inside the PS expression and escaping them is often safer
-    let ps_expr = format!(r#"([System.Diagnostics.FileVersionInfo]::GetVersionInfo("{}")).FileVersion"#, p);
+    let ps_expr = format!(
+        r#"([System.Diagnostics.FileVersionInfo]::GetVersionInfo("{}")).FileVersion"#,
+        p
+    );
 
     let output = std::process::Command::new("powershell")
         .arg("-NoProfile")
@@ -103,7 +105,11 @@ mod tests {
 
         let result = read_pe_version(&path);
 
-        assert!(result.is_ok(), "Should read version from kernel32.dll: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Should read version from kernel32.dll: {:?}",
+            result.err()
+        );
         let version = result.unwrap();
         // Version should look like "10.0.xxxxx.xxxx"
         assert!(version.contains('.'));

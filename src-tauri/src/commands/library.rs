@@ -121,7 +121,8 @@ pub async fn toggle_mod(
     let instance_handle = state.active_instance.clone();
     tauri::async_runtime::spawn_blocking(move || {
         with_lib_arc_mut(instance_handle, |inst| {
-            inst.toggle_mod(&id, is_active).map(|_| inst.to_frontend_dto())
+            inst.toggle_mod(&id, is_active)
+                .map(|_| inst.to_frontend_dto())
         })
     })
     .await

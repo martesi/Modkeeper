@@ -1,7 +1,7 @@
 // src/models/config.rs
+use camino::Utf8PathBuf;
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use camino::Utf8PathBuf;
 
 #[derive(Serialize, Deserialize, Type, Default, Clone)]
 pub struct GlobalConfig {

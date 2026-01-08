@@ -206,7 +206,10 @@ mod tests {
 
         // Link second time (should be idempotent / return Ok)
         let result = Linker::link(&src, &dst);
-        assert!(result.is_ok(), "Subsequent link to same source should succeed");
+        assert!(
+            result.is_ok(),
+            "Subsequent link to same source should succeed"
+        );
     }
 
     #[test]

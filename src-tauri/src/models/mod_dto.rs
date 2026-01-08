@@ -26,4 +26,3 @@ pub struct Mod {
     pub manifest: Option<ModManifest>,
     // files removed: only needed in cache, not for frontend display
 }
-

@@ -10,9 +10,9 @@ pub fn fetch_and_validate(config: &SPTPathRules) -> Result<String, SError> {
 
     /* let raw_version = read_pe_version(&config.server_dll).map_err(SError::ParseError)?;
     let version = parse(&raw_version)?;
-    
+
     validate(&version)?;
-    
+
     Ok(version.to_string())
     */
 }

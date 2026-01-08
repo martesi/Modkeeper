@@ -37,8 +37,8 @@ pub async fn open_library(
 
         Ok(switch_dto)
     })
-        .await
-        .map_err(|e| SError::AsyncRuntimeError(e.to_string()))? // Unwraps JoinError
+    .await
+    .map_err(|e| SError::AsyncRuntimeError(e.to_string()))? // Unwraps JoinError
 }
 
 #[tauri::command]
@@ -66,6 +66,6 @@ pub async fn create_library(
 
         Ok(switch)
     })
-        .await
-        .map_err(|e| SError::AsyncRuntimeError(e.to_string()))? // Unwrap the JoinHandle error
+    .await
+    .map_err(|e| SError::AsyncRuntimeError(e.to_string()))? // Unwrap the JoinHandle error
 }

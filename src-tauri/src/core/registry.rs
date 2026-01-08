@@ -42,8 +42,6 @@ impl AppRegistry {
     }
 }
 
-
-
 impl Default for AppRegistry {
     fn default() -> Self {
         Self {

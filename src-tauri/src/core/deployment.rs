@@ -25,10 +25,7 @@ pub fn deploy(
 }
 
 /// Validates that no two active mods provide the same file.
-fn check_file_collisions(
-    mods: &BTreeMap<String, Mod>,
-    cache: &LibraryCache,
-) -> Result<(), SError> {
+fn check_file_collisions(mods: &BTreeMap<String, Mod>, cache: &LibraryCache) -> Result<(), SError> {
     let mut owners: HashMap<Utf8PathBuf, String> = HashMap::new();
     let mut collisions = BTreeSet::new();
 
