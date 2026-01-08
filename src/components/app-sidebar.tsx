@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 
-import { Instance, InstanceSwitcher } from '@comps/instance-switcher.tsx'
+import { InstanceSwitcher } from '@comps/instance-switcher.tsx'
 import {
   Sidebar,
   SidebarContent,
@@ -11,16 +11,18 @@ import {
   SidebarRail,
 } from '@/components/ui/sidebar'
 
-const instances: Instance[] = [{ version: '4.0.1', name: 'Local' }]
-
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
-        <InstanceSwitcher instances={instances} />
+        <InstanceSwitcher />
       </SidebarHeader>
-      <SidebarContent></SidebarContent>
-      <SidebarFooter></SidebarFooter>
+      <SidebarContent>
+        {/* Navigation items can be added here */}
+      </SidebarContent>
+      <SidebarFooter>
+        {/* Footer content can be added here */}
+      </SidebarFooter>
       <SidebarRail />
     </Sidebar>
   )

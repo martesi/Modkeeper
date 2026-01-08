@@ -1,9 +1,161 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { ModList } from '@/components/mod/mod-list'
+import { useLibrary } from '@/hooks/use-library-state'
+import { useMods } from '@/hooks/use-library-state'
+import { Button } from '@comps/button'
+import { Trans } from '@lingui/react/macro'
+import { Upload, RefreshCw } from 'lucide-react'
+import { useState } from 'react'
 
 export const Route = createFileRoute('/')({
   component: RouteComponent,
 })
 
 function RouteComponent() {
-  return <div>How do you do?</div>
+  const { library, loading, error, refresh } = useLibrary()
+  const {
+    addMods,
+    removeMods,
+    toggleMod,
+    syncMods,
+    loading: modsLoading,
+  } = useMods()
+  const [isSyncing, setIsSyncing] = useState(false)
+
+  const handleAddMods = async () => {
+    try {
+      const { open } = await import('@tauri-apps/plugin-dialog')
+      const selected = await open({
+        multiple: true,
+        filters: [
+          {
+            name: 'Archive',
+            extensions: ['zip', 'rar', '7z'],
+          },
+        ],
+        title: 'Select Mod Files',
+      })
+      if (selected && Array.isArray(selected)) {
+        await addMods(selected)
+        await refresh()
+      } else if (selected && typeof selected === 'string') {
+        await addMods([selected])
+        await refresh()
+      }
+    } catch (err) {
+      console.error('Failed to add mods:', err)
+    }
+  }
+
+  const handleSync = async () => {
+    setIsSyncing(true)
+    try {
+      await syncMods()
+      await refresh()
+    } catch (err) {
+      console.error('Failed to sync mods:', err)
+    } finally {
+      setIsSyncing(false)
+    }
+  }
+
+  const handleToggleMod = async (id: string, isActive: boolean) => {
+    try {
+      await toggleMod(id, isActive)
+      await refresh()
+    } catch (err) {
+      console.error('Failed to toggle mod:', err)
+    }
+  }
+
+  const handleRemoveMods = async (id: string) => {
+    try {
+      await removeMods([id])
+      await refresh()
+    } catch (err) {
+      console.error('Failed to remove mod:', err)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Trans>Loading library...</Trans>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-4">
+        <p className="text-destructive">{error.message}</p>
+        <Button onClick={refresh} variant="outline">
+          <Trans>Retry</Trans>
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">
+            {library?.name || <Trans>Mod Library</Trans>}
+          </h1>
+          {library && (
+            <p className="text-sm text-muted-foreground">
+              <Trans>SPT {library.spt_version}</Trans>
+              {library.is_dirty && (
+                <span className="ml-2 text-warning">
+                  <Trans>(Needs Sync)</Trans>
+                </span>
+              )}
+            </p>
+          )}
+        </div>
+        <div className="flex gap-2">
+          {library && (
+            <>
+              <Button
+                variant="outline"
+                onClick={handleAddMods}
+                disabled={modsLoading}
+              >
+                <Upload className="size-4 mr-2" />
+                <Trans>Add Mods</Trans>
+              </Button>
+              <Button
+                variant="default"
+                onClick={handleSync}
+                disabled={modsLoading || isSyncing}
+              >
+                <RefreshCw
+                  className={`size-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`}
+                />
+                <Trans>Sync Mods</Trans>
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {library ? (
+        <ModList
+          library={library}
+          onModToggle={handleToggleMod}
+          onModRemove={handleRemoveMods}
+        />
+      ) : (
+        <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
+          <p className="text-lg mb-2">
+            <Trans>No library loaded</Trans>
+          </p>
+          <p className="text-sm">
+            <Trans>Open or create a library from the sidebar</Trans>
+          </p>
+        </div>
+      )}
+    </div>
+  )
 }

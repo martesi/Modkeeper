@@ -22,11 +22,11 @@
     "noFallthroughCasesInSwitch": true,
     "baseUrl": ".",
     "paths": {
-      "@gen/*": [".config/generated/*"],
+      "@gen/*": ["src/gen/*"],
       "@/*": ["src/*"],
       "@utils/*": ["src/utils/*"],
       "@comps/*": ["src/components/*", "src/components/ui/*"]
     }
   },
-  "include": ["src", ".config/generated", ".config/vite-env.d.ts"]
+  "include": ["src", "src/gen"]
 }
