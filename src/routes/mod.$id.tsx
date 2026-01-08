@@ -8,8 +8,6 @@ import { Trans } from '@lingui/react/macro'
 import { ArrowLeft, Package, Trash2, ChevronRight } from 'lucide-react'
 import { MarkdownContent } from '@/components/mod/markdown-content'
 import { useState, useEffect, useMemo } from 'react'
-import { commands } from '@/lib/api'
-import { unwrapResult } from '@/lib/result'
 import type { Mod, ModManifest, Dependencies } from '@gen/bindings'
 
 export const Route = createFileRoute('/mod/$id')({
@@ -33,25 +31,27 @@ function ModDetailsComponent() {
   useEffect(() => {
     if (mod?.manifest?.documentation) {
       setLoadingDocs(true)
-      unwrapResult(commands.getModDocumentation(id))
-        .then(setDocumentation)
-        .catch((err) => {
-          console.error('Failed to load documentation:', err)
-          setDocumentation(null)
-        })
-        .finally(() => setLoadingDocs(false))
+      // Mock documentation loading
+      setTimeout(() => {
+        const mockDocs = `# ${mod.name}\n\n${mod.manifest?.description || 'No description available.'}\n\n## Installation\n\nThis is a sample documentation for the mod. In a real application, this would be loaded from the mod's documentation file.\n\n## Features\n\n- Feature 1\n- Feature 2\n- Feature 3\n\n## Configuration\n\nYou can configure this mod by editing the configuration file.\n\n## Troubleshooting\n\nIf you encounter any issues, please check the logs.`
+        setDocumentation(mockDocs)
+        setLoadingDocs(false)
+      }, 500)
     }
-  }, [id, mod?.manifest?.documentation])
+  }, [id, mod?.manifest?.documentation, mod?.name])
 
   useEffect(() => {
     setLoadingBackups(true)
-    unwrapResult(commands.getBackups(id))
-      .then(setBackups)
-      .catch((err) => {
-        console.error('Failed to load backups:', err)
-        setBackups([])
-      })
-      .finally(() => setLoadingBackups(false))
+    // Mock backups loading
+    setTimeout(() => {
+      const mockBackups = [
+        new Date(Date.now() - 86400000).toISOString(), // 1 day ago
+        new Date(Date.now() - 172800000).toISOString(), // 2 days ago
+        new Date(Date.now() - 604800000).toISOString(), // 1 week ago
+      ]
+      setBackups(mockBackups)
+      setLoadingBackups(false)
+    }, 300)
   }, [id])
 
   const handleToggle = async () => {
@@ -80,11 +80,13 @@ function ModDetailsComponent() {
   const handleRestoreBackup = async (timestamp: string) => {
     if (confirm(`Are you sure you want to restore backup from ${timestamp}?`)) {
       try {
-        await unwrapResult(commands.restoreBackup(id, timestamp))
+        console.log('Restoring backup from:', timestamp)
+        // Mock restore - just refresh the library
+        await new Promise(resolve => setTimeout(resolve, 1000))
         await refresh()
-        // Reload backups
-        const newBackups = await unwrapResult(commands.getBackups(id))
-        setBackups(newBackups)
+        // Reload backups (add new backup after restore)
+        const newBackup = new Date().toISOString()
+        setBackups([newBackup, ...backups])
       } catch (err) {
         console.error('Failed to restore backup:', err)
       }

@@ -211,12 +211,12 @@ export function ModList({ library, onModToggle, onModRemove }: ModListProps) {
             >
               {selectedMods.size === filteredMods.length ? (
                 <>
-                  <Square className="size-4 mr-2" />
+                  <CheckSquare className="size-4 mr-2" />
                   <Trans>Deselect All</Trans>
                 </>
               ) : (
                 <>
-                  <CheckSquare className="size-4 mr-2" />
+                  <Square className="size-4 mr-2" />
                   <Trans>Select All</Trans>
                 </>
               )}
@@ -288,6 +288,9 @@ export function ModList({ library, onModToggle, onModRemove }: ModListProps) {
                 mod={mod}
                 onToggle={onModToggle}
                 onRemove={onModRemove}
+                isSelectionMode={isSelectionMode}
+                isSelected={selectedMods.has(mod.id)}
+                onSelect={() => toggleSelection(mod.id)}
               />
             </div>
           ))}

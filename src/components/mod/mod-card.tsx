@@ -2,24 +2,53 @@
 
 import { Trans } from '@lingui/react/macro'
 import { Button } from '@comps/button'
+import { Toggle } from '@comps/toggle'
 import { Link } from '@tanstack/react-router'
 import type { Mod } from '@gen/bindings'
 import { Trash2, Package, ChevronRight } from 'lucide-react'
+import { useState, useEffect } from 'react'
 
 interface ModCardProps {
   mod: Mod
   onToggle?: (id: string, isActive: boolean) => void
   onRemove?: (id: string) => void
+  isSelectionMode?: boolean
+  isSelected?: boolean
+  onSelect?: () => void
 }
 
-export function ModCard({ mod, onToggle, onRemove }: ModCardProps) {
+export function ModCard({
+  mod,
+  onToggle,
+  onRemove,
+  isSelectionMode,
+  isSelected,
+  onSelect
+}: ModCardProps) {
+  // Optimistic state for toggle
+  const [optimisticActive, setOptimisticActive] = useState(mod.is_active)
+
+  // Sync with prop changes
+  useEffect(() => {
+    setOptimisticActive(mod.is_active)
+  }, [mod.is_active])
+
   const handleToggle = () => {
-    onToggle?.(mod.id, !mod.is_active)
+    const newState = !optimisticActive
+    setOptimisticActive(newState) // Immediate UI update
+    onToggle?.(mod.id, newState) // Fire and forget (non-blocking)
   }
 
   const handleRemove = () => {
     if (confirm(`Are you sure you want to remove "${mod.name}"?`)) {
       onRemove?.(mod.id)
+    }
+  }
+
+  const handleCardClick = (e: React.MouseEvent) => {
+    // Only trigger selection if clicking the card itself (not children)
+    if (isSelectionMode && e.target === e.currentTarget) {
+      onSelect?.()
     }
   }
 
@@ -36,47 +65,70 @@ export function ModCard({ mod, onToggle, onRemove }: ModCardProps) {
     }
   }
 
+  // Format author for display
+  const authorDisplay = mod.manifest?.author
+    ? Array.isArray(mod.manifest.author)
+      ? mod.manifest.author.join(', ')
+      : mod.manifest.author
+    : null
+
   return (
     <div
-      className={`rounded-lg border p-4 transition-colors ${
-        mod.is_active ? 'bg-card border-primary/50' : 'bg-muted/50 border-muted'
+      onClick={handleCardClick}
+      className={`rounded-lg p-4 transition-all cursor-pointer ${
+        isSelected
+          ? 'border-2 border-primary bg-card'
+          : 'border bg-card'
+      } ${
+        optimisticActive ? 'border-primary/50' : 'border-muted'
       }`}
     >
+      {/* Header: Icon, Name Link, Remove Button */}
       <div className="flex items-start justify-between mb-2">
         <Link
           to="/mod/$id"
           params={{ id: mod.id }}
-          className="flex items-center gap-2 flex-1 hover:opacity-70 transition-opacity"
+          className="flex items-center gap-2 flex-1 min-w-0 hover:opacity-70 transition-opacity"
         >
-          <Package className="size-5 text-muted-foreground" />
-          <h3 className="font-semibold">{mod.name}</h3>
-          <ChevronRight className="size-4 text-muted-foreground ml-auto" />
+          <Package className="size-5 text-muted-foreground flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <h3 className="font-semibold truncate">{mod.name}</h3>
+          </div>
+          <ChevronRight className="size-4 text-muted-foreground flex-shrink-0" />
         </Link>
         <Button
           variant="ghost"
           size="icon"
-          className="size-6"
+          className="size-6 flex-shrink-0 ml-2"
           onClick={handleRemove}
         >
           <Trash2 className="size-4" />
         </Button>
       </div>
 
-      {mod.manifest && (
-        <div className="text-sm text-muted-foreground mb-2 space-y-1">
+      {/* Version and Author inline */}
+      {mod.manifest && (mod.manifest.version || authorDisplay) && (
+        <div className="text-xs text-muted-foreground mb-1 truncate pl-7">
           {mod.manifest.version && (
-            <div>
-              <Trans>Version: {mod.manifest.version}</Trans>
-            </div>
+            <span>
+              <Trans>Version</Trans> {mod.manifest.version}
+            </span>
           )}
-          {mod.manifest.author && (
-            <div>
-              <Trans>Author: {mod.manifest.author}</Trans>
-            </div>
+          {mod.manifest.version && authorDisplay && <span> • </span>}
+          {authorDisplay && (
+            <span className="truncate">{authorDisplay}</span>
           )}
         </div>
       )}
 
+      {/* Description with max height and ellipsis */}
+      {mod.manifest?.description && (
+        <div className="text-sm text-muted-foreground mb-3 pl-7 line-clamp-3">
+          {mod.manifest.description}
+        </div>
+      )}
+
+      {/* Footer: Type Badge and Toggle */}
       <div className="flex items-center justify-between mt-4">
         <span
           className={`text-xs px-2 py-1 rounded ${
@@ -92,17 +144,15 @@ export function ModCard({ mod, onToggle, onRemove }: ModCardProps) {
           {getModTypeLabel()}
         </span>
 
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={mod.is_active}
-            onChange={handleToggle}
-            className="rounded"
-          />
-          <span className="text-sm">
-            {mod.is_active ? <Trans>Active</Trans> : <Trans>Inactive</Trans>}
-          </span>
-        </label>
+        <Toggle
+          pressed={optimisticActive}
+          onPressedChange={handleToggle}
+          variant="outline"
+          size="sm"
+          className="gap-1.5"
+        >
+          {optimisticActive ? <Trans>Active</Trans> : <Trans>Inactive</Trans>}
+        </Toggle>
       </div>
     </div>
   )
