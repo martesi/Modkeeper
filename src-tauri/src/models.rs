@@ -1,4 +1,4 @@
-pub mod library_dto;
+pub mod library;
 pub mod paths;
 pub mod mod_dto;
 pub mod config;

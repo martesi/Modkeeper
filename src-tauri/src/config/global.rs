@@ -1,7 +1,7 @@
 use crate::core::library::Library;
 use crate::models::error::SError;
 use crate::models::global::LibrarySwitch;
-use crate::models::library_dto::LibraryDTO;
+use crate::models::library::{LibraryCreationRequirement, LibraryDTO};
 use camino::{Utf8Path, Utf8PathBuf};
 use serde::{Deserialize, Serialize};
 use tracing::error;
@@ -61,17 +61,13 @@ impl GlobalConfig {
 
     pub fn create_library(
         &mut self,
-        game_root: &Utf8Path,
-        lib_root: &Utf8Path,
+        requirement: LibraryCreationRequirement,
     ) -> Result<Library, SError> {
-        let game_root_buf = game_root.to_path_buf();
-        let lib_root_buf = lib_root.to_path_buf();
-
         // Create first (propagate error if invalid)
-        let library = Library::create(&lib_root_buf, &game_root_buf)?;
+        let library = Library::create(requirement.clone())?;
 
         // Update config only on success
-        self.update_recent(lib_root);
+        self.update_recent(&requirement.repo_root);
         self.save();
 
         Ok(library)

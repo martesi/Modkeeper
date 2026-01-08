@@ -3,18 +3,19 @@ use crate::core::mod_fs::ModFS;
 use crate::core::mod_stager::StageMaterial;
 use crate::core::{cleanup, deployment, versioning};
 use crate::models::error::SError;
-use crate::models::library_dto::LibraryDTO;
+use crate::models::library::{LibraryCreationRequirement, LibraryDTO};
 use crate::models::mod_dto::Mod;
 use crate::models::paths::{LibPathRules, SPTPathCanonical, SPTPathRules};
 use crate::utils::time::get_unix_timestamp;
 use crate::utils::toml::Toml;
 use camino::{Utf8Path, Utf8PathBuf};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::default::Default;
 use std::path::PathBuf;
 
 pub struct Library {
     pub id: String,
+    pub name: String,
     pub repo_root: Utf8PathBuf,
     pub game_root: Utf8PathBuf,
     pub spt_rules: SPTPathRules,
@@ -27,19 +28,20 @@ pub struct Library {
 }
 
 impl Library {
-    pub fn create(repo_root: &Utf8Path, game_root: &Utf8Path) -> Result<Self, SError> {
-        let lib_paths = LibPathRules::new(repo_root);
+    pub fn create(requirement: LibraryCreationRequirement) -> Result<Self, SError> {
+        let lib_paths = LibPathRules::new(&requirement.repo_root);
         for dir in [&lib_paths.mods, &lib_paths.backups, &lib_paths.staging] {
             std::fs::create_dir_all(dir)?;
         }
 
-        let spt_paths = SPTPathRules::new(game_root);
+        let spt_paths = SPTPathRules::new(&requirement.game_root);
         let spt_version = versioning::fetch_and_validate(&spt_paths)?;
 
         let inst = Self {
             id: uuid::Uuid::new_v4().to_string(),
-            repo_root: repo_root.to_owned(),
-            game_root: game_root.to_owned(),
+            name: requirement.name,
+            repo_root: requirement.repo_root,
+            game_root: requirement.game_root,
             spt_version,
             cache: LibraryCache::default(),
             mods: Default::default(),
@@ -68,6 +70,7 @@ impl Library {
 
         Ok(Self {
             id: dto.id,
+            name: dto.name,
             repo_root: repo_root.to_owned(),
             spt_paths_canonical: SPTPathCanonical::from_spt_paths(spt_paths)?,
             game_root: dto.game_root,
@@ -162,6 +165,7 @@ impl Library {
     pub fn to_dto(&self) -> LibraryDTO {
         LibraryDTO {
             id: self.id.to_owned(),
+            name: self.name.to_owned(),
             game_root: self.game_root.to_owned(),
             repo_root: self.repo_root.to_owned(),
             spt_version: self.spt_version.to_owned(),
@@ -202,6 +206,7 @@ impl Library {
 #[cfg(test)]
 mod integration_tests {
     use super::*;
+    use crate::models::library::LibraryCreationRequirement;
     use crate::models::paths::ModPaths;
     use std::fs;
 
@@ -259,7 +264,12 @@ mod integration_tests {
         let (_tmp, game_root, repo_root) = setup_test_env();
 
         // 1. Create Library
-        let mut lib = Library::create(&repo_root, &game_root).expect("Failed to create library");
+        let requirement = LibraryCreationRequirement {
+            repo_root: repo_root.clone(),
+            game_root: game_root.clone(),
+            name: "Test Library".to_string(),
+        };
+        let mut lib = Library::create(requirement).expect("Failed to create library");
         assert!(lib.lib_paths.mods.exists());
 
         // 2. Prepare a fake mod on disk
@@ -282,7 +292,12 @@ mod integration_tests {
     #[test]
     fn test_collision_detection() {
         let (_tmp, game_root, repo_root) = setup_test_env();
-        let mut lib = Library::create(&repo_root, &game_root).unwrap();
+        let requirement = LibraryCreationRequirement {
+            repo_root: repo_root.clone(),
+            game_root: game_root.clone(),
+            name: "Test Library".to_string(),
+        };
+        let mut lib = Library::create(requirement).unwrap();
         let rules = SPTPathRules::default();
 
         // Helper to create a mod with a specific ID (via manifest) but containing a specific file
@@ -337,7 +352,12 @@ mod integration_tests {
     #[test]
     fn test_recursive_linking_logic() {
         let (_tmp, game_root, repo_root) = setup_test_env();
-        let mut lib = Library::create(&repo_root, &game_root).unwrap();
+        let requirement = LibraryCreationRequirement {
+            repo_root: repo_root.clone(),
+            game_root: game_root.clone(),
+            name: "Test Library".to_string(),
+        };
+        let mut lib = Library::create(requirement).unwrap();
         let rules = SPTPathRules::default();
 
         let mut setup_mod = |lib: &mut Library, mod_id: &str, file_name: &str| {
@@ -379,7 +399,12 @@ mod integration_tests {
     #[test]
     fn test_purge_removes_deactivated_mods() {
         let (_tmp, game_root, repo_root) = setup_test_env();
-        let mut lib = Library::create(&repo_root, &game_root).unwrap();
+        let requirement = LibraryCreationRequirement {
+            repo_root: repo_root.clone(),
+            game_root: game_root.clone(),
+            name: "Test Library".to_string(),
+        };
+        let mut lib = Library::create(requirement).unwrap();
         let rules = SPTPathRules::default();
 
         // 1. Add and activate mod
@@ -404,7 +429,12 @@ mod integration_tests {
     #[test]
     fn test_to_frontend_dto_enrichment() {
         let (_tmp, game_root, repo_root) = setup_test_env();
-        let mut lib = Library::create(&repo_root, &game_root).expect("Failed to create library");
+        let requirement = LibraryCreationRequirement {
+            repo_root: repo_root.clone(),
+            game_root: game_root.clone(),
+            name: "Test Library".to_string(),
+        };
+        let mut lib = Library::create(requirement).expect("Failed to create library");
 
         // 1. Prepare a mod with a real manifest file on disk
         let mod_src = _tmp.path().join("source_mod");
@@ -446,12 +476,18 @@ mod integration_tests {
 #[cfg(test)]
 mod expanded_tests {
     use super::*;
+    use crate::models::library::LibraryCreationRequirement;
     use std::{fs, thread, time::Duration};
 
     #[test]
     fn test_mod_backup_on_overwrite() {
         let (_tmp, game_root, repo_root) = integration_tests::setup_test_env();
-        let mut lib = Library::create(&repo_root, &game_root).unwrap();
+        let requirement = LibraryCreationRequirement {
+            repo_root: repo_root.clone(),
+            game_root: game_root.clone(),
+            name: "Test Library".to_string(),
+        };
+        let mut lib = Library::create(requirement).unwrap();
         let rules = SPTPathRules::default();
 
         let mod_id = "BackupTest";
@@ -502,7 +538,12 @@ mod expanded_tests {
     #[test]
     fn test_untracked_file_safety_in_shared_folder() {
         let (_tmp, game_root, repo_root) = integration_tests::setup_test_env();
-        let mut lib = Library::create(&repo_root, &game_root).unwrap();
+        let requirement = LibraryCreationRequirement {
+            repo_root: repo_root.clone(),
+            game_root: game_root.clone(),
+            name: "Test Library".to_string(),
+        };
+        let mut lib = Library::create(requirement).unwrap();
         let rules = SPTPathRules::default();
 
         // 1. Setup TWO mods sharing a folder in "client_plugins" (BepInEx/plugins).
@@ -570,7 +611,12 @@ mod expanded_tests {
     #[test]
     fn test_persistence_cycle() {
         let (_tmp, game_root, repo_root) = integration_tests::setup_test_env();
-        let mut lib = Library::create(&repo_root, &game_root).unwrap();
+        let requirement = LibraryCreationRequirement {
+            repo_root: repo_root.clone(),
+            game_root: game_root.clone(),
+            name: "Test Library".to_string(),
+        };
+        let mut lib = Library::create(requirement).unwrap();
         let rules = SPTPathRules::default();
 
         let src = repo_root.join("src");
@@ -601,7 +647,12 @@ mod expanded_tests {
         // This test ensures that on Windows, IDs are treated case-insensitively
         // to prevent duplicate mods pointing to the same folder.
         let (_tmp, game_root, repo_root) = integration_tests::setup_test_env();
-        let mut lib = Library::create(&repo_root, &game_root).unwrap();
+        let requirement = LibraryCreationRequirement {
+            repo_root: repo_root.clone(),
+            game_root: game_root.clone(),
+            name: "Test Library".to_string(),
+        };
+        let mut lib = Library::create(requirement).unwrap();
 
         // Add "MyMod" then add "mymod"
         // (Implementation depends on your Choice:

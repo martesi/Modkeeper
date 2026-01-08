@@ -1,7 +1,7 @@
 use crate::core::mod_stager::ModStager;
 use crate::core::registry::AppRegistry;
 use crate::models::error::SError;
-use crate::models::library_dto::LibraryDTO;
+use crate::models::library::LibraryDTO;
 use crate::models::task_status::TaskStatus;
 use crate::utils::context::TaskContext;
 use crate::utils::thread::with_lib_arc_mut;

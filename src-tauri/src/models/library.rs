@@ -1,0 +1,33 @@
+use crate::models::mod_dto::Mod;
+use camino::Utf8PathBuf;
+use serde::{Deserialize, Serialize};
+use specta::specta;
+use specta::Type;
+use std::collections::BTreeMap;
+
+#[derive(Serialize, Deserialize, Type, Clone, Debug)]
+pub struct LibraryDTO {
+    pub id: String,
+    #[serde(default = "default_library_name")]
+    pub name: String,
+    #[specta(type=String)]
+    pub game_root: Utf8PathBuf,
+    #[specta(type=String)]
+    pub repo_root: Utf8PathBuf,
+    pub spt_version: String,
+    pub mods: BTreeMap<String, Mod>,
+    pub is_dirty: bool,
+}
+
+fn default_library_name() -> String {
+    "Unnamed Library".to_string()
+}
+
+#[derive(Serialize, Deserialize, Type, Clone, Debug)]
+pub struct LibraryCreationRequirement {
+    #[specta(type=String)]
+    pub game_root: Utf8PathBuf,
+    #[specta(type=String)]
+    pub repo_root: Utf8PathBuf,
+    pub name: String,
+}

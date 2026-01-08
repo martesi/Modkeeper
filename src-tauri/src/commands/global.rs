@@ -1,6 +1,7 @@
 use crate::core::registry::AppRegistry;
 use crate::models::error::SError;
 use crate::models::global::LibrarySwitch;
+use crate::models::library::LibraryCreationRequirement;
 use camino::Utf8PathBuf;
 use tauri::State;
 use tracing::instrument;
@@ -45,12 +46,8 @@ pub async fn open_library(
 #[instrument(skip(state))]
 pub async fn create_library(
     state: State<'_, AppRegistry>,
-    game_root: String,
-    lib_root: String,
+    requirement: LibraryCreationRequirement,
 ) -> Result<LibrarySwitch, SError> {
-    let game_root_path = Utf8PathBuf::from(game_root);
-    let lib_root_path = Utf8PathBuf::from(lib_root);
-
     // Clone handles to move into the blocking thread
     let config_handle = state.global_config.clone();
     let instance_handle = state.active_instance.clone();
@@ -59,8 +56,7 @@ pub async fn create_library(
         // 1. Lock Config, Create Library on disk, Update MRU
         let (lib, switch) = {
             let mut config = config_handle.lock();
-            // Note: Ensure the argument order matches your GlobalConfig::create_library definition
-            let lib = config.create_library(&game_root_path, &lib_root_path)?;
+            let lib = config.create_library(requirement)?;
             (lib, config.to_library_switch())
         };
 

@@ -1,4 +1,4 @@
-use crate::models::library_dto::LibraryDTO;
+use crate::models::library::LibraryDTO;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
