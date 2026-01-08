@@ -91,12 +91,9 @@ impl Library {
         let mod_id = fs.id.clone();
         let dst = self.lib_paths.mods.join(&mod_id);
 
+        // Create backup if mod already exists
         if dst.exists() {
-            let timestamp = get_unix_timestamp().to_string();
-            let backup_dir = self.lib_paths.backups.join(&mod_id).join(timestamp);
-
-            std::fs::create_dir_all(&backup_dir)?;
-            ModFS::copy_recursive(&dst, &backup_dir)?;
+            self.create_backup_for_mod(&mod_id)?;
         }
 
         std::fs::create_dir_all(&dst)?;
@@ -194,6 +191,99 @@ impl Library {
             self.spt_paths_canonical.client_exe.clone(),
             self.spt_paths_canonical.server_exe.clone(),
         ]
+    }
+
+    pub fn toggle_mod(&mut self, id: &str, is_active: bool) -> Result<(), SError> {
+        let mod_entry = self.mods.get_mut(id).ok_or_else(|| {
+            SError::ModNotFound(id.to_string())
+        })?;
+        mod_entry.is_active = is_active;
+        self.is_dirty = true;
+        self.persist()?;
+        Ok(())
+    }
+
+    pub fn get_backups(&self, mod_id: &str) -> Result<Vec<String>, SError> {
+        let backup_dir = self.lib_paths.backups.join(mod_id);
+
+        if !backup_dir.exists() {
+            return Ok(Vec::new());
+        }
+
+        let entries = std::fs::read_dir(&backup_dir)?;
+        let mut timestamps: Vec<String> = entries
+            .filter_map(|entry| {
+                entry.ok().and_then(|e| {
+                    e.file_name().into_string().ok()
+                })
+            })
+            .collect();
+
+        // Sort descending (newest first)
+        timestamps.sort_by(|a, b| b.cmp(a));
+
+        Ok(timestamps)
+    }
+
+    pub fn restore_backup(&mut self, mod_id: &str, timestamp: &str) -> Result<(), SError> {
+        // Verify mod exists
+        if !self.mods.contains_key(mod_id) {
+            return Err(SError::ModNotFound(mod_id.to_string()));
+        }
+
+        let backup_dir = self.lib_paths.backups.join(mod_id).join(timestamp);
+
+        if !backup_dir.exists() {
+            return Err(SError::Unexpected);
+        }
+
+        let mod_dir = self.lib_paths.mods.join(mod_id);
+
+        // Create a new backup of current state before restoring
+        if mod_dir.exists() {
+            self.create_backup_for_mod(mod_id)?;
+        }
+
+        // Remove current mod directory
+        if mod_dir.exists() {
+            std::fs::remove_dir_all(&mod_dir)?;
+        }
+
+        // Restore from backup
+        std::fs::create_dir_all(&mod_dir)?;
+        ModFS::copy_recursive(&backup_dir, &mod_dir)?;
+
+        // Rebuild the ModFS for the restored mod
+        let restored_fs = ModFS::new(&mod_dir, &self.spt_rules)?;
+
+        // Update cache with restored files
+        self.cache.add(&mod_dir, restored_fs.clone());
+
+        // Update mod metadata if needed
+        if let Some(mod_entry) = self.mods.get_mut(mod_id) {
+            mod_entry.mod_type = restored_fs.mod_type.clone();
+        }
+
+        self.is_dirty = true;
+        self.persist()?;
+        Ok(())
+    }
+
+    /// Creates a backup of the current mod state.
+    /// Backup is stored at: `backups/{mod_id}/{timestamp}/`
+    fn create_backup_for_mod(&self, mod_id: &str) -> Result<(), SError> {
+        let mod_dir = self.lib_paths.mods.join(mod_id);
+
+        if !mod_dir.exists() {
+            return Ok(()); // Nothing to backup
+        }
+
+        let timestamp = get_unix_timestamp().to_string();
+        let backup_dir = self.lib_paths.backups.join(mod_id).join(&timestamp);
+
+        std::fs::create_dir_all(&backup_dir)?;
+        ModFS::copy_recursive(&mod_dir, &backup_dir)?;
+        Ok(())
     }
 
     fn persist(&self) -> Result<(), SError> {

@@ -4,7 +4,7 @@ use crate::models::error::SError;
 use crate::models::library::LibraryDTO;
 use crate::models::task_status::TaskStatus;
 use crate::utils::context::TaskContext;
-use crate::utils::thread::with_lib_arc_mut;
+use crate::utils::thread::{with_lib_arc, with_lib_arc_mut};
 use camino::Utf8PathBuf;
 use tauri::ipc::Channel;
 use tauri::State;
@@ -96,4 +96,68 @@ pub async fn sync_mods(
         })
     })
     .await??
+}
+
+#[tauri::command]
+#[specta::specta]
+#[instrument(skip(state))]
+pub async fn get_library(state: State<'_, AppRegistry>) -> Result<LibraryDTO, SError> {
+    let instance_handle = state.active_instance.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        with_lib_arc(instance_handle, |inst| inst.to_frontend_dto())
+    })
+    .await
+    .map_err(|e| SError::AsyncRuntimeError(e.to_string()))?
+}
+
+#[tauri::command]
+#[specta::specta]
+#[instrument(skip(state))]
+pub async fn toggle_mod(
+    state: State<'_, AppRegistry>,
+    id: String,
+    is_active: bool,
+) -> Result<LibraryDTO, SError> {
+    let instance_handle = state.active_instance.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        with_lib_arc_mut(instance_handle, |inst| {
+            inst.toggle_mod(&id, is_active).map(|_| inst.to_frontend_dto())
+        })
+    })
+    .await
+    .map_err(|e| SError::AsyncRuntimeError(e.to_string()))??
+}
+
+#[tauri::command]
+#[specta::specta]
+#[instrument(skip(state))]
+pub async fn get_backups(
+    state: State<'_, AppRegistry>,
+    mod_id: String,
+) -> Result<Vec<String>, SError> {
+    let instance_handle = state.active_instance.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        with_lib_arc(instance_handle, |inst| inst.get_backups(&mod_id))
+    })
+    .await
+    .map_err(|e| SError::AsyncRuntimeError(e.to_string()))??
+}
+
+#[tauri::command]
+#[specta::specta]
+#[instrument(skip(state))]
+pub async fn restore_backup(
+    state: State<'_, AppRegistry>,
+    mod_id: String,
+    timestamp: String,
+) -> Result<LibraryDTO, SError> {
+    let instance_handle = state.active_instance.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        with_lib_arc_mut(instance_handle, |inst| {
+            inst.restore_backup(&mod_id, &timestamp)
+                .map(|_| inst.to_frontend_dto())
+        })
+    })
+    .await
+    .map_err(|e| SError::AsyncRuntimeError(e.to_string()))??
 }
