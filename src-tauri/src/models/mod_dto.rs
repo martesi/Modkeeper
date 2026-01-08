@@ -98,5 +98,7 @@ pub struct Mod {
     pub mod_type: ModType,
     pub name: String,
     pub manifest: Option<ModManifest>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub icon_data: Option<String>,
     // files removed: only needed in cache, not for frontend display
 }

@@ -6,7 +6,8 @@ pub mod utils;
 
 use crate::commands::global::{create_library, open_library};
 use crate::commands::library::{
-    add_mods, get_backups, get_library, remove_mods, restore_backup, sync_mods, toggle_mod,
+    add_mods, get_backups, get_library, get_mod_documentation, remove_mods, restore_backup,
+    sync_mods, toggle_mod,
 };
 use crate::core::registry::AppRegistry;
 use specta_typescript::Typescript;
@@ -24,6 +25,7 @@ pub fn run() {
         toggle_mod,
         get_backups,
         restore_backup,
+        get_mod_documentation,
         // global
         open_library,
         create_library

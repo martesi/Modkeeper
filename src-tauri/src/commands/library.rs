@@ -162,3 +162,18 @@ pub async fn restore_backup(
     .await
     .map_err(|e| SError::AsyncRuntimeError(e.to_string()))??
 }
+
+#[tauri::command]
+#[specta::specta]
+#[instrument(skip(state))]
+pub async fn get_mod_documentation(
+    state: State<'_, AppRegistry>,
+    mod_id: String,
+) -> Result<String, SError> {
+    let instance_handle = state.active_instance.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        with_lib_arc(instance_handle, |inst| inst.get_mod_documentation(&mod_id))
+    })
+    .await
+    .map_err(|e| SError::AsyncRuntimeError(e.to_string()))??
+}

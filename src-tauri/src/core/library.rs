@@ -7,6 +7,7 @@ use crate::models::library::{LibraryCreationRequirement, LibraryDTO};
 use crate::models::mod_dto::Mod;
 use crate::models::paths::{LibPathRules, SPTPathCanonical, SPTPathRules};
 use crate::utils::file::FileUtils;
+use crate::utils::icon::load_icon_as_data_uri;
 use crate::utils::time::get_unix_timestamp;
 use crate::utils::toml::Toml;
 use camino::{Utf8Path, Utf8PathBuf};
@@ -100,13 +101,17 @@ impl Library {
 
         self.mods
             .entry(mod_id.clone())
-            .and_modify(|m| m.mod_type = fs.mod_type.clone())
+            .and_modify(|m| {
+                m.mod_type = fs.mod_type.clone();
+                m.icon_data = None; // Reset icon_data when updating
+            })
             .or_insert_with(|| Mod {
                 id: mod_id.clone(),
                 is_active: false,
                 mod_type: fs.mod_type.clone(),
                 name: Default::default(),
                 manifest: None,
+                icon_data: None,
             });
 
         self.cache.add(&dst, fs);
@@ -174,6 +179,14 @@ impl Library {
         let mut dto = self.to_dto();
         for (id, m) in &mut dto.mods {
             m.manifest = self.cache.manifests.get(id).cloned();
+
+            // Load icon data if manifest specifies an icon
+            m.icon_data = m.manifest.as_ref()
+                .and_then(|manifest| manifest.icon.as_ref())
+                .and_then(|icon_filename| {
+                    let icon_path = self.lib_paths.mods.join(id).join(icon_filename);
+                    load_icon_as_data_uri(&icon_path)
+                });
         }
         dto
     }
@@ -263,6 +276,28 @@ impl Library {
         self.is_dirty = true;
         self.persist()?;
         Ok(())
+    }
+
+    pub fn get_mod_documentation(&self, mod_id: &str) -> Result<String, SError> {
+        // Verify mod exists
+        if !self.mods.contains_key(mod_id) {
+            return Err(SError::ModNotFound(mod_id.to_string()));
+        }
+
+        // Get documentation filename from manifest
+        let doc_filename = self
+            .cache
+            .manifests
+            .get(mod_id)
+            .and_then(|manifest| manifest.documentation.as_ref())
+            .ok_or_else(|| SError::ParseError("Documentation not specified in manifest".to_string()))?;
+
+        // Build path to documentation file
+        let doc_path = self.lib_paths.mods.join(mod_id).join(doc_filename);
+
+        // Read and return documentation content
+        std::fs::read_to_string(&doc_path)
+            .map_err(|e| SError::IOError(format!("Failed to read documentation: {}", e)))
     }
 
     /// Creates a backup of the current mod state.
