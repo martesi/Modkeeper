@@ -6,6 +6,7 @@ use crate::models::error::SError;
 use crate::models::library::{LibraryCreationRequirement, LibraryDTO};
 use crate::models::mod_dto::Mod;
 use crate::models::paths::{LibPathRules, SPTPathCanonical, SPTPathRules};
+use crate::utils::file::FileUtils;
 use crate::utils::time::get_unix_timestamp;
 use crate::utils::toml::Toml;
 use camino::{Utf8Path, Utf8PathBuf};
@@ -97,7 +98,7 @@ impl Library {
         }
 
         std::fs::create_dir_all(&dst)?;
-        ModFS::copy_recursive(mod_root, &dst)?;
+        FileUtils::copy_recursive(mod_root, &dst)?;
 
         self.mods
             .entry(mod_id.clone())
@@ -248,7 +249,7 @@ impl Library {
 
         // Restore from backup
         std::fs::create_dir_all(&mod_dir)?;
-        ModFS::copy_recursive(&backup_dir, &mod_dir)?;
+        FileUtils::copy_recursive(&backup_dir, &mod_dir)?;
 
         // Rebuild the ModFS for the restored mod
         let restored_fs = ModFS::new(&mod_dir, &self.spt_rules)?;
@@ -279,7 +280,7 @@ impl Library {
         let backup_dir = self.lib_paths.backups.join(mod_id).join(&timestamp);
 
         std::fs::create_dir_all(&backup_dir)?;
-        ModFS::copy_recursive(&mod_dir, &backup_dir)?;
+        FileUtils::copy_recursive(&mod_dir, &backup_dir)?;
         Ok(())
     }
 

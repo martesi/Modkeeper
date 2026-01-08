@@ -108,40 +108,6 @@ impl ModFS {
             })
     }
 
-    pub fn copy_recursive(src: &Utf8Path, dst: &Utf8Path) -> Result<(), SError> {
-        // 1. Ensure the root destination directory exists
-        std::fs::create_dir_all(dst)?;
-
-        for entry in WalkDir::new(src).into_iter().filter_map(|e| e.ok()) {
-            // 2. Convert standard Path to Camino Utf8Path
-            let src_path = Utf8Path::from_path(entry.path()).ok_or_else(|| {
-                SError::ParseError(format!("Invalid UTF-8 path: {:?}", entry.path()))
-            })?;
-
-            // 3. Calculate the relative path from the source root
-            let rel_path = src_path.strip_prefix(src)?;
-
-            // 4. Construct the final destination path
-            let dst_path = dst.join(rel_path);
-
-            if entry.file_type().is_dir() {
-                // 5. If it's a directory, create it in the destination
-                std::fs::create_dir_all(&dst_path)?;
-            } else {
-                // 6. If it's a file, ensure the parent directory exists (safety check)
-                if let Some(parent) = dst_path.parent() {
-                    if !parent.exists() {
-                        std::fs::create_dir_all(parent)?;
-                    }
-                }
-                // 7. Copy the file (Note: This overwrites existing files at the destination)
-                std::fs::copy(src_path, &dst_path)?;
-            }
-        }
-
-        Ok(())
-    }
-
     pub fn new(root: &Utf8Path, spt_paths: &SPTPathRules) -> Result<Self, SError> {
         let (files, executables) = Self::collect_files(root); // Call once
 
@@ -157,8 +123,8 @@ impl ModFS {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs::{self, File};
-    use std::io::Write;
+    use crate::utils::file::FileUtils;
+    use std::fs;
     use tempfile::tempdir;
 
     #[test]
@@ -174,8 +140,8 @@ mod tests {
 
         let mod_fs = ModFS::new(&root, &rules).unwrap();
 
-        // Server ID should be just the first folder name: "WeatherMod"
-        assert_eq!(mod_fs.id, "WeatherMod");
+        // Server ID should be just the first folder name (lowercase): "weathermod"
+        assert_eq!(mod_fs.id, "weathermod");
         assert_eq!(mod_fs.mod_type, ModType::Server);
     }
 
@@ -194,9 +160,9 @@ mod tests {
 
         let mod_fs = ModFS::new(&root, &rules).unwrap();
 
-        // Client ID logic is rel.as_str().
+        // Client ID logic is rel.as_str() (lowercase).
         // We compare against a PathBuf to handle \ vs / automatically.
-        let expected_rel = Utf8Path::new("AuthorName").join("Logic.dll");
+        let expected_rel = Utf8Path::new("authorname").join("logic.dll");
         assert_eq!(mod_fs.id, expected_rel.as_str());
         assert_eq!(mod_fs.mod_type, ModType::Client);
     }
@@ -220,8 +186,8 @@ mod tests {
 
         // BTreeSet sorts alphabetically:
         // "CoreMod" vs "Fixes.dll"
-        // Result: "CoreMod--Fixes.dll"
-        let expected = format!("CoreMod{}Fixes.dll", MOD_ID_DIVIDER);
+        // Result: "coremod--fixes.dll" (lowercase)
+        let expected = format!("coremod{}fixes.dll", MOD_ID_DIVIDER);
         assert_eq!(mod_fs.id, expected);
         assert_eq!(mod_fs.mod_type, ModType::Both);
     }
@@ -244,8 +210,8 @@ mod tests {
 
         let mod_fs = ModFS::new(&root, &rules).unwrap();
 
-        // ID should only be "ValidMod", the readme.txt is ignored
-        assert_eq!(mod_fs.id, "ValidMod");
+        // ID should only be "validmod" (lowercase), the readme.txt is ignored
+        assert_eq!(mod_fs.id, "validmod");
     }
 
     #[test]
@@ -319,7 +285,7 @@ mod tests {
         fs::write(&old_file, "old content").unwrap();
 
         // 3. Act
-        ModFS::copy_recursive(&src, &dst).unwrap();
+        FileUtils::copy_recursive(&src, &dst).unwrap();
 
         // 4. Assert
         let content = fs::read_to_string(dst.join("a/b/c/d.txt")).unwrap();
@@ -362,8 +328,8 @@ mod tests {
 
         let mod_fs = ModFS::new(&root, &rules).unwrap();
 
-        // BTreeSet should have forced: A_mod--M_mod--Z_mod
-        let expected = format!("A_mod{0}M_mod{0}Z_mod", MOD_ID_DIVIDER);
+        // BTreeSet should have forced: a_mod--m_mod--z_mod (lowercase)
+        let expected = format!("a_mod{0}m_mod{0}z_mod", MOD_ID_DIVIDER);
         assert_eq!(mod_fs.id, expected);
     }
 }

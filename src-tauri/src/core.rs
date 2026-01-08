@@ -3,6 +3,7 @@ pub mod cleanup;
 pub mod decompression;
 pub mod deployment;
 pub mod library;
+pub mod library_service;
 pub mod linker;
 pub mod mod_fs;
 pub mod mod_stager;

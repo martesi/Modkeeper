@@ -2,6 +2,7 @@ use crate::core::decompression::Decompression;
 use crate::core::mod_fs::ModFS;
 use crate::models::error::SError;
 use crate::models::paths::SPTPathRules;
+use crate::utils::file::FileUtils;
 use crate::utils::process::ProcessChecker;
 use camino::{Utf8Path, Utf8PathBuf};
 use std::fs;
@@ -168,7 +169,7 @@ impl ModStager {
             let name = input.file_name().ok_or_else(|| {
                 SError::ParseError(format!("Unable to get file name for {input}"))
             })?;
-            ModFS::copy_recursive(input, &dest_dir.join(name))?;
+            FileUtils::copy_recursive(input, &dest_dir.join(name))?;
         }
 
         let fs = ModFS::new(&dest_dir, rules)?;

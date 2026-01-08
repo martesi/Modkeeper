@@ -1,4 +1,3 @@
-// src/core/registry.rs
 use crate::config::global::GlobalConfig;
 use crate::core::library::Library;
 use crate::core::mod_stager::StageMaterial;
