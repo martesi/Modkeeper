@@ -1,8 +1,8 @@
-mod commands;
-mod config;
-mod core;
-mod models;
-mod utils;
+pub mod commands;
+pub mod config;
+pub mod core;
+pub mod models;
+pub mod utils;
 
 use crate::commands::global::{create_library, open_library};
 use crate::commands::library::{
