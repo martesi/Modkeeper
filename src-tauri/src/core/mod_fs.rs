@@ -17,7 +17,7 @@ pub struct ModFS {
 
 impl ModFS {
     fn read_manifest_guid(manifest_path: &Utf8Path) -> Result<String, SError> {
-        Ok(Self::read_manifest(manifest_path)?.guid)
+        Ok(Self::read_manifest(manifest_path)?.id)
     }
 
     pub fn read_manifest(path: &Utf8Path) -> Result<ModManifest, SError> {
