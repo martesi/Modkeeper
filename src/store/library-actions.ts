@@ -1,4 +1,5 @@
 import { atom } from 'jotai'
+import type { Getter, Setter } from 'jotai'
 import { commands } from '@/lib/api'
 import { unwrapResult } from '@/lib/result'
 import {
@@ -7,171 +8,122 @@ import {
   libraryLoadingAtom,
   libraryErrorAtom,
 } from './library'
-import type { LibraryDTO, LibrarySwitch } from '@gen/bindings'
+import type {
+  LibraryDTO,
+  LibrarySwitch,
+  LibraryCreationRequirement,
+} from '@gen/bindings'
 
-// Action atoms
-export const fetchLibraryAction = atom(null, async (get, set) => {
-  set(libraryLoadingAtom, true)
-  set(libraryErrorAtom, null)
-  try {
-    const library = await unwrapResult(commands.getLibrary())
-    set(libraryAtom, library)
-    return library
-  } catch (err) {
-    const error = err instanceof Error ? err : new Error('Failed to load library')
-    set(libraryErrorAtom, error)
-    set(libraryAtom, null)
-    throw error
-  } finally {
-    set(libraryLoadingAtom, false)
-  }
-})
-
-export const openLibraryAction = atom(
-  null,
-  async (get, set, path: string): Promise<LibrarySwitch> => {
+/**
+ * Higher-order function to wrap async operations with loading/error state
+ * This eliminates boilerplate and makes the code more functional
+ */
+function withAsyncState<Args extends any[], ReturnType>(
+  operation: (...args: Args) => Promise<ReturnType>,
+  updateState: (get: Getter, set: Setter, result: ReturnType) => void,
+) {
+  return async (
+    get: Getter,
+    set: Setter,
+    ...args: Args
+  ): Promise<ReturnType> => {
     set(libraryLoadingAtom, true)
     set(libraryErrorAtom, null)
     try {
-      const switchData = await unwrapResult(commands.openLibrary(path))
-      set(librarySwitchAtom, switchData)
-      set(libraryAtom, switchData.active ?? null)
-      return switchData
+      const result = await operation(...args)
+      updateState(get, set, result)
+      return result
     } catch (err) {
-      const error = err instanceof Error ? err : new Error('Failed to open library')
+      const error = err instanceof Error ? err : new Error('Operation failed')
       set(libraryErrorAtom, error)
       throw error
     } finally {
       set(libraryLoadingAtom, false)
     }
   }
+}
+
+/**
+ * Updates library state and syncs with library switch
+ */
+function updateLibraryState(get: Getter, set: Setter, library: LibraryDTO) {
+  set(libraryAtom, library)
+  const switchData = get(librarySwitchAtom)
+  if (switchData?.active) {
+    set(librarySwitchAtom, {
+      ...switchData,
+      active: library,
+    })
+  }
+}
+
+/**
+ * Updates library switch state
+ */
+function updateLibrarySwitchState(
+  _get: Getter,
+  set: Setter,
+  switchData: LibrarySwitch,
+) {
+  set(librarySwitchAtom, switchData)
+  set(libraryAtom, switchData.active ?? null)
+}
+
+// Action atoms using FP patterns
+export const fetchLibraryAction = atom(
+  null,
+  withAsyncState(
+    () => unwrapResult(commands.getLibrary()),
+    (_get, set, library) => set(libraryAtom, library),
+  ),
+)
+
+export const openLibraryAction = atom(
+  null,
+  withAsyncState(
+    (path: string) => unwrapResult(commands.openLibrary(path)),
+    (_get, set, switchData) => updateLibrarySwitchState(_get, set, switchData),
+  ),
 )
 
 export const createLibraryAction = atom(
   null,
-  async (
-    get,
-    set,
-    requirement: { gameRoot: string; repoRoot: string; name: string }
-  ): Promise<LibrarySwitch> => {
-    set(libraryLoadingAtom, true)
-    set(libraryErrorAtom, null)
-    try {
-      const switchData = await unwrapResult(commands.createLibrary(requirement))
-      set(librarySwitchAtom, switchData)
-      set(libraryAtom, switchData.active ?? null)
-      return switchData
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error('Failed to create library')
-      set(libraryErrorAtom, error)
-      throw error
-    } finally {
-      set(libraryLoadingAtom, false)
-    }
-  }
+  withAsyncState(
+    (requirement: LibraryCreationRequirement) =>
+      unwrapResult(commands.createLibrary(requirement)),
+    updateLibrarySwitchState,
+  ),
 )
 
 export const addModsAction = atom(
   null,
-  async (get, set, paths: string[]): Promise<LibraryDTO> => {
-    set(libraryLoadingAtom, true)
-    set(libraryErrorAtom, null)
-    try {
-      const library = await unwrapResult(commands.addMods(paths, null))
-      set(libraryAtom, library)
-      // Update library switch if it exists
-      const switchData = get(librarySwitchAtom)
-      if (switchData?.active) {
-        set(librarySwitchAtom, {
-          ...switchData,
-          active: library,
-        })
-      }
-      return library
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error('Failed to add mods')
-      set(libraryErrorAtom, error)
-      throw error
-    } finally {
-      set(libraryLoadingAtom, false)
-    }
-  }
+  withAsyncState(
+    (paths: string[]) => unwrapResult(commands.addMods(paths, null as any)),
+    updateLibraryState,
+  ),
 )
 
 export const removeModsAction = atom(
   null,
-  async (get, set, ids: string[]): Promise<LibraryDTO> => {
-    set(libraryLoadingAtom, true)
-    set(libraryErrorAtom, null)
-    try {
-      const library = await unwrapResult(commands.removeMods(ids, null))
-      set(libraryAtom, library)
-      // Update library switch if it exists
-      const switchData = get(librarySwitchAtom)
-      if (switchData?.active) {
-        set(librarySwitchAtom, {
-          ...switchData,
-          active: library,
-        })
-      }
-      return library
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error('Failed to remove mods')
-      set(libraryErrorAtom, error)
-      throw error
-    } finally {
-      set(libraryLoadingAtom, false)
-    }
-  }
+  withAsyncState(
+    (ids: string[]) => unwrapResult(commands.removeMods(ids, null as any)),
+    updateLibraryState,
+  ),
 )
 
 export const toggleModAction = atom(
   null,
-  async (get, set, id: string, isActive: boolean): Promise<LibraryDTO> => {
-    set(libraryLoadingAtom, true)
-    set(libraryErrorAtom, null)
-    try {
-      const library = await unwrapResult(commands.toggleMod(id, isActive))
-      set(libraryAtom, library)
-      // Update library switch if it exists
-      const switchData = get(librarySwitchAtom)
-      if (switchData?.active) {
-        set(librarySwitchAtom, {
-          ...switchData,
-          active: library,
-        })
-      }
-      return library
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error('Failed to toggle mod')
-      set(libraryErrorAtom, error)
-      throw error
-    } finally {
-      set(libraryLoadingAtom, false)
-    }
-  }
+  withAsyncState(
+    (id: string, isActive: boolean) =>
+      unwrapResult(commands.toggleMod(id, isActive)),
+    updateLibraryState,
+  ),
 )
 
-export const syncModsAction = atom(null, async (get, set): Promise<LibraryDTO> => {
-  set(libraryLoadingAtom, true)
-  set(libraryErrorAtom, null)
-  try {
-    const library = await unwrapResult(commands.syncMods(null))
-    set(libraryAtom, library)
-    // Update library switch if it exists
-    const switchData = get(librarySwitchAtom)
-    if (switchData?.active) {
-      set(librarySwitchAtom, {
-        ...switchData,
-        active: library,
-      })
-    }
-    return library
-  } catch (err) {
-    const error = err instanceof Error ? err : new Error('Failed to sync mods')
-    set(libraryErrorAtom, error)
-    throw error
-  } finally {
-    set(libraryLoadingAtom, false)
-  }
-})
+export const syncModsAction = atom(
+  null,
+  withAsyncState(
+    () => unwrapResult(commands.syncMods(null as any)),
+    updateLibraryState,
+  ),
+)

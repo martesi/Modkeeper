@@ -4,8 +4,14 @@ import { useLibrary } from '@/hooks/use-library-state'
 import { useMods } from '@/hooks/use-library-state'
 import { Button } from '@comps/button'
 import { Trans } from '@lingui/react/macro'
-import { Upload, RefreshCw } from 'lucide-react'
+import { Upload, RefreshCw, FileArchive, FolderOpen } from 'lucide-react'
 import { useState } from 'react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@comps/dropdown-menu'
 
 export const Route = createFileRoute('/')({
   component: RouteComponent,
@@ -22,7 +28,7 @@ function RouteComponent() {
   } = useMods()
   const [isSyncing, setIsSyncing] = useState(false)
 
-  const handleAddMods = async () => {
+  const handleAddModFiles = async () => {
     try {
       const { open } = await import('@tauri-apps/plugin-dialog')
       const selected = await open({
@@ -30,7 +36,7 @@ function RouteComponent() {
         filters: [
           {
             name: 'Archive',
-            extensions: ['zip', 'rar', '7z'],
+            extensions: ['zip'],
           },
         ],
         title: 'Select Mod Files',
@@ -43,7 +49,24 @@ function RouteComponent() {
         await refresh()
       }
     } catch (err) {
-      console.error('Failed to add mods:', err)
+      console.error('Failed to add mod files:', err)
+    }
+  }
+
+  const handleAddModFolder = async () => {
+    try {
+      const { open } = await import('@tauri-apps/plugin-dialog')
+      const selected = await open({
+        directory: true,
+        multiple: false,
+        title: 'Select Mod Folder',
+      })
+      if (selected && typeof selected === 'string') {
+        await addMods([selected])
+        await refresh()
+      }
+    } catch (err) {
+      console.error('Failed to add mod folder:', err)
     }
   }
 
@@ -117,14 +140,24 @@ function RouteComponent() {
         <div className="flex gap-2">
           {library && (
             <>
-              <Button
-                variant="outline"
-                onClick={handleAddMods}
-                disabled={modsLoading}
-              >
-                <Upload className="size-4 mr-2" />
-                <Trans>Add Mods</Trans>
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" disabled={modsLoading}>
+                    <Upload className="size-4 mr-2" />
+                    <Trans>Add Mods</Trans>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem onClick={handleAddModFiles}>
+                    <FileArchive className="size-4 mr-2" />
+                    <Trans>Add Mod Files (.zip)</Trans>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleAddModFolder}>
+                    <FolderOpen className="size-4 mr-2" />
+                    <Trans>Add Mod Folder</Trans>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button
                 variant="default"
                 onClick={handleSync}

@@ -2,8 +2,9 @@
 
 import { Trans } from '@lingui/react/macro'
 import { Button } from '@comps/button'
+import { Link } from '@tanstack/react-router'
 import type { Mod } from '@gen/bindings'
-import { Trash2, Package } from 'lucide-react'
+import { Trash2, Package, ChevronRight } from 'lucide-react'
 
 interface ModCardProps {
   mod: Mod
@@ -42,10 +43,15 @@ export function ModCard({ mod, onToggle, onRemove }: ModCardProps) {
       }`}
     >
       <div className="flex items-start justify-between mb-2">
-        <div className="flex items-center gap-2">
+        <Link
+          to="/mod/$id"
+          params={{ id: mod.id }}
+          className="flex items-center gap-2 flex-1 hover:opacity-70 transition-opacity"
+        >
           <Package className="size-5 text-muted-foreground" />
           <h3 className="font-semibold">{mod.name}</h3>
-        </div>
+          <ChevronRight className="size-4 text-muted-foreground ml-auto" />
+        </Link>
         <Button
           variant="ghost"
           size="icon"
