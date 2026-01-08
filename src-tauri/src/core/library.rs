@@ -1,14 +1,10 @@
 use crate::core::cache::LibraryCache;
-use crate::core::mod_fs::ModFS;
 use crate::core::mod_stager::StageMaterial;
-use crate::core::{cleanup, deployment, version};
+use crate::core::version;
 use crate::models::error::SError;
 use crate::models::library::{LibraryCreationRequirement, LibraryDTO};
 use crate::models::mod_dto::Mod;
 use crate::models::paths::{LibPathRules, SPTPathCanonical, SPTPathRules};
-use crate::utils::file::FileUtils;
-use crate::utils::icon::load_icon_as_data_uri;
-use crate::utils::time::get_unix_timestamp;
 use crate::utils::toml::Toml;
 use camino::{Utf8Path, Utf8PathBuf};
 use std::collections::BTreeMap;
@@ -26,7 +22,7 @@ pub struct Library {
     pub cache: LibraryCache,
     pub spt_version: String,
     pub mods: BTreeMap<String, Mod>,
-    is_dirty: bool,
+    pub(crate) is_dirty: bool,
 }
 
 impl Library {
@@ -87,81 +83,6 @@ impl Library {
         Toml::read::<LibraryDTO>(&LibPathRules::new(lib_root).manifest)
     }
 
-    pub fn add_mod(&mut self, mod_root: &Utf8Path, fs: ModFS) -> Result<(), SError> {
-        let mod_id = fs.id.clone();
-        let dst = self.lib_paths.mods.join(&mod_id);
-
-        // Create backup if mod already exists
-        if dst.exists() {
-            self.create_backup_for_mod(&mod_id)?;
-        }
-
-        std::fs::create_dir_all(&dst)?;
-        FileUtils::copy_recursive(mod_root, &dst)?;
-
-        self.mods
-            .entry(mod_id.clone())
-            .and_modify(|m| {
-                m.mod_type = fs.mod_type.clone();
-                m.icon_data = None; // Reset icon_data when updating
-            })
-            .or_insert_with(|| Mod {
-                id: mod_id.clone(),
-                is_active: false,
-                mod_type: fs.mod_type.clone(),
-                name: Default::default(),
-                manifest: None,
-                icon_data: None,
-            });
-
-        self.cache.add(&dst, fs);
-        self.is_dirty = true;
-        self.persist()?;
-        Ok(())
-    }
-
-    pub fn remove_mod(&mut self, id: &str) -> Result<(), SError> {
-        // Remove from Cache and Filesystem
-        if let Some(m) = self.cache.mods.remove(id) {
-            // Note: We deliberately do not unlink here individually.
-            // A full sync() is required to properly clean up state,
-            // otherwise we risk leaving broken links if the user doesn't sync immediately.
-            // However, to strictly follow previous logic, we unlink specific files:
-            for f in &m.files {
-                let _ = crate::core::linker::unlink(&self.game_root.join(f));
-            }
-            let _ = std::fs::remove_dir_all(self.repo_root.join("mods").join(id));
-        }
-
-        self.mods.remove(id);
-        self.is_dirty = true;
-        self.persist()?;
-        Ok(())
-    }
-
-    pub fn sync(&mut self) -> Result<(), SError> {
-        // 1. Purge existing managed links
-        cleanup::purge(
-            &self.game_root,
-            &self.repo_root,
-            &self.spt_rules,
-            &self.lib_paths,
-            &self.cache,
-        )?;
-
-        // 2. Deploy active mods
-        deployment::deploy(
-            &self.game_root,
-            &self.lib_paths,
-            &self.spt_rules,
-            &self.mods,
-            &self.cache,
-        )?;
-
-        self.is_dirty = false;
-        self.persist()?;
-        Ok(())
-    }
 
     pub fn to_dto(&self) -> LibraryDTO {
         LibraryDTO {
@@ -175,21 +96,6 @@ impl Library {
         }
     }
 
-    pub fn to_frontend_dto(&self) -> LibraryDTO {
-        let mut dto = self.to_dto();
-        for (id, m) in &mut dto.mods {
-            m.manifest = self.cache.manifests.get(id).cloned();
-
-            // Load icon data if manifest specifies an icon
-            m.icon_data = m.manifest.as_ref()
-                .and_then(|manifest| manifest.icon.as_ref())
-                .and_then(|icon_filename| {
-                    let icon_path = self.lib_paths.mods.join(id).join(icon_filename);
-                    load_icon_as_data_uri(&icon_path)
-                });
-        }
-        dto
-    }
 
     pub fn stage_material(&self) -> StageMaterial {
         StageMaterial {
@@ -205,119 +111,19 @@ impl Library {
         ]
     }
 
-    pub fn toggle_mod(&mut self, id: &str, is_active: bool) -> Result<(), SError> {
-        let mod_entry = self
-            .mods
-            .get_mut(id)
-            .ok_or_else(|| SError::ModNotFound(id.to_string()))?;
-        mod_entry.is_active = is_active;
+
+    /// Marks the library as dirty (modified).
+    pub fn mark_dirty(&mut self) {
         self.is_dirty = true;
-        self.persist()?;
-        Ok(())
     }
 
-    pub fn get_backups(&self, mod_id: &str) -> Result<Vec<String>, SError> {
-        let backup_dir = self.lib_paths.backups.join(mod_id);
-
-        if !backup_dir.exists() {
-            return Ok(Vec::new());
-        }
-
-        let entries = std::fs::read_dir(&backup_dir)?;
-        let mut timestamps: Vec<String> = entries
-            .filter_map(|entry| entry.ok().and_then(|e| e.file_name().into_string().ok()))
-            .collect();
-
-        // Sort descending (newest first)
-        timestamps.sort_by(|a, b| b.cmp(a));
-
-        Ok(timestamps)
+    /// Clears the dirty flag.
+    pub fn mark_clean(&mut self) {
+        self.is_dirty = false;
     }
 
-    pub fn restore_backup(&mut self, mod_id: &str, timestamp: &str) -> Result<(), SError> {
-        // Verify mod exists
-        if !self.mods.contains_key(mod_id) {
-            return Err(SError::ModNotFound(mod_id.to_string()));
-        }
-
-        let backup_dir = self.lib_paths.backups.join(mod_id).join(timestamp);
-
-        if !backup_dir.exists() {
-            return Err(SError::Unexpected);
-        }
-
-        let mod_dir = self.lib_paths.mods.join(mod_id);
-
-        // Create a new backup of current state before restoring
-        if mod_dir.exists() {
-            self.create_backup_for_mod(mod_id)?;
-        }
-
-        // Remove current mod directory
-        if mod_dir.exists() {
-            std::fs::remove_dir_all(&mod_dir)?;
-        }
-
-        // Restore from backup
-        std::fs::create_dir_all(&mod_dir)?;
-        FileUtils::copy_recursive(&backup_dir, &mod_dir)?;
-
-        // Rebuild the ModFS for the restored mod
-        let restored_fs = ModFS::new(&mod_dir, &self.spt_rules)?;
-
-        // Update cache with restored files
-        self.cache.add(&mod_dir, restored_fs.clone());
-
-        // Update mod metadata if needed
-        if let Some(mod_entry) = self.mods.get_mut(mod_id) {
-            mod_entry.mod_type = restored_fs.mod_type.clone();
-        }
-
-        self.is_dirty = true;
-        self.persist()?;
-        Ok(())
-    }
-
-    pub fn get_mod_documentation(&self, mod_id: &str) -> Result<String, SError> {
-        // Verify mod exists
-        if !self.mods.contains_key(mod_id) {
-            return Err(SError::ModNotFound(mod_id.to_string()));
-        }
-
-        // Get documentation filename from manifest
-        let doc_filename = self
-            .cache
-            .manifests
-            .get(mod_id)
-            .and_then(|manifest| manifest.documentation.as_ref())
-            .ok_or_else(|| SError::ParseError("Documentation not specified in manifest".to_string()))?;
-
-        // Build path to documentation file
-        let doc_path = self.lib_paths.mods.join(mod_id).join(doc_filename);
-
-        // Read and return documentation content
-        std::fs::read_to_string(&doc_path)
-            .map_err(|e| SError::IOError(format!("Failed to read documentation: {}", e)))
-    }
-
-    /// Creates a backup of the current mod state.
-    /// Backup is stored at: `backups/{mod_id}/{timestamp}/`
-    fn create_backup_for_mod(&self, mod_id: &str) -> Result<(), SError> {
-        let mod_dir = self.lib_paths.mods.join(mod_id);
-
-        if !mod_dir.exists() {
-            return Ok(()); // Nothing to backup
-        }
-
-        let timestamp = get_unix_timestamp().to_string();
-        let backup_dir = self.lib_paths.backups.join(mod_id).join(&timestamp);
-
-        std::fs::create_dir_all(&backup_dir)?;
-        FileUtils::copy_recursive(&mod_dir, &backup_dir)?;
-        Ok(())
-    }
-
-    fn persist(&self) -> Result<(), SError> {
+    /// Persists the library manifest and cache to disk.
+    pub fn persist(&self) -> Result<(), SError> {
         Toml::write(&self.lib_paths.manifest, &self.to_dto())?;
         Toml::write(&self.lib_paths.cache, &self.cache)?;
         Ok(())

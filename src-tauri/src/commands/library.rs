@@ -1,4 +1,4 @@
-use crate::core::mod_stager;
+use crate::core::{cleanup, deployment, dto_builder, mod_backup, mod_documentation, mod_manager, mod_stager};
 use crate::core::registry::AppRegistry;
 use crate::models::error::SError;
 use crate::models::library::LibraryDTO;
@@ -45,10 +45,10 @@ pub async fn add_mods(
                 .into_iter()
                 .try_for_each(|staged| {
                     debug!("current: {:?}", staged);
-                    inst.add_mod(&staged.source_path, staged.fs.clone())
+                    mod_manager::add_mod(inst, &staged.source_path, staged.fs.clone())
                         .and_then(|_| mod_stager::clean_up(&staged))
                 })
-                .map(|_| inst.to_frontend_dto())
+                .map(|_| dto_builder::build_frontend_dto(inst))
         })
     })
     .await??
@@ -69,9 +69,9 @@ pub async fn remove_mods(
             ids.iter()
                 .try_for_each(|mod_id| {
                     debug!("Removing mod {}", mod_id);
-                    inst.remove_mod(mod_id)
+                    mod_manager::remove_mod(inst, mod_id)
                 })
-                .map(|_| inst.to_frontend_dto())
+                .map(|_| dto_builder::build_frontend_dto(inst))
         })
         // Iterate and remove each mod, exiting immediately on the first error
     })
@@ -92,7 +92,27 @@ pub async fn sync_mods(
     let instance_handle = state.active_instance.clone();
     TaskContext::provide(channel, move || {
         with_lib_arc_mut(instance_handle, |inst| {
-            inst.sync().map(|_| inst.to_frontend_dto())
+            // 1. Purge existing managed links
+            cleanup::purge(
+                &inst.game_root,
+                &inst.repo_root,
+                &inst.spt_rules,
+                &inst.lib_paths,
+                &inst.cache,
+            )?;
+
+            // 2. Deploy active mods
+            deployment::deploy(
+                &inst.game_root,
+                &inst.lib_paths,
+                &inst.spt_rules,
+                &inst.mods,
+                &inst.cache,
+            )?;
+
+            inst.mark_clean();
+            inst.persist()?;
+            Ok(dto_builder::build_frontend_dto(inst))
         })
     })
     .await??
@@ -104,7 +124,7 @@ pub async fn sync_mods(
 pub async fn get_library(state: State<'_, AppRegistry>) -> Result<LibraryDTO, SError> {
     let instance_handle = state.active_instance.clone();
     tauri::async_runtime::spawn_blocking(move || {
-        with_lib_arc(instance_handle, |inst| inst.to_frontend_dto())
+        with_lib_arc(instance_handle, |inst| dto_builder::build_frontend_dto(inst))
     })
     .await
     .map_err(|e| SError::AsyncRuntimeError(e.to_string()))?
@@ -121,8 +141,8 @@ pub async fn toggle_mod(
     let instance_handle = state.active_instance.clone();
     tauri::async_runtime::spawn_blocking(move || {
         with_lib_arc_mut(instance_handle, |inst| {
-            inst.toggle_mod(&id, is_active)
-                .map(|_| inst.to_frontend_dto())
+            mod_manager::toggle_mod(inst, &id, is_active)
+                .map(|_| dto_builder::build_frontend_dto(inst))
         })
     })
     .await
@@ -138,7 +158,7 @@ pub async fn get_backups(
 ) -> Result<Vec<String>, SError> {
     let instance_handle = state.active_instance.clone();
     tauri::async_runtime::spawn_blocking(move || {
-        with_lib_arc(instance_handle, |inst| inst.get_backups(&mod_id))
+        with_lib_arc(instance_handle, |inst| mod_backup::list_backups(&inst.lib_paths, &mod_id))
     })
     .await
     .map_err(|e| SError::AsyncRuntimeError(e.to_string()))??
@@ -155,8 +175,8 @@ pub async fn restore_backup(
     let instance_handle = state.active_instance.clone();
     tauri::async_runtime::spawn_blocking(move || {
         with_lib_arc_mut(instance_handle, |inst| {
-            inst.restore_backup(&mod_id, &timestamp)
-                .map(|_| inst.to_frontend_dto())
+            mod_backup::restore_backup(inst, &mod_id, &timestamp)
+                .map(|_| dto_builder::build_frontend_dto(inst))
         })
     })
     .await
@@ -172,7 +192,7 @@ pub async fn get_mod_documentation(
 ) -> Result<String, SError> {
     let instance_handle = state.active_instance.clone();
     tauri::async_runtime::spawn_blocking(move || {
-        with_lib_arc(instance_handle, |inst| inst.get_mod_documentation(&mod_id))
+        with_lib_arc(instance_handle, |inst| mod_documentation::read_documentation(inst, &mod_id))
     })
     .await
     .map_err(|e| SError::AsyncRuntimeError(e.to_string()))??

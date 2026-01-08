@@ -1,5 +1,6 @@
 mod common;
 
+use mod_keeper_lib::core::{cleanup, deployment, dto_builder, mod_manager};
 use mod_keeper_lib::core::library::Library;
 use mod_keeper_lib::core::mod_fs::ModFS;
 use mod_keeper_lib::models::library::LibraryCreationRequirement;
@@ -30,7 +31,7 @@ fn test_library_init_and_add_mod() {
     // 3. Add mod to library
     let mod_fs =
         ModFS::new(mod_src_utf8, &SPTPathRules::default()).expect("Failed to parse mod");
-    lib.add_mod(mod_src_utf8, mod_fs)
+    mod_manager::add_mod(&mut lib, mod_src_utf8, mod_fs)
         .expect("Failed to add mod");
 
     // 4. Verify persistence
@@ -70,7 +71,7 @@ fn test_collision_detection() {
 
         // 3. Add to library and activate
         let fs = ModFS::new(&p, &rules).expect("Failed to parse mod");
-        lib.add_mod(&p, fs).expect("Failed to add mod");
+        mod_manager::add_mod(&mut lib, &p, fs).expect("Failed to add mod");
         lib.mods.get_mut(mod_id).unwrap().is_active = true;
     };
 
@@ -79,8 +80,20 @@ fn test_collision_detection() {
     add_named_mod("Mod_A", conflict_path);
     add_named_mod("Mod_B", conflict_path);
 
-    // Act
-    let result = lib.sync();
+    // Act - sync using standalone functions
+    let result = cleanup::purge(
+        &lib.game_root,
+        &lib.repo_root,
+        &lib.spt_rules,
+        &lib.lib_paths,
+        &lib.cache,
+    ).and_then(|_| deployment::deploy(
+        &lib.game_root,
+        &lib.lib_paths,
+        &lib.spt_rules,
+        &lib.mods,
+        &lib.cache,
+    ));
 
     // Assert
     assert!(
@@ -110,7 +123,7 @@ fn test_recursive_linking_logic() {
     let mut lib = Library::create(requirement).unwrap();
     let rules = SPTPathRules::default();
 
-    let mut setup_mod = |lib: &mut Library, mod_id: &str, file_name: &str| {
+    let setup_mod = |lib: &mut Library, mod_id: &str, file_name: &str| {
         let p = repo_root.join(mod_id);
 
         // 1. Force the ID using a manifest
@@ -129,7 +142,7 @@ fn test_recursive_linking_logic() {
 
         // 3. New ModFS will now resolve ID to mod_id ("ModA" or "ModB")
         let fs = ModFS::new(&p, &rules).unwrap();
-        lib.add_mod(&p, fs).unwrap();
+        mod_manager::add_mod(lib, &p, fs).unwrap();
 
         // 4. This will no longer panic
         lib.mods.get_mut(mod_id).unwrap().is_active = true;
@@ -138,7 +151,23 @@ fn test_recursive_linking_logic() {
     setup_mod(&mut lib, "ModA", "A.txt");
     setup_mod(&mut lib, "ModB", "B.txt");
 
-    lib.sync().expect("Sync failed");
+    // Sync using standalone functions
+    cleanup::purge(
+        &lib.game_root,
+        &lib.repo_root,
+        &lib.spt_rules,
+        &lib.lib_paths,
+        &lib.cache,
+    ).unwrap();
+    deployment::deploy(
+        &lib.game_root,
+        &lib.lib_paths,
+        &lib.spt_rules,
+        &lib.mods,
+        &lib.cache,
+    ).expect("Sync failed");
+    lib.mark_clean();
+    lib.persist().unwrap();
 
     // ... rest of your assertions ...
     let common_dir_in_game = game_root.join(&rules.server_mods).join("CommonDir");
@@ -160,16 +189,24 @@ fn test_purge_removes_deactivated_mods() {
     // 1. Add and activate mod
     create_test_mod(&repo_root.join("src"), "DeleteMe", true);
     let fs = ModFS::new(&repo_root.join("src"), &rules).unwrap();
-    lib.add_mod(&repo_root.join("src"), fs).unwrap();
+    mod_manager::add_mod(&mut lib, &repo_root.join("src"), fs).unwrap();
     lib.mods.get_mut("DeleteMe").unwrap().is_active = true;
 
-    lib.sync().unwrap();
+    // Sync
+    cleanup::purge(&lib.game_root, &lib.repo_root, &lib.spt_rules, &lib.lib_paths, &lib.cache).unwrap();
+    deployment::deploy(&lib.game_root, &lib.lib_paths, &lib.spt_rules, &lib.mods, &lib.cache).unwrap();
+    lib.mark_clean();
+    lib.persist().unwrap();
+
     let target_path = game_root.join(&rules.server_mods).join("DeleteMe");
     assert!(target_path.exists());
 
     // 2. Deactivate and sync
     lib.mods.get_mut("DeleteMe").unwrap().is_active = false;
-    lib.sync().unwrap();
+    cleanup::purge(&lib.game_root, &lib.repo_root, &lib.spt_rules, &lib.lib_paths, &lib.cache).unwrap();
+    deployment::deploy(&lib.game_root, &lib.lib_paths, &lib.spt_rules, &lib.mods, &lib.cache).unwrap();
+    lib.mark_clean();
+    lib.persist().unwrap();
 
     // 3. Verify it's gone from game but exists in repo
     assert!(!target_path.exists());
@@ -212,10 +249,10 @@ fn test_to_frontend_dto_enrichment() {
 
     // 3. Add mod to library
     let fs = ModFS::new(mod_src_utf8, &rules).unwrap();
-    lib.add_mod(mod_src_utf8, fs).expect("Add mod failed");
+    mod_manager::add_mod(&mut lib, mod_src_utf8, fs).expect("Add mod failed");
 
     // 4. Check Frontend DTO
-    let dto = lib.to_frontend_dto();
+    let dto = dto_builder::build_frontend_dto(&lib);
     let m = dto.mods.get("test-mod-id").expect("Mod not found in DTO");
 
     // Assert the manifest was successfully pulled from cache into the DTO
@@ -245,7 +282,7 @@ fn test_mod_backup_on_overwrite() {
 
     // 1. Initial Add
     let fs1 = ModFS::new(&src, &rules).unwrap();
-    lib.add_mod(&src, fs1).unwrap();
+    mod_manager::add_mod(&mut lib, &src, fs1).unwrap();
 
     // Wait to ensure timestamp differs
     std::thread::sleep(std::time::Duration::from_secs(1));
@@ -260,7 +297,7 @@ fn test_mod_backup_on_overwrite() {
     .unwrap();
 
     let fs2 = ModFS::new(&src2, &rules).unwrap();
-    lib.add_mod(&src2, fs2).unwrap();
+    mod_manager::add_mod(&mut lib, &src2, fs2).unwrap();
 
     // 3. Check backups
     let backup_dir = lib.lib_paths.backups.join(mod_id);
@@ -295,7 +332,7 @@ fn test_untracked_file_safety_in_shared_folder() {
     // where the folder name is the Mod ID. Creating a "SharedDir" there creates ambiguity
     // (is "SharedDir" the mod?). "client_plugins" allows unstructured nesting,
     // making it the correct target for testing shared directory behavior.
-    let mut setup_mod = |lib: &mut Library, name: &str| {
+    let setup_mod = |lib: &mut Library, name: &str| {
         let p = repo_root.join(format!("src_{}", name));
 
         // Target: BepInEx/plugins/SharedDir/{name}.dll
@@ -310,7 +347,7 @@ fn test_untracked_file_safety_in_shared_folder() {
         let fs = ModFS::new(&p, &rules).unwrap();
         let mod_id = fs.id.clone();
 
-        lib.add_mod(&p, fs).unwrap();
+        mod_manager::add_mod(lib, &p, fs).unwrap();
 
         // Access the mod using the actual ID generated by ModFS
         lib.mods.get_mut(&mod_id).unwrap().is_active = true;
@@ -320,7 +357,12 @@ fn test_untracked_file_safety_in_shared_folder() {
 
     let id_a = setup_mod(&mut lib, "ModA");
     let id_b = setup_mod(&mut lib, "ModB");
-    lib.sync().unwrap();
+
+    // Sync
+    cleanup::purge(&lib.game_root, &lib.repo_root, &lib.spt_rules, &lib.lib_paths, &lib.cache).unwrap();
+    deployment::deploy(&lib.game_root, &lib.lib_paths, &lib.spt_rules, &lib.mods, &lib.cache).unwrap();
+    lib.mark_clean();
+    lib.persist().unwrap();
 
     // 2. Add untracked file to the real directory created by the Linker
     let shared_dir = game_root.join(&rules.client_plugins).join("SharedDir");
@@ -332,7 +374,10 @@ fn test_untracked_file_safety_in_shared_folder() {
     // 3. Deactivate all mods and sync (purge)
     lib.mods.get_mut(&id_a).unwrap().is_active = false;
     lib.mods.get_mut(&id_b).unwrap().is_active = false;
-    lib.sync().unwrap();
+    cleanup::purge(&lib.game_root, &lib.repo_root, &lib.spt_rules, &lib.lib_paths, &lib.cache).unwrap();
+    deployment::deploy(&lib.game_root, &lib.lib_paths, &lib.spt_rules, &lib.mods, &lib.cache).unwrap();
+    lib.mark_clean();
+    lib.persist().unwrap();
 
     // 4. Verification
     assert!(
@@ -374,11 +419,14 @@ fn test_persistence_cycle() {
     .unwrap();
 
     let mod_fs = ModFS::new(&src, &rules).unwrap();
-    lib.add_mod(&src, mod_fs).unwrap();
+    mod_manager::add_mod(&mut lib, &src, mod_fs).unwrap();
 
     // FIX: Use lowercase "persistmod"
     lib.mods.get_mut("persistmod").unwrap().is_active = true;
-    lib.sync().unwrap();
+    cleanup::purge(&lib.game_root, &lib.repo_root, &lib.spt_rules, &lib.lib_paths, &lib.cache).unwrap();
+    deployment::deploy(&lib.game_root, &lib.lib_paths, &lib.spt_rules, &lib.mods, &lib.cache).unwrap();
+    lib.mark_clean();
+    lib.persist().unwrap();
 
     let loaded_lib = Library::load(&repo_root).expect("Failed to load library");
 
