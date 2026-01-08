@@ -1,7 +1,7 @@
 use crate::core::cache::LibraryCache;
 use crate::core::mod_fs::ModFS;
 use crate::core::mod_stager::StageMaterial;
-use crate::core::{cleanup, deployment, versioning};
+use crate::core::{cleanup, deployment, version};
 use crate::models::error::SError;
 use crate::models::library::{LibraryCreationRequirement, LibraryDTO};
 use crate::models::mod_dto::Mod;
@@ -36,7 +36,7 @@ impl Library {
         }
 
         let spt_paths = SPTPathRules::new(&requirement.game_root);
-        let spt_version = versioning::fetch_and_validate(&spt_paths)?;
+        let spt_version = version::fetch_and_validate(&spt_paths)?;
 
         let inst = Self {
             id: uuid::Uuid::new_v4().to_string(),
@@ -60,22 +60,20 @@ impl Library {
         let dto = Self::read_library_manifest(repo_root)?;
 
         // Validate historical version
-        versioning::validate_string(&dto.spt_version)?;
-
-        let config = SPTPathRules::default();
-        // Validate current physical version
-        let spt_version = versioning::fetch_and_validate(&config)?;
+        version::validate_string(&dto.spt_version)?;
 
         let lib_paths = LibPathRules::new(repo_root);
         let spt_paths = SPTPathRules::new(&dto.game_root);
+        // Validate current physical version using the game_root from the loaded library
+        let spt_version = version::fetch_and_validate(&spt_paths)?;
 
         Ok(Self {
             id: dto.id,
             name: dto.name,
             repo_root: repo_root.to_owned(),
-            spt_paths_canonical: SPTPathCanonical::from_spt_paths(spt_paths)?,
+            spt_paths_canonical: SPTPathCanonical::from_spt_paths(spt_paths.clone())?,
             game_root: dto.game_root,
-            spt_rules: config,
+            spt_rules: SPTPathRules::default(),
             cache: Toml::read(&lib_paths.cache)?,
             lib_paths,
             spt_version,

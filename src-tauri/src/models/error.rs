@@ -16,7 +16,6 @@ pub enum SError {
     #[display("File collisions detected: {}", "_0.join(\", \")")]
     FileCollision(Vec<String>),
     Unexpected,
-    Link,
     UnhandledCompression(String),
     AsyncRuntimeError(String),
     ContextUnprovided,

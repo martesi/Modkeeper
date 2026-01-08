@@ -1,7 +1,6 @@
 use crate::models::mod_dto::Mod;
 use camino::Utf8PathBuf;
 use serde::{Deserialize, Serialize};
-use specta::specta;
 use specta::Type;
 use std::collections::BTreeMap;
 

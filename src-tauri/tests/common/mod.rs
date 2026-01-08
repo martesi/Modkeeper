@@ -27,6 +27,13 @@ pub fn setup_test_env() -> (TempDir, camino::Utf8PathBuf, camino::Utf8PathBuf) {
         std::fs::write(path, "dummy").unwrap();
     }
 
+    // 3. Create registry.json file with SPT_Version
+    if let Some(parent) = rules.server_registry.parent() {
+        std::fs::create_dir_all(parent).unwrap();
+    }
+    let registry_json = r#"{"SPT_Version": "SPT 4.0.11 - 278e72"}"#;
+    std::fs::write(&rules.server_registry, registry_json).unwrap();
+
     (tmp, game_root, repo_root)
 }
 

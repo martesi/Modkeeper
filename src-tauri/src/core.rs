@@ -8,4 +8,4 @@ pub mod linker;
 pub mod mod_fs;
 pub mod mod_stager;
 pub mod registry;
-pub mod versioning;
+pub mod version;
