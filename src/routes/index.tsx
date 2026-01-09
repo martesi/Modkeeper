@@ -43,10 +43,8 @@ function RouteComponent() {
       })
       if (selected && Array.isArray(selected)) {
         await addMods(selected)
-        await refresh()
       } else if (selected && typeof selected === 'string') {
         await addMods([selected])
-        await refresh()
       }
     } catch (err) {
       console.error('Failed to add mod files:', err)
@@ -63,7 +61,6 @@ function RouteComponent() {
       })
       if (selected && typeof selected === 'string') {
         await addMods([selected])
-        await refresh()
       }
     } catch (err) {
       console.error('Failed to add mod folder:', err)
@@ -74,7 +71,6 @@ function RouteComponent() {
     setIsSyncing(true)
     try {
       await syncMods()
-      await refresh()
     } catch (err) {
       console.error('Failed to sync mods:', err)
     } finally {
@@ -85,7 +81,6 @@ function RouteComponent() {
   const handleToggleMod = async (id: string, isActive: boolean) => {
     try {
       await toggleMod(id, isActive)
-      await refresh()
     } catch (err) {
       console.error('Failed to toggle mod:', err)
     }
@@ -94,7 +89,6 @@ function RouteComponent() {
   const handleRemoveMods = async (id: string) => {
     try {
       await removeMods([id])
-      await refresh()
     } catch (err) {
       console.error('Failed to remove mod:', err)
     }

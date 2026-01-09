@@ -84,6 +84,14 @@ async createLibrary(requirement: LibraryCreationRequirement) : Promise<Result<Li
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async init() : Promise<Result<LibrarySwitch, SError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("init") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 

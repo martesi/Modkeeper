@@ -1,8 +1,8 @@
 import { atom } from 'jotai'
 import type { Getter, Setter } from 'jotai'
+import { Channel } from '@tauri-apps/api/core'
 import { commands } from '@gen/bindings'
 import { unwrapResult } from '@/lib/result'
-import { mockDataStore, generateMockLibrary } from '@/lib/mock-data'
 import {
   libraryAtom,
   librarySwitchAtom,
@@ -13,6 +13,7 @@ import type {
   LibraryDTO,
   LibrarySwitch,
   LibraryCreationRequirement,
+  TaskStatus,
 } from '@gen/bindings'
 
 /**
@@ -70,16 +71,12 @@ function updateLibrarySwitchState(
   set(libraryAtom, switchData.active ?? null)
 }
 
-// Action atoms using FP patterns (using mock data)
+// Action atoms using FP patterns
 export const fetchLibraryAction = atom(
   null,
   withAsyncState(
     async () => {
-      // Simulate network delay
-      await new Promise((resolve) => setTimeout(resolve, 300))
-      const library = mockDataStore.getActiveLibrary()
-      if (!library) throw new Error('No active library')
-      return library
+      return await unwrapResult(commands.getLibrary())
     },
     (_get, set, library) => set(libraryAtom, library),
   ),
@@ -118,105 +115,30 @@ export const initAction = atom(
 export const addModsAction = atom(
   null,
   withAsyncState(async (paths: string[]) => {
-    // Simulate network delay
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    console.log('Adding mods from paths:', paths)
-
-    const updated = mockDataStore.updateActiveLibrary((library) => {
-      // Generate new mods for each path
-      const newMods = paths.map(() => {
-        const mod = generateMockLibrary({ modCount: 1 }).mods
-        return Object.values(mod)[0]
-      })
-
-      const updatedMods = { ...library.mods }
-      newMods.forEach((mod) => {
-        if (mod) {
-          updatedMods[mod.id] = mod
-        }
-      })
-
-      return {
-        ...library,
-        mods: updatedMods,
-        is_dirty: true,
-      }
-    })
-
-    if (!updated) throw new Error('Failed to update library')
-    return updated
+    const channel = new Channel<TaskStatus>()
+    return await unwrapResult(commands.addMods(paths, channel))
   }, updateLibraryState),
 )
 
 export const removeModsAction = atom(
   null,
   withAsyncState(async (ids: string[]) => {
-    // Simulate network delay
-    await new Promise((resolve) => setTimeout(resolve, 500))
-    console.log('Removing mods with ids:', ids)
-
-    const updated = mockDataStore.updateActiveLibrary((library) => {
-      const updatedMods = { ...library.mods }
-      ids.forEach((id) => {
-        delete updatedMods[id]
-      })
-
-      return {
-        ...library,
-        mods: updatedMods,
-        is_dirty: true,
-      }
-    })
-
-    if (!updated) throw new Error('Failed to update library')
-    return updated
+    const channel = new Channel<TaskStatus>()
+    return await unwrapResult(commands.removeMods(ids, channel))
   }, updateLibraryState),
 )
 
 export const toggleModAction = atom(
   null,
   withAsyncState(async (id: string, isActive: boolean) => {
-    // Simulate network delay
-    await new Promise((resolve) => setTimeout(resolve, 300))
-    console.log('Toggling mod:', id, 'to', isActive)
-
-    const updated = mockDataStore.updateActiveLibrary((library) => {
-      const mod = library.mods[id]
-      if (!mod) return library
-
-      return {
-        ...library,
-        mods: {
-          ...library.mods,
-          [id]: {
-            ...mod,
-            is_active: isActive,
-          },
-        },
-        is_dirty: true,
-      }
-    })
-
-    if (!updated) throw new Error('Failed to update library')
-    return updated
+    return await unwrapResult(commands.toggleMod(id, isActive))
   }, updateLibraryState),
 )
 
 export const syncModsAction = atom(
   null,
   withAsyncState(async () => {
-    // Simulate network delay
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-    console.log('Syncing mods...')
-
-    const updated = mockDataStore.updateActiveLibrary((library) => {
-      return {
-        ...library,
-        is_dirty: false, // Clear dirty flag after sync
-      }
-    })
-
-    if (!updated) throw new Error('Failed to update library')
-    return updated
+    const channel = new Channel<TaskStatus>()
+    return await unwrapResult(commands.syncMods(channel))
   }, updateLibraryState),
 )

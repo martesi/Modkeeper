@@ -8,6 +8,8 @@ import { Trans } from '@lingui/react/macro'
 import { ArrowLeft, Package, Trash2, ChevronRight } from 'lucide-react'
 import { MarkdownContent } from '@/components/mod/markdown-content'
 import { useState, useEffect, useMemo } from 'react'
+import { commands } from '@gen/bindings'
+import { unwrapResult } from '@/lib/result'
 import type { Mod, ModManifest, Dependencies } from '@gen/bindings'
 
 export const Route = createFileRoute('/mod/$id')({
@@ -16,7 +18,7 @@ export const Route = createFileRoute('/mod/$id')({
 
 function ModDetailsComponent() {
   const { id } = Route.useParams()
-  const { library, refresh } = useLibrary()
+  const { library } = useLibrary()
   const { toggleMod, removeMods } = useMods()
   const [documentation, setDocumentation] = useState<string | null>(null)
   const [backups, setBackups] = useState<string[]>([])
@@ -29,36 +31,43 @@ function ModDetailsComponent() {
   }, [library, id])
 
   useEffect(() => {
-    if (mod?.manifest?.documentation) {
+    if (mod?.manifest?.documentation && id) {
       setLoadingDocs(true)
-      // Mock documentation loading
-      setTimeout(() => {
-        const mockDocs = `# ${mod.name}\n\n${mod.manifest?.description || 'No description available.'}\n\n## Installation\n\nThis is a sample documentation for the mod. In a real application, this would be loaded from the mod's documentation file.\n\n## Features\n\n- Feature 1\n- Feature 2\n- Feature 3\n\n## Configuration\n\nYou can configure this mod by editing the configuration file.\n\n## Troubleshooting\n\nIf you encounter any issues, please check the logs.`
-        setDocumentation(mockDocs)
-        setLoadingDocs(false)
-      }, 500)
+      unwrapResult(commands.getModDocumentation(id))
+        .then((docs) => {
+          setDocumentation(docs)
+        })
+        .catch((err) => {
+          console.error('Failed to load documentation:', err)
+          setDocumentation(null)
+        })
+        .finally(() => {
+          setLoadingDocs(false)
+        })
     }
-  }, [id, mod?.manifest?.documentation, mod?.name])
+  }, [id, mod?.manifest?.documentation])
 
   useEffect(() => {
-    setLoadingBackups(true)
-    // Mock backups loading
-    setTimeout(() => {
-      const mockBackups = [
-        new Date(Date.now() - 86400000).toISOString(), // 1 day ago
-        new Date(Date.now() - 172800000).toISOString(), // 2 days ago
-        new Date(Date.now() - 604800000).toISOString(), // 1 week ago
-      ]
-      setBackups(mockBackups)
-      setLoadingBackups(false)
-    }, 300)
+    if (id) {
+      setLoadingBackups(true)
+      unwrapResult(commands.getBackups(id))
+        .then((backupList) => {
+          setBackups(backupList)
+        })
+        .catch((err) => {
+          console.error('Failed to load backups:', err)
+          setBackups([])
+        })
+        .finally(() => {
+          setLoadingBackups(false)
+        })
+    }
   }, [id])
 
   const handleToggle = async () => {
     if (!mod) return
     try {
       await toggleMod(id, !mod.is_active)
-      await refresh()
     } catch (err) {
       console.error('Failed to toggle mod:', err)
     }
@@ -69,7 +78,6 @@ function ModDetailsComponent() {
     if (confirm(`Are you sure you want to remove "${mod.name}"?`)) {
       try {
         await removeMods([id])
-        await refresh()
         window.history.back()
       } catch (err) {
         console.error('Failed to remove mod:', err)
@@ -78,15 +86,13 @@ function ModDetailsComponent() {
   }
 
   const handleRestoreBackup = async (timestamp: string) => {
+    if (!id) return
     if (confirm(`Are you sure you want to restore backup from ${timestamp}?`)) {
       try {
-        console.log('Restoring backup from:', timestamp)
-        // Mock restore - just refresh the library
-        await new Promise(resolve => setTimeout(resolve, 1000))
-        await refresh()
-        // Reload backups (add new backup after restore)
-        const newBackup = new Date().toISOString()
-        setBackups([newBackup, ...backups])
+        await unwrapResult(commands.restoreBackup(id, timestamp))
+        // Reload backups after restore
+        const backupList = await unwrapResult(commands.getBackups(id))
+        setBackups(backupList)
       } catch (err) {
         console.error('Failed to restore backup:', err)
       }

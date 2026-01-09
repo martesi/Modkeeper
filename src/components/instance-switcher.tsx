@@ -23,7 +23,8 @@ import { addLibraryFromDialog } from '@/lib/library-actions'
 
 export function InstanceSwitcher() {
   const { isMobile } = useSidebar()
-  const { librarySwitch, loading, createLibrary } = useLibrarySwitch()
+  const { librarySwitch, loading, createLibrary, openLibrary } =
+    useLibrarySwitch()
 
   const active = librarySwitch?.active
   const libraries = librarySwitch?.libraries ?? []
@@ -36,6 +37,18 @@ export function InstanceSwitcher() {
       // You might want to show a toast notification here
     }
   }, [createLibrary])
+
+  const handleSwitchLibrary = React.useCallback(
+    async (libPath: string) => {
+      try {
+        await openLibrary(libPath)
+      } catch (err) {
+        console.error('Failed to switch library:', err)
+        // You might want to show a toast notification here
+      }
+    },
+    [openLibrary],
+  )
 
   if (loading && !active) {
     return (
@@ -119,9 +132,10 @@ export function InstanceSwitcher() {
                 <DropdownMenuItem
                   key={lib.id}
                   onClick={() => {
-                    // TODO: Implement library switching
-                    // This would need a command to switch libraries
-                    console.log('Switch to library:', lib.id)
+                    // Use repo_root from the library DTO
+                    if (lib.repo_root) {
+                      handleSwitchLibrary(lib.repo_root)
+                    }
                   }}
                   className="gap-2 p-2"
                 >
