@@ -12,9 +12,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@comps/dropdown-menu'
+import { msg, t } from '@lingui/core/macro'
 
 export const Route = createFileRoute('/')({
   component: RouteComponent,
+  staticData: {
+    breadcrumb: () => t(msg`Library`),
+  },
 })
 
 function RouteComponent() {

@@ -11,9 +11,13 @@ import { useState, useEffect, useMemo } from 'react'
 import { commands } from '@gen/bindings'
 import { unwrapResult } from '@/lib/result'
 import type { Mod, ModManifest, Dependencies } from '@gen/bindings'
+import { msg, t } from '@lingui/core/macro'
 
-export const Route = createFileRoute('/mod/$id')({
+export const Route = createFileRoute('/$id')({
   component: ModDetailsComponent,
+  staticData: {
+    breadcrumb: () => t(msg`Mod Details`),
+  },
 })
 
 function ModDetailsComponent() {

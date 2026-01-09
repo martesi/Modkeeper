@@ -4,17 +4,10 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from '@comps/sidebar.tsx'
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from '@comps/breadcrumb.tsx'
 import { AppSidebar } from '@comps/app-sidebar.tsx'
 import { Separator } from '@comps/separator.tsx'
 import { LibraryInit } from '@/components/library-init'
+import { BreadcrumbNav } from '@/components/breadcrumb-nav'
 
 export const Route = createRootRoute({
   component: RootComponent,
@@ -33,13 +26,7 @@ function RootComponent() {
               orientation="vertical"
               className="mr-2 data-[orientation=vertical]:h-4"
             />
-            <Breadcrumb>
-              <BreadcrumbList>
-                <BreadcrumbItem>
-                  <BreadcrumbPage>Mod Manager</BreadcrumbPage>
-                </BreadcrumbItem>
-              </BreadcrumbList>
-            </Breadcrumb>
+            <BreadcrumbNav />
           </div>
         </header>
         <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
