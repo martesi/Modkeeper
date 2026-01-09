@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { api } from '@/lib/api'
-import type { LibrarySwitch } from '@gen/bindings'
+import type { LibrarySwitch, LibraryCreationRequirement } from '@gen/bindings'
 
 export function useLibrarySwitch() {
   const [librarySwitch, setLibrarySwitch] = useState<LibrarySwitch | null>(null)
@@ -53,7 +53,7 @@ export function useLibrarySwitch() {
   }, [])
 
   const createLibrary = useCallback(
-    async (requirement: { gameRoot: string; repoRoot: string; name: string }) => {
+    async (requirement: LibraryCreationRequirement) => {
       try {
         setLoading(true)
         setError(null)

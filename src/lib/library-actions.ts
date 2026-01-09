@@ -14,7 +14,7 @@ export async function addLibraryFromDialog(
   createLibrary: (requirement: {
     name: string
     game_root: string
-    repo_root: string
+    repo_root?: string | null
   }) => Promise<unknown>,
 ): Promise<void> {
   try {
@@ -33,15 +33,12 @@ export async function addLibraryFromDialog(
     try {
       // Use translated "Unnamed Library" as the library name
       const libraryName = t(msg`Unnamed Library`)
-      // Backend will derive repo_root from game_root, but we need to provide it for the type
-      // The backend always uses game_root/.mod_keeper regardless of what we pass
-      const separator = selected.includes('\\') ? '\\' : '/'
-      const repoRoot = `${selected}${separator}.mod_keeper`
+      // Backend will derive repo_root from game_root automatically if not provided
 
       await createLibrary({
         name: libraryName,
         game_root: selected,
-        repo_root: repoRoot,
+        // repo_root is optional - backend will derive it from game_root
       })
     } catch (err) {
       const errorMessage =

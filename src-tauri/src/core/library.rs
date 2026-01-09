@@ -27,10 +27,17 @@ pub struct Library {
 
 impl Library {
     pub fn create(requirement: LibraryCreationRequirement) -> Result<Self, SError> {
-        // Ensure the repo_root directory exists
-        std::fs::create_dir_all(&requirement.repo_root)?;
+        // repo_root should always be Some at this point (set by library_service::create_library)
+        let repo_root = requirement.repo_root
+            .ok_or_else(|| SError::InvalidLibrary(
+                requirement.game_root.to_string(),
+                "repo_root must be provided or derived".to_string(),
+            ))?;
 
-        let lib_paths = LibPathRules::new(&requirement.repo_root);
+        // Ensure the repo_root directory exists
+        std::fs::create_dir_all(&repo_root)?;
+
+        let lib_paths = LibPathRules::new(&repo_root);
         for dir in [&lib_paths.mods, &lib_paths.backups, &lib_paths.staging] {
             std::fs::create_dir_all(dir)?;
         }
@@ -41,7 +48,7 @@ impl Library {
         let inst = Self {
             id: uuid::Uuid::new_v4().to_string(),
             name: requirement.name,
-            repo_root: requirement.repo_root,
+            repo_root,
             game_root: requirement.game_root,
             spt_version,
             cache: LibraryCache::default(),

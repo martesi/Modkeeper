@@ -26,7 +26,7 @@ fn default_library_name() -> String {
 pub struct LibraryCreationRequirement {
     #[specta(type=String)]
     pub game_root: Utf8PathBuf,
-    #[specta(type=String)]
-    pub repo_root: Utf8PathBuf,
+    #[specta(type=Option<String>)]
+    pub repo_root: Option<Utf8PathBuf>,
     pub name: String,
 }

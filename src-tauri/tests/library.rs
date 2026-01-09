@@ -17,7 +17,7 @@ fn test_library_init_and_add_mod() {
 
     // 1. Create Library
     let requirement = LibraryCreationRequirement {
-        repo_root: repo_root.clone(),
+        repo_root: Some(repo_root.clone()),
         game_root: game_root.clone(),
         name: "Test Library".to_string(),
     };
@@ -45,7 +45,7 @@ fn test_library_init_and_add_mod() {
 fn test_collision_detection() {
     let (_tmp, game_root, repo_root) = setup_test_env();
     let requirement = LibraryCreationRequirement {
-        repo_root: repo_root.clone(),
+        repo_root: Some(repo_root.clone()),
         game_root: game_root.clone(),
         name: "Test Library".to_string(),
     };
@@ -117,7 +117,7 @@ fn test_collision_detection() {
 fn test_recursive_linking_logic() {
     let (_tmp, game_root, repo_root) = setup_test_env();
     let requirement = LibraryCreationRequirement {
-        repo_root: repo_root.clone(),
+        repo_root: Some(repo_root.clone()),
         game_root: game_root.clone(),
         name: "Test Library".to_string(),
     };
@@ -180,7 +180,7 @@ fn test_recursive_linking_logic() {
 fn test_purge_removes_deactivated_mods() {
     let (_tmp, game_root, repo_root) = setup_test_env();
     let requirement = LibraryCreationRequirement {
-        repo_root: repo_root.clone(),
+        repo_root: Some(repo_root.clone()),
         game_root: game_root.clone(),
         name: "Test Library".to_string(),
     };
@@ -218,7 +218,7 @@ fn test_purge_removes_deactivated_mods() {
 fn test_to_frontend_dto_enrichment() {
     let (_tmp, game_root, repo_root) = setup_test_env();
     let requirement = LibraryCreationRequirement {
-        repo_root: repo_root.clone(),
+        repo_root: Some(repo_root.clone()),
         game_root: game_root.clone(),
         name: "Test Library".to_string(),
     };
@@ -265,7 +265,7 @@ fn test_to_frontend_dto_enrichment() {
 fn test_mod_backup_on_overwrite() {
     let (_tmp, game_root, repo_root) = setup_test_env();
     let requirement = LibraryCreationRequirement {
-        repo_root: repo_root.clone(),
+        repo_root: Some(repo_root.clone()),
         game_root: game_root.clone(),
         name: "Test Library".to_string(),
     };
@@ -321,7 +321,7 @@ fn test_mod_backup_on_overwrite() {
 fn test_untracked_file_safety_in_shared_folder() {
     let (_tmp, game_root, repo_root) = setup_test_env();
     let requirement = LibraryCreationRequirement {
-        repo_root: repo_root.clone(),
+        repo_root: Some(repo_root.clone()),
         game_root: game_root.clone(),
         name: "Test Library".to_string(),
     };
@@ -402,7 +402,7 @@ fn test_untracked_file_safety_in_shared_folder() {
 fn test_persistence_cycle() {
     let (_tmp, game_root, repo_root) = setup_test_env();
     let requirement = LibraryCreationRequirement {
-        repo_root: repo_root.clone(),
+        repo_root: Some(repo_root.clone()),
         game_root: game_root.clone(),
         name: "Test Library".to_string(),
     };
@@ -441,7 +441,7 @@ fn test_mod_id_case_normalization() {
     // to prevent duplicate mods pointing to the same folder.
     let (_tmp, _game_root, _repo_root) = setup_test_env();
     let requirement = LibraryCreationRequirement {
-        repo_root: _repo_root.clone(),
+        repo_root: Some(_repo_root.clone()),
         game_root: _game_root.clone(),
         name: "Test Library".to_string(),
     };
@@ -471,7 +471,7 @@ fn test_validate_library_structure_valid() {
 
     // Create a valid library
     let requirement = LibraryCreationRequirement {
-        repo_root: repo_root.clone(),
+        repo_root: Some(repo_root.clone()),
         game_root: game_root.clone(),
         name: "Test Library".to_string(),
     };
@@ -511,7 +511,7 @@ fn test_validate_library_structure_missing_directory() {
 
     // Create a library
     let requirement = LibraryCreationRequirement {
-        repo_root: repo_root.clone(),
+        repo_root: Some(repo_root.clone()),
         game_root: game_root.clone(),
         name: "Test Library".to_string(),
     };
@@ -545,7 +545,7 @@ fn test_create_library_when_mod_keeper_not_exists() {
 
     // Create library - should create new library
     let requirement = LibraryCreationRequirement {
-        repo_root: expected_repo_root.clone(), // This will be overridden by create_library
+        repo_root: None, // Will be derived from game_root
         game_root: game_root.clone(),
         name: "New Library".to_string(),
     };
@@ -575,7 +575,7 @@ fn test_create_library_when_mod_keeper_exists_valid() {
     // First, create a library manually
     let expected_repo_root = game_root.join(".mod_keeper");
     let requirement1 = LibraryCreationRequirement {
-        repo_root: expected_repo_root.clone(),
+        repo_root: Some(expected_repo_root.clone()),
         game_root: game_root.clone(),
         name: "Original Library".to_string(),
     };
@@ -584,7 +584,7 @@ fn test_create_library_when_mod_keeper_exists_valid() {
 
     // Now try to create library again - should open existing instead
     let requirement2 = LibraryCreationRequirement {
-        repo_root: expected_repo_root.clone(),
+        repo_root: None, // Will be derived from game_root
         game_root: game_root.clone(),
         name: "New Library Name".to_string(), // This name should be ignored
     };
@@ -615,7 +615,7 @@ fn test_create_library_when_mod_keeper_exists_invalid() {
 
     // Try to create library - should return InvalidLibrary error
     let requirement = LibraryCreationRequirement {
-        repo_root: expected_repo_root.clone(),
+        repo_root: None, // Will be derived from game_root
         game_root: game_root.clone(),
         name: "Invalid Library".to_string(),
     };

@@ -1,4 +1,5 @@
 use crate::config::global::GlobalConfig;
+use crate::core::dto_builder;
 use crate::core::library::Library;
 use crate::models::error::SError;
 use crate::models::global::LibrarySwitch;
@@ -74,14 +75,16 @@ pub fn open_library(config: &mut GlobalConfig, path: &Utf8Path) -> Result<Librar
 }
 
 /// Creates a new library and updates the global configuration.
-/// Derives repo_root from game_root as game_root/.mod_keeper.
+/// Derives repo_root from game_root as game_root/.mod_keeper if not provided.
 /// If the library already exists and is valid, opens it instead of creating.
 pub fn create_library(
     config: &mut GlobalConfig,
     requirement: LibraryCreationRequirement,
 ) -> Result<Library, SError> {
-    // Derive the library root from game_root (always use game_root/.mod_keeper)
-    let repo_root = derive_library_root(&requirement.game_root);
+    // Use provided repo_root or derive from game_root
+    let repo_root = requirement.repo_root
+        .clone()
+        .unwrap_or_else(|| derive_library_root(&requirement.game_root));
 
     // Check if the library directory already exists
     if repo_root.exists() {
@@ -99,9 +102,9 @@ pub fn create_library(
     }
 
     // Library doesn't exist, create a new one
-    // Update requirement with the derived repo_root
+    // Update requirement with the repo_root
     let mut updated_requirement = requirement;
-    updated_requirement.repo_root = repo_root.clone();
+    updated_requirement.repo_root = Some(repo_root.clone());
 
     let library = Library::create(updated_requirement.clone())?;
 
@@ -144,9 +147,15 @@ pub fn get_active_library_manifest(config: &GlobalConfig) -> Option<LibraryDTO> 
 }
 
 /// Converts the global configuration state into a LibrarySwitch DTO.
-pub fn to_library_switch(config: &GlobalConfig) -> LibrarySwitch {
+/// When active_library is provided, uses build_frontend_dto to enrich the active library DTO
+/// with manifest and icon data. Otherwise falls back to reading from manifest file.
+pub fn to_library_switch(config: &GlobalConfig, active_library: Option<&Library>) -> LibrarySwitch {
+    let active = active_library
+        .map(|lib| dto_builder::build_frontend_dto(lib))
+        .or_else(|| get_active_library_manifest(config));
+
     LibrarySwitch {
-        active: get_active_library_manifest(config),
+        active,
         libraries: get_known_library_summary(config),
     }
 }

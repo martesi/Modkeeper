@@ -27,7 +27,7 @@ pub async fn open_library(
         let (lib, switch_dto) = {
             let mut config = config_handle.lock();
             let lib = library_service::open_library(&mut config, &path_buf)?;
-            let switch = library_service::to_library_switch(&config);
+            let switch = library_service::to_library_switch(&config, Some(&lib));
             (lib, switch)
         };
 
@@ -59,7 +59,7 @@ pub async fn create_library(
         let (lib, switch) = {
             let mut config = config_handle.lock();
             let lib = library_service::create_library(&mut config, requirement)?;
-            let switch = library_service::to_library_switch(&config);
+            let switch = library_service::to_library_switch(&config, Some(&lib));
             (lib, switch)
         };
 
