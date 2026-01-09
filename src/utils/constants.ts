@@ -1,3 +1,4 @@
 import { msg, t } from '@lingui/core/macro'
 
-export const DIVIDER = t(msg`, `)
+// avoid translation before i18n is loaded
+export const DIVIDER = () => t(msg`, `)

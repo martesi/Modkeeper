@@ -52,7 +52,7 @@ export function ModCard({ mod, onToggle, onRemove }: ModCardProps) {
   // Format author for display
   const authorDisplay = mod.manifest?.author
     ? Array.isArray(mod.manifest.author)
-      ? mod.manifest.author.join(DIVIDER)
+      ? mod.manifest.author.join(DIVIDER())
       : mod.manifest.author
     : null
 
