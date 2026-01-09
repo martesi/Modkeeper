@@ -39,7 +39,6 @@ define_paths!(ModPaths {
 define_paths!(SPTPathRules {
     client_plugins: "BepInEx/plugins",
     server_mods: "SPT/user/mods",
-    server_dll: "SPT/SPT.Server.dll",
     server_exe: "SPT/SPT.Server.exe",
     server_registry:"SPT/user/sptRegistry/registry.json",
     client_exe: "EscapeFromTarkov.exe",

@@ -98,7 +98,6 @@ async init() : Promise<Result<LibrarySwitch, SError>> {
  * This command is only available in debug builds.
  * 
  * Creates all required SPT files and directory structure:
- * - SPT/SPT.Server.dll
  * - SPT/SPT.Server.exe
  * - EscapeFromTarkov.exe
  * - SPT/user/sptRegistry/registry.json with the specified SPT version

@@ -18,7 +18,7 @@ pub fn setup_test_env() -> (TempDir, camino::Utf8PathBuf, camino::Utf8PathBuf) {
     let rules = SPTPathRules::new(&game_root);
 
     // 2. Create DUMMY files so canonicalize() doesn't fail with "os error 2"
-    let essential_files = [&rules.server_dll, &rules.server_exe, &rules.client_exe];
+    let essential_files = [&rules.server_exe, &rules.client_exe];
 
     for path in essential_files {
         if let Some(parent) = path.parent() {
