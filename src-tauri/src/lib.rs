@@ -63,10 +63,7 @@ pub fn run() {
             let instance_handle = instance_handle.clone();
 
             tauri::async_runtime::spawn_blocking(move || {
-                let first_library_path = {
-                    let config = config_handle.lock();
-                    config.known_libraries.first().cloned()
-                };
+                let first_library_path = config_handle.lock().known_libraries.first().cloned();
 
                 if let Some(path) = first_library_path {
                     match crate::core::library::Library::load(&path) {
