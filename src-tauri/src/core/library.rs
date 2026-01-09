@@ -27,6 +27,9 @@ pub struct Library {
 
 impl Library {
     pub fn create(requirement: LibraryCreationRequirement) -> Result<Self, SError> {
+        // Ensure the repo_root directory exists
+        std::fs::create_dir_all(&requirement.repo_root)?;
+
         let lib_paths = LibPathRules::new(&requirement.repo_root);
         for dir in [&lib_paths.mods, &lib_paths.backups, &lib_paths.staging] {
             std::fs::create_dir_all(dir)?;

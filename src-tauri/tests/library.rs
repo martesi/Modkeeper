@@ -1,11 +1,12 @@
 mod common;
 
-use mod_keeper_lib::core::{cleanup, deployment, dto_builder, mod_manager};
+use mod_keeper_lib::core::{cleanup, deployment, dto_builder, mod_manager, library_service};
 use mod_keeper_lib::core::library::Library;
 use mod_keeper_lib::core::mod_fs::ModFS;
 use mod_keeper_lib::models::library::LibraryCreationRequirement;
 use mod_keeper_lib::models::paths::SPTPathRules;
 use mod_keeper_lib::models::error::SError;
+use mod_keeper_lib::config::global::GlobalConfig;
 use common::{create_test_mod, setup_test_env};
 use camino::{Utf8Path, Utf8PathBuf};
 use std::fs;
@@ -452,4 +453,186 @@ fn test_mod_id_case_normalization() {
 
     // Suggestion: In Library::add_mod, use: let mod_id = fs.id.to_lowercase();
     // and adjust tests accordingly.
+}
+
+#[test]
+fn test_derive_library_root() {
+    let (_tmp, game_root, _repo_root) = setup_test_env();
+
+    let derived = library_service::derive_library_root(&game_root);
+    let expected = game_root.join(".mod_keeper");
+
+    assert_eq!(derived, expected);
+}
+
+#[test]
+fn test_validate_library_structure_valid() {
+    let (_tmp, game_root, repo_root) = setup_test_env();
+
+    // Create a valid library
+    let requirement = LibraryCreationRequirement {
+        repo_root: repo_root.clone(),
+        game_root: game_root.clone(),
+        name: "Test Library".to_string(),
+    };
+    Library::create(requirement).expect("Failed to create library");
+
+    // Validate should succeed
+    let result = library_service::validate_library_structure(&repo_root);
+    assert!(result.is_ok(), "Valid library should pass validation");
+}
+
+#[test]
+fn test_validate_library_structure_missing_manifest() {
+    let (_tmp, _game_root, repo_root) = setup_test_env();
+
+    // Create directory structure but no manifest
+    std::fs::create_dir_all(repo_root.join("mods")).unwrap();
+    std::fs::create_dir_all(repo_root.join("backups")).unwrap();
+    std::fs::create_dir_all(repo_root.join("staging")).unwrap();
+
+    // Validate should fail with InvalidLibrary error
+    let result = library_service::validate_library_structure(&repo_root);
+    assert!(result.is_err(), "Library without manifest should fail validation");
+
+    match result {
+        Err(SError::InvalidLibrary(path, reason)) => {
+            assert_eq!(path, repo_root.to_string());
+            assert!(reason.contains("manifest.toml"));
+        }
+        Err(e) => panic!("Expected InvalidLibrary error, got: {}", e),
+        Ok(_) => panic!("Expected error but got Ok"),
+    }
+}
+
+#[test]
+fn test_validate_library_structure_missing_directory() {
+    let (_tmp, game_root, repo_root) = setup_test_env();
+
+    // Create a library
+    let requirement = LibraryCreationRequirement {
+        repo_root: repo_root.clone(),
+        game_root: game_root.clone(),
+        name: "Test Library".to_string(),
+    };
+    Library::create(requirement).expect("Failed to create library");
+
+    // Remove one of the required directories
+    std::fs::remove_dir_all(repo_root.join("backups")).unwrap();
+
+    // Validate should fail
+    let result = library_service::validate_library_structure(&repo_root);
+    assert!(result.is_err(), "Library with missing directory should fail validation");
+
+    match result {
+        Err(SError::InvalidLibrary(path, reason)) => {
+            assert_eq!(path, repo_root.to_string());
+            assert!(reason.contains("backups") || reason.contains("missing required directory"));
+        }
+        Err(e) => panic!("Expected InvalidLibrary error, got: {}", e),
+        Ok(_) => panic!("Expected error but got Ok"),
+    }
+}
+
+#[test]
+fn test_create_library_when_mod_keeper_not_exists() {
+    let (_tmp, game_root, _repo_root) = setup_test_env();
+    let mut config = GlobalConfig::default();
+
+    // .mod_keeper should not exist yet
+    let expected_repo_root = game_root.join(".mod_keeper");
+    assert!(!expected_repo_root.exists(), "Library directory should not exist initially");
+
+    // Create library - should create new library
+    let requirement = LibraryCreationRequirement {
+        repo_root: expected_repo_root.clone(), // This will be overridden by create_library
+        game_root: game_root.clone(),
+        name: "New Library".to_string(),
+    };
+
+    let library = library_service::create_library(&mut config, requirement)
+        .expect("Failed to create library");
+
+    // Verify library was created
+    assert_eq!(library.repo_root, expected_repo_root);
+    assert_eq!(library.name, "New Library");
+    assert!(expected_repo_root.exists(), "Library directory should exist after creation");
+    assert!(expected_repo_root.join("manifest.toml").exists());
+    assert!(expected_repo_root.join("mods").exists());
+    assert!(expected_repo_root.join("backups").exists());
+    assert!(expected_repo_root.join("staging").exists());
+
+    // Verify config was updated
+    assert_eq!(config.last_opened, Some(expected_repo_root.clone()));
+    assert!(config.known_libraries.contains(&expected_repo_root));
+}
+
+#[test]
+fn test_create_library_when_mod_keeper_exists_valid() {
+    let (_tmp, game_root, _repo_root) = setup_test_env();
+    let mut config = GlobalConfig::default();
+
+    // First, create a library manually
+    let expected_repo_root = game_root.join(".mod_keeper");
+    let requirement1 = LibraryCreationRequirement {
+        repo_root: expected_repo_root.clone(),
+        game_root: game_root.clone(),
+        name: "Original Library".to_string(),
+    };
+    let original_lib = Library::create(requirement1).expect("Failed to create original library");
+    original_lib.persist().expect("Failed to persist library");
+
+    // Now try to create library again - should open existing instead
+    let requirement2 = LibraryCreationRequirement {
+        repo_root: expected_repo_root.clone(),
+        game_root: game_root.clone(),
+        name: "New Library Name".to_string(), // This name should be ignored
+    };
+
+    let opened_lib = library_service::create_library(&mut config, requirement2)
+        .expect("Failed to open existing library");
+
+    // Verify we got the original library, not a new one
+    assert_eq!(opened_lib.id, original_lib.id);
+    assert_eq!(opened_lib.name, original_lib.name); // Should keep original name
+    assert_eq!(opened_lib.repo_root, expected_repo_root);
+
+    // Verify config was updated
+    assert_eq!(config.last_opened, Some(expected_repo_root.clone()));
+}
+
+#[test]
+fn test_create_library_when_mod_keeper_exists_invalid() {
+    let (_tmp, game_root, _repo_root) = setup_test_env();
+    let mut config = GlobalConfig::default();
+
+    // Create an invalid library directory (missing manifest)
+    let expected_repo_root = game_root.join(".mod_keeper");
+    std::fs::create_dir_all(expected_repo_root.join("mods")).unwrap();
+    std::fs::create_dir_all(expected_repo_root.join("backups")).unwrap();
+    std::fs::create_dir_all(expected_repo_root.join("staging")).unwrap();
+    // Intentionally don't create manifest.toml
+
+    // Try to create library - should return InvalidLibrary error
+    let requirement = LibraryCreationRequirement {
+        repo_root: expected_repo_root.clone(),
+        game_root: game_root.clone(),
+        name: "Invalid Library".to_string(),
+    };
+
+    let result = library_service::create_library(&mut config, requirement);
+
+    assert!(result.is_err(), "Should return error for invalid library");
+
+    match result {
+        Err(SError::InvalidLibrary(path, reason)) => {
+            assert_eq!(path, expected_repo_root.to_string());
+            assert!(reason.contains("manifest.toml"));
+        }
+        Err(e) => panic!("Expected InvalidLibrary error, got: {}", e),
+        Ok(_) => panic!("Expected error but got Ok"),
+    }
+
+    // Config should not be updated on error
+    assert_eq!(config.last_opened, None);
 }

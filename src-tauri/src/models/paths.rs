@@ -43,6 +43,7 @@ define_paths!(SPTPathRules {
     server_exe: "SPT/SPT.Server.exe",
     server_registry:"SPT/user/sptRegistry/registry.json",
     client_exe: "EscapeFromTarkov.exe",
+    library_default: ".mod_keeper",
 });
 
 define_paths!(LibPathRules {

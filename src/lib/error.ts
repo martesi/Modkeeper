@@ -77,5 +77,13 @@ export function translateError(error: SError): string {
     return t(msg`Failed to update task status. Please try again.`)
   }
 
+  if ('InvalidLibrary' in error) {
+    // InvalidLibrary is serialized as a tuple [path, reason]
+    const [path, reason] = error.InvalidLibrary as [string, string]
+    return t(
+      msg`Invalid library found at ${path}: ${reason}. Please repair, recreate, or delete the library.`
+    )
+  }
+
   return t(msg`An unknown error occurred. Please try again.`)
 }

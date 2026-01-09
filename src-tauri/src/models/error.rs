@@ -21,6 +21,8 @@ pub enum SError {
     ContextUnprovided,
     UpdateStatusError(String),
     NoActiveLibrary,
+    #[display("Invalid library at {}: {}", _0, _1)]
+    InvalidLibrary(String, String),
 }
 
 macro_rules! impl_from {
