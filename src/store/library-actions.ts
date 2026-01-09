@@ -1,7 +1,7 @@
 import { atom } from 'jotai'
 import type { Getter, Setter } from 'jotai'
-// import { commands } from '@/lib/api'
-// import { unwrapResult } from '@/lib/result'
+import { commands } from '@/lib/api'
+import { unwrapResult } from '@/lib/result'
 import { mockDataStore, generateMockLibrary } from '@/lib/mock-data'
 import {
   libraryAtom,
@@ -103,14 +103,10 @@ export const openLibraryAction = atom(
 export const createLibraryAction = atom(
   null,
   withAsyncState(async (requirement: LibraryCreationRequirement) => {
-    // Simulate network delay
-    await new Promise((resolve) => setTimeout(resolve, 800))
-    const newLibrary = generateMockLibrary({
-      name: requirement.name,
-      modCount: 0, // New library starts with no mods
-      isDirty: false,
-    })
-    return mockDataStore.addLibrary(newLibrary)
+    // Backend automatically derives repoRoot from gameRoot as gameRoot/.mod_keeper
+    // If .mod_keeper exists and is valid, it opens it. If invalid, it returns InvalidLibrary error.
+    // The requirement.repoRoot will be overridden by the backend.
+    return await unwrapResult(commands.createLibrary(requirement))
   }, updateLibrarySwitchState),
 )
 

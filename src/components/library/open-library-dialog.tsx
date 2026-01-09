@@ -1,16 +1,15 @@
 'use client'
 
 import * as React from 'react'
-import { Button } from '@comps/button'
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@comps/dialog'
-import { Trans } from '@lingui/react/macro'
+import { Trans, msg } from '@lingui/react/macro'
+import { t } from '@lingui/core/macro'
 import { useLibrarySwitch } from '@/hooks/use-library-state'
 
 interface OpenLibraryDialogProps {
@@ -27,28 +26,45 @@ export function OpenLibraryDialog({
   const { openLibrary, loading } = useLibrarySwitch()
   const [error, setError] = React.useState<string | null>(null)
 
-  const handleSelectLibrary = async () => {
+  const handleSelectLibrary = React.useCallback(async () => {
     try {
+      setError(null)
       const { open } = await import('@tauri-apps/plugin-dialog')
       const selected = await open({
         directory: true,
         multiple: false,
-        title: 'Select Library Directory',
+        title: t(msg`Select Library Directory`),
       })
-      if (selected && typeof selected === 'string') {
-        setError(null)
-        try {
-          await openLibrary(selected)
-          onSuccess?.()
-          onOpenChange(false)
-        } catch (err) {
-          setError(err instanceof Error ? err.message : 'Failed to open library')
+
+      // Ignore if no path received
+      if (!selected || typeof selected !== 'string') {
+        onOpenChange(false)
+        return
+      }
+
+      try {
+        await openLibrary(selected)
+        onSuccess?.()
+        onOpenChange(false)
+      } catch (err) {
+        if (err instanceof Error) {
+          setError(err.message)
+        } else {
+          setError('Failed to open library')
         }
       }
     } catch (err) {
-      console.error('Failed to select library:', err)
+      // User cancelled or error opening dialog
+      onOpenChange(false)
     }
-  }
+  }, [openLibrary, onOpenChange, onSuccess])
+
+  // Automatically open directory picker when dialog opens
+  React.useEffect(() => {
+    if (isOpen && !loading) {
+      handleSelectLibrary()
+    }
+  }, [isOpen, loading, handleSelectLibrary])
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -63,21 +79,12 @@ export function OpenLibraryDialog({
         </DialogHeader>
 
         <div className="space-y-4">
+          {loading && (
+            <div className="text-sm text-muted-foreground">
+              <Trans>Processing...</Trans>
+            </div>
+          )}
           {error && <div className="text-destructive text-sm">{error}</div>}
-
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={loading}
-            >
-              <Trans>Cancel</Trans>
-            </Button>
-            <Button onClick={handleSelectLibrary} disabled={loading}>
-              <Trans>Select Library</Trans>
-            </Button>
-          </DialogFooter>
         </div>
       </DialogContent>
     </Dialog>
