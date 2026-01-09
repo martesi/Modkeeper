@@ -12,7 +12,7 @@ use tracing::{debug, info, instrument};
 
 #[tauri::command]
 #[specta::specta]
-#[instrument(skip(channel, state))]
+#[instrument(skip(channel, state), fields(paths_count = paths.len()))]
 pub async fn add_mods(
     state: State<'_, AppRegistry>,
     paths: Vec<String>,
@@ -56,7 +56,7 @@ pub async fn add_mods(
 
 #[tauri::command]
 #[specta::specta]
-#[instrument(skip(channel, state))]
+#[instrument(skip(channel, state), fields(ids_count = ids.len()))]
 pub async fn remove_mods(
     state: State<'_, AppRegistry>,
     ids: Vec<String>,
@@ -80,7 +80,7 @@ pub async fn remove_mods(
 
 #[tauri::command]
 #[specta::specta]
-#[instrument(skip_all)]
+#[instrument(skip(channel, state))]
 pub async fn sync_mods(
     state: State<'_, AppRegistry>,
     channel: Channel<TaskStatus>,
