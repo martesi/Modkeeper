@@ -7,26 +7,15 @@ import { Link } from '@tanstack/react-router'
 import type { Mod } from '@gen/bindings'
 import { Trash2, Package, ChevronRight } from 'lucide-react'
 import { useState, useEffect } from 'react'
-import { msg, t } from '@lingui/core/macro'
 import { DIVIDER } from '@/utils/constants'
 
 interface ModCardProps {
   mod: Mod
   onToggle?: (id: string, isActive: boolean) => void
   onRemove?: (id: string) => void
-  isSelectionMode?: boolean
-  isSelected?: boolean
-  onSelect?: () => void
 }
 
-export function ModCard({
-  mod,
-  onToggle,
-  onRemove,
-  isSelectionMode,
-  isSelected,
-  onSelect,
-}: ModCardProps) {
+export function ModCard({ mod, onToggle, onRemove }: ModCardProps) {
   // Optimistic state for toggle
   const [optimisticActive, setOptimisticActive] = useState(mod.is_active)
 
@@ -44,13 +33,6 @@ export function ModCard({
   const handleRemove = () => {
     if (confirm(`Are you sure you want to remove "${mod.name}"?`)) {
       onRemove?.(mod.id)
-    }
-  }
-
-  const handleCardClick = (e: React.MouseEvent) => {
-    // Only trigger selection if clicking the card itself (not children)
-    if (isSelectionMode && e.target === e.currentTarget) {
-      onSelect?.()
     }
   }
 
@@ -75,12 +57,7 @@ export function ModCard({
     : null
 
   return (
-    <div
-      onClick={handleCardClick}
-      className={`rounded-lg p-4 transition-all cursor-pointer ${
-        isSelected ? 'border-2 border-primary bg-card' : 'border bg-card'
-      } border-primary/20`}
-    >
+    <div className="rounded-lg p-4 border bg-card border-primary/20 flex flex-col h-full">
       {/* Header: Icon, Name Link, Remove Button */}
       <div className="flex items-cen justify-between mb-2">
         <Link
@@ -118,15 +95,15 @@ export function ModCard({
         </Button>
       </div>
 
-      {/* Description with max height and ellipsis */}
+      {/* Description with fixed height */}
       {mod.manifest?.description && (
-        <div className="text-sm text-muted-foreground mb-3 pl-7 line-clamp-3">
+        <div className="text-sm text-muted-foreground mb-3 pl-7 h-16 overflow-hidden shrink-0">
           {mod.manifest.description}
         </div>
       )}
 
       {/* Footer: Type Badge and Toggle */}
-      <div className="flex items-center justify-between mt-4">
+      <div className="flex items-center justify-between mt-auto">
         <span
           className={`text-xs px-2 py-1 rounded ${
             mod.mod_type === 'Client'
