@@ -92,6 +92,25 @@ async init() : Promise<Result<LibrarySwitch, SError>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+/**
+ * Creates a simulation game root structure for testing purposes.
+ * This command is only available in debug builds.
+ * 
+ * Creates all required SPT files and directory structure:
+ * - SPT/SPT.Server.dll
+ * - SPT/SPT.Server.exe
+ * - EscapeFromTarkov.exe
+ * - SPT/user/sptRegistry/registry.json with the specified SPT version
+ * - Directory structure for SPT/user/mods and BepInEx/plugins
+ */
+async createSimulationGameRoot(options: CreateSimulationGameRootOptions) : Promise<Result<TestGameRoot, SError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("create_simulation_game_root", { options }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -107,6 +126,18 @@ async init() : Promise<Result<LibrarySwitch, SError>> {
 
 export type Author = string | string[]
 export type Compatibility = { include?: string[] | null; exclude?: string[] | null }
+/**
+ * Options for creating a simulation game root
+ */
+export type CreateSimulationGameRootOptions = { 
+/**
+ * SPT version string (default: "SPT 4.0.11 - 278e72")
+ */
+spt_version?: string; 
+/**
+ * Optional base path. If not provided, uses a temporary directory
+ */
+base_path: string | null }
 export type Dependencies = Partial<{ [key in string]: string }> | Dependency[]
 export type Dependency = { id: string; version: string; optional?: boolean | null }
 export type Effect = "trader" | "item" | "other"
@@ -121,6 +152,10 @@ export type ModType = "Client" | "Server" | "Both" | "Unknown"
 export type SError = { UnsupportedSPTVersion: string } | { ParseError: string } | { IOError: string } | "GameOrServerRunning" | "ProcessRunning" | "UnableToDetermineModId" | { ModNotFound: string } | { FileOrDirectoryNotFound: string } | { FileCollision: string[] } | "Unexpected" | { UnhandledCompression: string } | { AsyncRuntimeError: string } | "ContextUnprovided" | { UpdateStatusError: string } | "NoActiveLibrary" | { InvalidLibrary: [string, string] }
 export type TAURI_CHANNEL<TSend> = null
 export type TaskStatus = never
+/**
+ * Return type for game root creation command
+ */
+export type TestGameRoot = { game_root: string; repo_root: string; temp_dir_path: string | null }
 
 /** tauri-specta globals **/
 

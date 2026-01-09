@@ -17,21 +17,45 @@ use tauri_specta::{collect_commands, Builder};
 
 /// Stage 1: Setup command handler with all registered commands
 fn setup_command_handler() -> Builder<tauri::Wry> {
-    Builder::<tauri::Wry>::new().commands(collect_commands![
-        // library
-        add_mods,
-        remove_mods,
-        sync_mods,
-        get_library,
-        toggle_mod,
-        get_backups,
-        restore_backup,
-        get_mod_documentation,
-        // global
-        open_library,
-        create_library,
-        init
-    ])
+    #[cfg(debug_assertions)]
+    {
+        use crate::commands::test::create_simulation_game_root;
+        Builder::<tauri::Wry>::new().commands(collect_commands![
+            // library
+            add_mods,
+            remove_mods,
+            sync_mods,
+            get_library,
+            toggle_mod,
+            get_backups,
+            restore_backup,
+            get_mod_documentation,
+            // global
+            open_library,
+            create_library,
+            init,
+            // test (debug only)
+            create_simulation_game_root,
+        ])
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        Builder::<tauri::Wry>::new().commands(collect_commands![
+            // library
+            add_mods,
+            remove_mods,
+            sync_mods,
+            get_library,
+            toggle_mod,
+            get_backups,
+            restore_backup,
+            get_mod_documentation,
+            // global
+            open_library,
+            create_library,
+            init
+        ])
+    }
 }
 
 /// Stage 2: Export TypeScript bindings (debug builds only)
