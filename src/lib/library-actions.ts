@@ -1,6 +1,6 @@
 import { msg, t } from '@lingui/core/macro'
 import { translateError } from './error'
-import type { SError } from '@gen/bindings'
+import type { LibraryCreationRequirement, SError } from '@gen/bindings'
 
 /**
  * Adds a library by prompting the user to select a game root directory.
@@ -11,11 +11,7 @@ import type { SError } from '@gen/bindings'
  * @param createLibrary - Function to add the library (from useLibrarySwitch hook)
  */
 export async function addLibraryFromDialog(
-  createLibrary: (requirement: {
-    name: string
-    game_root: string
-    repo_root?: string | null
-  }) => Promise<unknown>,
+  createLibrary: (requirement: LibraryCreationRequirement) => Promise<unknown>,
 ): Promise<void> {
   try {
     const { open } = await import('@tauri-apps/plugin-dialog')
@@ -38,7 +34,7 @@ export async function addLibraryFromDialog(
       await createLibrary({
         name: libraryName,
         game_root: selected,
-        // repo_root is optional - backend will derive it from game_root
+        repo_root: null,
       })
     } catch (err) {
       const errorMessage =
