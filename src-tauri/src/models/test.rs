@@ -7,8 +7,6 @@ use specta::Type;
 pub struct TestGameRoot {
     #[specta(type=String)]
     pub game_root: Utf8PathBuf,
-    #[specta(type=String)]
-    pub repo_root: Utf8PathBuf,
     #[specta(type=Option<String>)]
     pub temp_dir_path: Option<String>,
 }

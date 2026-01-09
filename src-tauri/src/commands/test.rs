@@ -44,11 +44,9 @@ fn create_simulation_game_root_internal(
     };
 
     let game_root = base_path.join("game");
-    let repo_root = game_root.join(".mod_keeper");
 
     // Create directories
     fs::create_dir_all(&game_root)?;
-    fs::create_dir_all(&repo_root)?;
 
     // Get the rules to find where SPT expects files
     let rules = SPTPathRules::new(&game_root);
@@ -76,7 +74,6 @@ fn create_simulation_game_root_internal(
 
     Ok(TestGameRoot {
         game_root,
-        repo_root,
         temp_dir_path,
     })
 }
