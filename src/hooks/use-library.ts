@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
-import { api } from '@/lib/api'
+import { commands } from '@gen/bindings'
+import { unwrapResult } from '@/lib/result'
 import type { LibraryDTO } from '@gen/bindings'
 
 export function useLibrary() {
@@ -11,7 +12,7 @@ export function useLibrary() {
     try {
       setLoading(true)
       setError(null)
-      const data = await api.getLibrary()
+      const data = await unwrapResult(commands.getLibrary())
       setLibrary(data)
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to load library'))

@@ -1,6 +1,6 @@
 import { atom } from 'jotai'
 import type { Getter, Setter } from 'jotai'
-import { commands } from '@/lib/api'
+import { commands } from '@gen/bindings'
 import { unwrapResult } from '@/lib/result'
 import { mockDataStore, generateMockLibrary } from '@/lib/mock-data'
 import {

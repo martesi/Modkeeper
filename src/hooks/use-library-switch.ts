@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
-import { api } from '@/lib/api'
+import { commands } from '@gen/bindings'
+import { unwrapResult } from '@/lib/result'
 import type { LibrarySwitch, LibraryCreationRequirement } from '@gen/bindings'
 
 export function useLibrarySwitch() {
@@ -14,7 +15,7 @@ export function useLibrarySwitch() {
       // Try to get the current library - if it exists, we can infer the switch state
       // Otherwise, we'll have an empty state
       try {
-        const library = await api.getLibrary()
+        const library = await unwrapResult(commands.getLibrary())
         // If we have a library, create a minimal LibrarySwitch
         // Note: This doesn't include all known libraries, but gives us the active one
         setLibrarySwitch({
@@ -29,7 +30,9 @@ export function useLibrarySwitch() {
         })
       }
     } catch (err) {
-      setError(err instanceof Error ? err : new Error('Failed to load libraries'))
+      setError(
+        err instanceof Error ? err : new Error('Failed to load libraries'),
+      )
       setLibrarySwitch(null)
     } finally {
       setLoading(false)
@@ -40,7 +43,7 @@ export function useLibrarySwitch() {
     try {
       setLoading(true)
       setError(null)
-      const result = await api.openLibrary(path)
+      const result = await unwrapResult(commands.openLibrary(path))
       // The result is LibrarySwitch, update state accordingly
       setLibrarySwitch(result)
       return result
@@ -57,18 +60,20 @@ export function useLibrarySwitch() {
       try {
         setLoading(true)
         setError(null)
-        const result = await api.createLibrary(requirement)
+        const result = await unwrapResult(commands.createLibrary(requirement))
         // The result is LibrarySwitch, update state accordingly
         setLibrarySwitch(result)
         return result
       } catch (err) {
-        setError(err instanceof Error ? err : new Error('Failed to create library'))
+        setError(
+          err instanceof Error ? err : new Error('Failed to create library'),
+        )
         throw err
       } finally {
         setLoading(false)
       }
     },
-    []
+    [],
   )
 
   useEffect(() => {
