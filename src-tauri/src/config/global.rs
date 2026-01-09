@@ -6,13 +6,19 @@ pub struct GlobalConfig {
     pub known_libraries: Vec<Utf8PathBuf>,
 }
 
+#[cfg(debug_assertions)]
+const CONFIG_NAME: &str = "config_debug";
+
+#[cfg(not(debug_assertions))]
+const CONFIG_NAME: &str = "config";
+
 impl GlobalConfig {
     pub fn load() -> GlobalConfig {
-        confy::load("mod_keeper", "config").unwrap_or_default()
+        confy::load("mod_keeper", CONFIG_NAME).unwrap_or_default()
     }
 
     pub fn save(&self) {
-        let _ = confy::store("mod_keeper", "config", self);
+        let _ = confy::store("mod_keeper", CONFIG_NAME, self);
     }
 
     pub(crate) fn update_recent(&mut self, path: &Utf8Path) {
