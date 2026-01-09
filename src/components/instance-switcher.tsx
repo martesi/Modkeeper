@@ -19,17 +19,23 @@ import {
 } from '@/components/ui/sidebar'
 import { Trans } from '@lingui/react/macro'
 import { useLibrarySwitch } from '@/hooks/use-library-state'
-import { CreateLibraryDialog } from '@/components/library/create-library-dialog'
-import { OpenLibraryDialog } from '@/components/library/open-library-dialog'
+import { addLibraryFromDialog } from '@/lib/library-actions'
 
 export function InstanceSwitcher() {
   const { isMobile } = useSidebar()
-  const { librarySwitch, loading } = useLibrarySwitch()
-  const [createDialogOpen, setCreateDialogOpen] = React.useState(false)
-  const [openDialogOpen, setOpenDialogOpen] = React.useState(false)
+  const { librarySwitch, loading, createLibrary } = useLibrarySwitch()
 
   const active = librarySwitch?.active
   const libraries = librarySwitch?.libraries ?? []
+
+  const handleAddLibrary = React.useCallback(async () => {
+    try {
+      await addLibraryFromDialog(createLibrary)
+    } catch (err) {
+      // Error is already logged in the function
+      // You might want to show a toast notification here
+    }
+  }, [createLibrary])
 
   if (loading && !active) {
     return (
@@ -56,7 +62,7 @@ export function InstanceSwitcher() {
         <SidebarMenuItem>
           <SidebarMenuButton
             size="lg"
-            onClick={() => setOpenDialogOpen(true)}
+            onClick={handleAddLibrary}
             className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
           >
             <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
@@ -67,17 +73,10 @@ export function InstanceSwitcher() {
                 <Trans>No Library</Trans>
               </span>
               <span className="truncate text-xs">
-                <Trans>Click to open or create</Trans>
+                <Trans>Click to add library</Trans>
               </span>
             </div>
           </SidebarMenuButton>
-          <OpenLibraryDialog
-            open={openDialogOpen}
-            onOpenChange={setOpenDialogOpen}
-            onSuccess={() => {
-              // Library will be refreshed by the hook
-            }}
-          />
         </SidebarMenuItem>
       </SidebarMenu>
     )
@@ -132,44 +131,19 @@ export function InstanceSwitcher() {
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="gap-2 p-2"
-                onClick={() => setOpenDialogOpen(true)}
-              >
-                <div className="flex size-6 items-center justify-center rounded-md border bg-transparent">
-                  <Server className="size-4" />
-                </div>
-                <div className="text-muted-foreground font-medium">
-                  <Trans>Open Library</Trans>
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                className="gap-2 p-2"
-                onClick={() => setCreateDialogOpen(true)}
+                onClick={handleAddLibrary}
               >
                 <div className="flex size-6 items-center justify-center rounded-md border bg-transparent">
                   <Plus className="size-4" />
                 </div>
                 <div className="text-muted-foreground font-medium">
-                  <Trans>Create Library</Trans>
+                  <Trans>Add Library</Trans>
                 </div>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </SidebarMenuItem>
       </SidebarMenu>
-      <CreateLibraryDialog
-        open={createDialogOpen}
-        onOpenChange={setCreateDialogOpen}
-        onSuccess={() => {
-          // Library will be refreshed by the hook
-        }}
-      />
-      <OpenLibraryDialog
-        open={openDialogOpen}
-        onOpenChange={setOpenDialogOpen}
-        onSuccess={() => {
-          // Library will be refreshed by the hook
-        }}
-      />
     </>
   )
 }

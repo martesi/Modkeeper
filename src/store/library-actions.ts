@@ -89,12 +89,7 @@ export const openLibraryAction = atom(
   null,
   withAsyncState(
     async (path: string) => {
-      // Simulate network delay
-      await new Promise((resolve) => setTimeout(resolve, 500))
-      console.log('Opening library from path:', path)
-      const switchData = mockDataStore.getLibrarySwitch()
-      if (!switchData) throw new Error('No library switch data')
-      return switchData
+      return await unwrapResult(commands.openLibrary(path))
     },
     (_get, set, switchData) => updateLibrarySwitchState(_get, set, switchData),
   ),
