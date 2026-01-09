@@ -23,7 +23,7 @@ export function ModCard({
   onRemove,
   isSelectionMode,
   isSelected,
-  onSelect
+  onSelect,
 }: ModCardProps) {
   // Optimistic state for toggle
   const [optimisticActive, setOptimisticActive] = useState(mod.is_active)
@@ -76,12 +76,8 @@ export function ModCard({
     <div
       onClick={handleCardClick}
       className={`rounded-lg p-4 transition-all cursor-pointer ${
-        isSelected
-          ? 'border-2 border-primary bg-card'
-          : 'border bg-card'
-      } ${
-        optimisticActive ? 'border-primary/50' : 'border-muted'
-      }`}
+        isSelected ? 'border-2 border-primary bg-card' : 'border bg-card'
+      } ${optimisticActive ? 'border-primary/50' : 'border-muted'}`}
     >
       {/* Header: Icon, Name Link, Remove Button */}
       <div className="flex items-start justify-between mb-2">
@@ -115,9 +111,7 @@ export function ModCard({
             </span>
           )}
           {mod.manifest.version && authorDisplay && <span> • </span>}
-          {authorDisplay && (
-            <span className="truncate">{authorDisplay}</span>
-          )}
+          {authorDisplay && <span className="truncate">{authorDisplay}</span>}
         </div>
       )}
 
