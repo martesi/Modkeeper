@@ -4,7 +4,7 @@ pub mod core;
 pub mod models;
 pub mod utils;
 
-use crate::commands::global::{create_library, open_library};
+use crate::commands::global::{create_library, init, open_library};
 use crate::commands::library::{
     add_mods, get_backups, get_library, get_mod_documentation, remove_mods, restore_backup,
     sync_mods, toggle_mod,
@@ -28,7 +28,8 @@ pub fn run() {
         get_mod_documentation,
         // global
         open_library,
-        create_library
+        create_library,
+        init
     ]);
 
     #[cfg(debug_assertions)] // <- Only export on non-release builds
@@ -38,6 +39,10 @@ pub fn run() {
 
     // create the shared AppRegistry and manage it in the Tauri app state
     let app_registry = AppRegistry::default();
+
+    // Clone handles for background thread before moving into setup
+    let config_handle = app_registry.global_config.clone();
+    let instance_handle = app_registry.active_instance.clone();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -52,6 +57,30 @@ pub fn run() {
         .setup(move |app| {
             // This is also required if you want to use events
             builder.mount_events(app);
+
+            // Spawn background thread to load the first library from known_libraries
+            let config_handle = config_handle.clone();
+            let instance_handle = instance_handle.clone();
+
+            tauri::async_runtime::spawn_blocking(move || {
+                let first_library_path = {
+                    let config = config_handle.lock();
+                    config.known_libraries.first().cloned()
+                };
+
+                if let Some(path) = first_library_path {
+                    match crate::core::library::Library::load(&path) {
+                        Ok(library) => {
+                            *instance_handle.lock() = Some(library);
+                        }
+                        Err(e) => {
+                            tracing::error!("Failed to load library from {}: {}", path, e);
+                            // Leave active_instance as None on failure
+                        }
+                    }
+                }
+            });
+
             Ok(())
         })
         // on an actual app, remove the string argument

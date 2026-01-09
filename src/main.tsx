@@ -7,7 +7,6 @@ import './assets/style.css'
 import { I18nProvider } from '@lingui/react'
 import { i18n } from '@lingui/core'
 import { changeLocale } from '@utils/i18n.ts'
-import { fetchLibraryAction } from '@/store/library-actions'
 
 await changeLocale('en-US')
 

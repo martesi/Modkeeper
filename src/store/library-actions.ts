@@ -105,6 +105,16 @@ export const createLibraryAction = atom(
   }, updateLibrarySwitchState),
 )
 
+export const initAction = atom(
+  null,
+  withAsyncState(
+    async () => {
+      return await unwrapResult(commands.init())
+    },
+    (_get, set, switchData) => updateLibrarySwitchState(_get, set, switchData),
+  ),
+)
+
 export const addModsAction = atom(
   null,
   withAsyncState(async (paths: string[]) => {

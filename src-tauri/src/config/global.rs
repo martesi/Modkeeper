@@ -3,7 +3,6 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct GlobalConfig {
-    pub last_opened: Option<Utf8PathBuf>,
     pub known_libraries: Vec<Utf8PathBuf>,
 }
 
@@ -17,8 +16,6 @@ impl GlobalConfig {
     }
 
     pub(crate) fn update_recent(&mut self, path: &Utf8Path) {
-        self.last_opened = Some(path.to_owned());
-
         // Remove existing entry to avoid duplicates
         self.known_libraries.retain(|p| p != path);
 

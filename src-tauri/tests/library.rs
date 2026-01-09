@@ -563,7 +563,7 @@ fn test_create_library_when_mod_keeper_not_exists() {
     assert!(expected_repo_root.join("staging").exists());
 
     // Verify config was updated
-    assert_eq!(config.last_opened, Some(expected_repo_root.clone()));
+    assert_eq!(config.known_libraries.first(), Some(&expected_repo_root));
     assert!(config.known_libraries.contains(&expected_repo_root));
 }
 
@@ -598,7 +598,7 @@ fn test_create_library_when_mod_keeper_exists_valid() {
     assert_eq!(opened_lib.repo_root, expected_repo_root);
 
     // Verify config was updated
-    assert_eq!(config.last_opened, Some(expected_repo_root.clone()));
+    assert_eq!(config.known_libraries.first(), Some(&expected_repo_root));
 }
 
 #[test]
@@ -634,5 +634,89 @@ fn test_create_library_when_mod_keeper_exists_invalid() {
     }
 
     // Config should not be updated on error
-    assert_eq!(config.last_opened, None);
+    assert!(config.known_libraries.is_empty());
+}
+
+#[test]
+fn test_get_active_library_manifest_uses_first_in_known_libraries() {
+    let (_tmp, game_root, _repo_root) = setup_test_env();
+    let mut config = GlobalConfig::default();
+
+    // Create first library
+    let repo_root1 = game_root.join(".mod_keeper_1");
+    let requirement1 = LibraryCreationRequirement {
+        repo_root: Some(repo_root1.clone()),
+        game_root: game_root.clone(),
+        name: "First Library".to_string(),
+    };
+    library_service::create_library(&mut config, requirement1)
+        .expect("Failed to create first library");
+
+    // Create second library
+    let repo_root2 = game_root.join(".mod_keeper_2");
+    let requirement2 = LibraryCreationRequirement {
+        repo_root: Some(repo_root2.clone()),
+        game_root: game_root.clone(),
+        name: "Second Library".to_string(),
+    };
+    library_service::create_library(&mut config, requirement2)
+        .expect("Failed to create second library");
+
+    // Second library should be first (most recently used)
+    assert_eq!(config.known_libraries.first(), Some(&repo_root2));
+
+    // get_active_library_manifest should return the first library
+    let active = library_service::get_active_library_manifest(&config);
+    assert!(active.is_some());
+    assert_eq!(active.unwrap().name, "Second Library");
+}
+
+#[test]
+fn test_get_active_library_manifest_handles_invalid_library() {
+    let (_tmp, game_root, _repo_root) = setup_test_env();
+    let mut config = GlobalConfig::default();
+
+    // Create a valid library
+    let valid_repo_root = game_root.join(".mod_keeper");
+    let requirement = LibraryCreationRequirement {
+        repo_root: Some(valid_repo_root.clone()),
+        game_root: game_root.clone(),
+        name: "Valid Library".to_string(),
+    };
+    library_service::create_library(&mut config, requirement)
+        .expect("Failed to create library");
+
+    // Add an invalid path as the first library
+    let invalid_path = game_root.join("invalid_library");
+    config.known_libraries.insert(0, invalid_path.clone());
+
+    // get_active_library_manifest should return None for invalid library
+    let active = library_service::get_active_library_manifest(&config);
+    assert!(active.is_none());
+}
+
+#[test]
+fn test_to_library_switch_with_invalid_active() {
+    let (_tmp, game_root, _repo_root) = setup_test_env();
+    let mut config = GlobalConfig::default();
+
+    // Create a valid library
+    let valid_repo_root = game_root.join(".mod_keeper");
+    let requirement = LibraryCreationRequirement {
+        repo_root: Some(valid_repo_root.clone()),
+        game_root: game_root.clone(),
+        name: "Valid Library".to_string(),
+    };
+    library_service::create_library(&mut config, requirement)
+        .expect("Failed to create library");
+
+    // Add an invalid path as the first library
+    let invalid_path = game_root.join("invalid_library");
+    config.known_libraries.insert(0, invalid_path.clone());
+
+    // to_library_switch should return None for active when first library is invalid
+    let switch = library_service::to_library_switch(&config, None);
+    assert!(switch.active.is_none());
+    // But should still list other valid libraries
+    assert!(!switch.libraries.is_empty());
 }

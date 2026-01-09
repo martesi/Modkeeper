@@ -4,7 +4,7 @@ use crate::models::error::SError;
 use crate::models::global::LibrarySwitch;
 use crate::models::library::LibraryCreationRequirement;
 use camino::Utf8PathBuf;
-use tauri::State;
+use tauri::{AppHandle, Manager, State};
 use tracing::instrument;
 
 #[tauri::command]
@@ -71,4 +71,34 @@ pub async fn create_library(
     })
     .await
     .map_err(|e| SError::AsyncRuntimeError(e.to_string()))? // Unwrap the JoinHandle error
+}
+
+#[tauri::command]
+#[specta::specta]
+#[instrument(skip(app_handle, state))]
+pub async fn init(
+    app_handle: AppHandle,
+    state: State<'_, AppRegistry>,
+) -> Result<LibrarySwitch, SError> {
+    // Get current state (library already loaded in background thread)
+    let config_handle = state.global_config.clone();
+    let instance_handle = state.active_instance.clone();
+
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let config = config_handle.lock();
+        let instance_guard = instance_handle.lock();
+        let active_library = instance_guard.as_ref();
+        Ok(library_service::to_library_switch(&config, active_library))
+    })
+    .await
+    .map_err(|e| SError::AsyncRuntimeError(e.to_string()))?;
+
+    // Show the window
+    if let Some(window) = app_handle.get_webview_window("main") {
+        window
+            .show()
+            .map_err(|e| SError::IOError(format!("Failed to show window: {}", e)))?;
+    }
+
+    result
 }

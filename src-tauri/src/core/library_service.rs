@@ -139,10 +139,11 @@ pub fn get_known_library_summary(config: &GlobalConfig) -> Vec<LibraryDTO> {
 }
 
 /// Returns the manifest for the currently active library, if any.
+/// Uses the first item in known_libraries (most recently used).
 pub fn get_active_library_manifest(config: &GlobalConfig) -> Option<LibraryDTO> {
     config
-        .last_opened
-        .as_ref()
+        .known_libraries
+        .first()
         .and_then(|path| Library::read_library_manifest(path).ok())
 }
 
