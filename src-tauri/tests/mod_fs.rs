@@ -1,10 +1,10 @@
+use camino::Utf8PathBuf;
 use mod_keeper_lib::core::mod_fs::ModFS;
-use mod_keeper_lib::models::divider::MOD_ID_DIVIDER;
+use mod_keeper_lib::models::error::SError;
 use mod_keeper_lib::models::mod_dto::ModType;
 use mod_keeper_lib::models::paths::{ModPaths, SPTPathRules};
-use mod_keeper_lib::models::error::SError;
 use mod_keeper_lib::utils::file::FileUtils;
-use camino::{Utf8Path, Utf8PathBuf};
+use mod_keeper_lib::utils::id::hash_id;
 use std::fs;
 use tempfile::tempdir;
 
@@ -21,8 +21,9 @@ fn test_resolve_id_server_only() {
 
     let mod_fs = ModFS::new(&root, &rules).unwrap();
 
-    // Server ID should be just the first folder name (lowercase): "weathermod"
-    assert_eq!(mod_fs.id, "weathermod");
+    // Server ID should be hashed version of "weathermod"
+    let expected_id = hash_id("weathermod");
+    assert_eq!(mod_fs.id, expected_id);
     assert_eq!(mod_fs.mod_type, ModType::Server);
 }
 
@@ -41,10 +42,9 @@ fn test_resolve_id_client_only() {
 
     let mod_fs = ModFS::new(&root, &rules).unwrap();
 
-    // Client ID logic is rel.as_str() (lowercase).
-    // We compare against a PathBuf to handle \ vs / automatically.
-    let expected_rel = Utf8Path::new("authorname").join("logic.dll");
-    assert_eq!(mod_fs.id, expected_rel.as_str());
+    // Client ID should be hashed version of "authorname/logic.dll" (lowercase)
+    let expected_id = hash_id("authorname/logic.dll");
+    assert_eq!(mod_fs.id, expected_id);
     assert_eq!(mod_fs.mod_type, ModType::Client);
 }
 
@@ -67,9 +67,9 @@ fn test_resolve_id_combined() {
 
     // BTreeSet sorts alphabetically:
     // "CoreMod" vs "Fixes.dll"
-    // Result: "coremod--fixes.dll" (lowercase)
-    let expected = format!("coremod{}fixes.dll", MOD_ID_DIVIDER);
-    assert_eq!(mod_fs.id, expected);
+    // Result: "coremodfixes.dll" (lowercase, no divider) -> hashed
+    let expected_id = hash_id("coremodfixes.dll");
+    assert_eq!(mod_fs.id, expected_id);
     assert_eq!(mod_fs.mod_type, ModType::Both);
 }
 
@@ -91,8 +91,9 @@ fn test_resolve_id_ignores_non_dll_in_client_plugins() {
 
     let mod_fs = ModFS::new(&root, &rules).unwrap();
 
-    // ID should only be "validmod" (lowercase), the readme.txt is ignored
-    assert_eq!(mod_fs.id, "validmod");
+    // ID should be hashed version of "validmod" (lowercase), the readme.txt is ignored
+    let expected_id = hash_id("validmod");
+    assert_eq!(mod_fs.id, expected_id);
 }
 
 #[test]
@@ -209,7 +210,7 @@ fn test_deterministic_id_sorting() {
 
     let mod_fs = ModFS::new(&root, &rules).unwrap();
 
-    // BTreeSet should have forced: a_mod--m_mod--z_mod (lowercase)
-    let expected = format!("a_mod{0}m_mod{0}z_mod", MOD_ID_DIVIDER);
-    assert_eq!(mod_fs.id, expected);
+    // BTreeSet should have forced: a_modm_modz_mod (lowercase, no divider) -> hashed
+    let expected_id = hash_id("a_modm_modz_mod");
+    assert_eq!(mod_fs.id, expected_id);
 }

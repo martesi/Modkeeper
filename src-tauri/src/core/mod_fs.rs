@@ -1,7 +1,7 @@
-use crate::models::divider::MOD_ID_DIVIDER;
 use crate::models::error::SError;
 use crate::models::mod_dto::{ModManifest, ModType};
 use crate::models::paths::{ModPaths, SPTPathRules};
+use crate::utils::id::hash_id;
 use camino::{Utf8Path, Utf8PathBuf};
 use serde::{Deserialize, Serialize};
 use walkdir::WalkDir;
@@ -47,7 +47,8 @@ impl ModFS {
                 // Client check (DLLs only)
                 if path.extension() == Some("dll") {
                     if let Ok(rel) = path.strip_prefix(&spt_paths.client_plugins) {
-                        return Some(rel.as_str().to_string());
+                        // Normalize path separators to forward slashes for consistent hashing
+                        return Some(rel.as_str().replace('\\', "/").to_string());
                     }
                 }
 
@@ -59,12 +60,9 @@ impl ModFS {
             return Err(SError::UnableToDetermineModId);
         }
 
-        // 3. Final join (ids is already sorted because it's a BTreeSet)
-        Ok(ids
-            .into_iter()
-            .collect::<Vec<_>>()
-            .join(MOD_ID_DIVIDER)
-            .to_lowercase())
+        // 3. Concatenate sorted IDs and hash the result
+        let concatenated = ids.into_iter().collect::<Vec<_>>().join("").to_lowercase();
+        Ok(hash_id(&concatenated))
     }
 
     pub fn infer_mod_type(files: &[Utf8PathBuf], config: &SPTPathRules) -> ModType {

@@ -1,5 +1,4 @@
 pub mod config;
-pub mod divider;
 pub mod error;
 pub mod global;
 pub mod library;
