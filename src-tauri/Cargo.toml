@@ -28,7 +28,6 @@ specta-typescript = "0.0.9"
 tauri-specta = { version = "=2.0.0-rc.21", features = ["derive", "typescript"] }
 confy = "2.0.0"
 directories = "6.0.0"
-tauri-plugin-log = "2"
 camino = { version = "1.2.2", features = ["serde1"] }
 junction = "1.2" # Essential for Windows Junctions
 sysinfo = "0.30" # For process checking
@@ -48,6 +47,7 @@ tracing = "0.1.44"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "std"] }
 tauri-plugin-dialog = "2"
 base64 = "0.22"
+tracing-appender = "0.2.4"
 
 [dev-dependencies]
 tempfile = "3"

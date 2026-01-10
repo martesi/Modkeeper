@@ -14,6 +14,10 @@ use parking_lot::Mutex;
 use specta_typescript::Typescript;
 use std::sync::Arc;
 use tauri_specta::{collect_commands, Builder};
+use tracing_subscriber::fmt;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
+use tracing_subscriber::Registry;
 
 /// Stage 1: Setup command handler with all registered commands
 fn setup_command_handler() -> Builder<tauri::Wry> {
@@ -89,13 +93,7 @@ fn initialize_app_state() -> (
 
 /// Stage 4: Register Tauri plugins
 fn register_plugins() -> tauri::Builder<tauri::Wry> {
-    tauri::Builder::default()
-        .plugin(tauri_plugin_dialog::init())
-        .plugin(
-            tauri_plugin_log::Builder::new()
-                .level(tauri_plugin_log::log::LevelFilter::Info)
-                .build(),
-        )
+    tauri::Builder::default().plugin(tauri_plugin_dialog::init())
 }
 
 /// Helper: Load the initial library from known libraries in a background thread
@@ -156,15 +154,54 @@ fn setup_application(
     }
 }
 
+/// Set up logging to both console and file
+/// Uses RUST_LOG environment variable to control log level (e.g., RUST_LOG=debug,info,warn,error)
+/// Returns a guard that must be kept alive for file logging to work
+fn setup_logging() -> tracing_appender::non_blocking::WorkerGuard {
+    // Set up a file-based logger
+    let file_appender = tracing_appender::rolling::never("logs", "app.log");
+    let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
+
+    // Create env filter with default level if RUST_LOG is not set
+    // Include the crate name to ensure instrument spans are logged
+    let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("mod_keeper=debug,debug"));
+
+    // Create layers for both file and console output
+    // Enable span recording to capture instrument spans (entry and exit events)
+    let file_layer = fmt::layer()
+        .with_file(true)
+        .with_line_number(true)
+        .with_writer(non_blocking)
+        .with_target(false)
+        .with_span_events(fmt::format::FmtSpan::ENTER | fmt::format::FmtSpan::EXIT);
+
+    let console_layer = fmt::layer()
+        .with_file(true)
+        .with_line_number(true)
+        .with_writer(std::io::stdout)
+        .with_target(false)
+        .with_span_events(fmt::format::FmtSpan::ENTER | fmt::format::FmtSpan::EXIT);
+
+    // Build and initialize the subscriber with both layers
+    Registry::default()
+        .with(env_filter)
+        .with(file_layer)
+        .with(console_layer)
+        .init();
+
+    guard
+}
+
 /// Stage 6-7: Main entry point - orchestrates all initialization stages
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Initialize tracing subscriber for logging
-    // Use RUST_LOG environment variable to control log level (e.g., RUST_LOG=debug,info,warn,error)
-    tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        .with_target(false)
-        .init();
+    // Set up logging to both console and file
+    // Keep guard alive for the application lifetime
+    let _log_guard = setup_logging();
+
+    // Log that logging is initialized
+    tracing::info!("Logging initialized - output to console and logs/app.log");
 
     // Stage 1: Setup command handler
     let builder = setup_command_handler();
