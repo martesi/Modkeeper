@@ -120,11 +120,27 @@ fn load_initial_library(
     });
 }
 
+/// Helper: Start a timer that checks if init command was called within 10 seconds
+/// If init is not called, the application will exit with an error
+fn start_init_timeout_checker(init_called: Arc<std::sync::atomic::AtomicBool>) {
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+
+        if !init_called.load(std::sync::atomic::Ordering::Relaxed) {
+            tracing::error!(
+                "init command was not called within 10 seconds of setup. Application will exit."
+            );
+            std::process::exit(1);
+        }
+    });
+}
+
 /// Stage 5: Setup application (mount events and load initial library)
 fn setup_application(
     builder: Builder<tauri::Wry>,
     config_handle: Arc<Mutex<crate::config::global::GlobalConfig>>,
     instance_handle: Arc<Mutex<Option<crate::core::library::Library>>>,
+    init_called: Arc<std::sync::atomic::AtomicBool>,
 ) -> impl FnOnce(&mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     move |app| {
         // Mount events for the command handler
@@ -133,6 +149,9 @@ fn setup_application(
         // Load the initial library in the background
         load_initial_library(config_handle, instance_handle);
 
+        // Start timer to check if init was called within 10 seconds
+        start_init_timeout_checker(init_called);
+
         Ok(())
     }
 }
@@ -140,6 +159,13 @@ fn setup_application(
 /// Stage 6-7: Main entry point - orchestrates all initialization stages
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Initialize tracing subscriber for logging
+    // Use RUST_LOG environment variable to control log level (e.g., RUST_LOG=debug,info,warn,error)
+    tracing_subscriber::fmt()
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .with_target(false)
+        .init();
+
     // Stage 1: Setup command handler
     let builder = setup_command_handler();
 
@@ -148,6 +174,7 @@ pub fn run() {
 
     // Stage 3: Initialize application state
     let (app_registry, config_handle, instance_handle) = initialize_app_state();
+    let init_called = app_registry.init_called.clone();
 
     // Stage 4: Register plugins
     let tauri_builder = register_plugins();
@@ -156,7 +183,7 @@ pub fn run() {
     let invoke_handler = builder.invoke_handler();
 
     // Stage 6: Configure application setup
-    let setup_fn = setup_application(builder, config_handle, instance_handle);
+    let setup_fn = setup_application(builder, config_handle, instance_handle, init_called);
 
     // Stage 7: Build and run the application
     tauri_builder

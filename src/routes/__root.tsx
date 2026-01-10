@@ -7,6 +7,7 @@ import {
 import { AppSidebar } from '@comps/app-sidebar.tsx'
 import { Separator } from '@comps/separator.tsx'
 import { LibraryInit } from '@/components/library-init'
+import { FileDropHandler } from '@/components/file-drop-handler'
 import { BreadcrumbNav } from '@/components/breadcrumb-nav'
 
 export const Route = createRootRoute({
@@ -17,6 +18,7 @@ function RootComponent() {
   return (
     <SidebarProvider>
       <LibraryInit />
+      <FileDropHandler />
       <AppSidebar />
       <SidebarInset>
         <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">

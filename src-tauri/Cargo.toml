@@ -41,10 +41,11 @@ file-id = "0.2.3"
 dunce = "1.0.5"
 parking_lot = "0.12.5"
 zip = "7.0.0"
-tokio = { version = "1.49.0", features = ["macros"] }
+tokio = { version = "1.49.0", features = ["macros", "time"] }
 derive_more = { version = "2.1.1", features = ["display"] }
 help = "0.0.0"
 tracing = "0.1.44"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "std"] }
 tauri-plugin-dialog = "2"
 base64 = "0.22"
 

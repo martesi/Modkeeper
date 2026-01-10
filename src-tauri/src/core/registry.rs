@@ -5,6 +5,7 @@ use crate::models::error::SError;
 use crate::utils::process::ProcessChecker;
 use parking_lot::Mutex;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use sysinfo::System;
 
@@ -13,6 +14,8 @@ pub struct AppRegistry {
     pub active_instance: Arc<Mutex<Option<Library>>>,
     pub global_config: Arc<Mutex<GlobalConfig>>,
     pub sys: Mutex<System>,
+    /// Tracks whether the init command has been called
+    pub init_called: Arc<AtomicBool>,
 }
 
 impl AppRegistry {
@@ -47,6 +50,7 @@ impl Default for AppRegistry {
             active_instance: Arc::new(Mutex::new(None)),
             global_config: Arc::new(Mutex::new(GlobalConfig::load())),
             sys: Mutex::new(System::new()),
+            init_called: Arc::new(AtomicBool::new(false)),
         }
     }
 }

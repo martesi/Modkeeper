@@ -80,6 +80,11 @@ pub async fn init(
     app_handle: AppHandle,
     state: State<'_, AppRegistry>,
 ) -> Result<LibrarySwitch, SError> {
+    // Mark that init has been called
+    state
+        .init_called
+        .store(true, std::sync::atomic::Ordering::Relaxed);
+
     // Get current state (library already loaded in background thread)
     let config_handle = state.global_config.clone();
     let instance_handle = state.active_instance.clone();
