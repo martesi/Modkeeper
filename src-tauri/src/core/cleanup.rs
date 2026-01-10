@@ -132,3 +132,67 @@ fn is_dir_empty(path: &Utf8Path) -> bool {
         .map(|mut i| i.next().is_none())
         .unwrap_or(false)
 }
+
+/// Unlinks all files, junctions, and shared directories for a specific mod.
+/// Returns the list of paths that were unlinked/removed.
+pub fn unlink_mod(
+    _game_root: &Utf8Path,
+    _repo_root: &Utf8Path,
+    lib_paths: &LibPathRules,
+    cache: &LibraryCache,
+    mod_id: &str,
+    unlink_paths: &HashSet<Utf8PathBuf>,
+    shared_dirs: &HashSet<Utf8PathBuf>,
+) -> Result<Vec<Utf8PathBuf>, SError> {
+    let mut unlinked = Vec::new();
+    let mod_source_dir = lib_paths.mods.join(mod_id);
+
+    // Get the mod's file IDs for hard link matching
+    let mod_file_ids: HashSet<FileId> = cache
+        .mods
+        .get(mod_id)
+        .map(|m_fs| {
+            m_fs.files
+                .iter()
+                .filter_map(|f| linker::get_id(&mod_source_dir.join(f)).ok())
+                .collect()
+        })
+        .unwrap_or_default();
+
+    // Unlink all paths that were uniquely owned by this mod
+    for path in unlink_paths {
+        if path.exists() || path.is_symlink() {
+            // Check if it's a junction/symlink pointing to our mod
+            if let Ok(target) = linker::read_link_target(path) {
+                if target.starts_with(&mod_source_dir) {
+                    linker::unlink(path)?;
+                    unlinked.push(path.clone());
+                    continue;
+                }
+            }
+
+            // Check if it's a hard link matching our mod's file IDs
+            if let Ok(id) = linker::get_id(path) {
+                if mod_file_ids.contains(&id) {
+                    linker::unlink(path)?;
+                    unlinked.push(path.clone());
+                }
+            }
+        }
+    }
+
+    // Clean up empty shared directories (walk from deepest to shallowest)
+    let mut sorted_shared_dirs: Vec<_> = shared_dirs.iter().collect();
+    sorted_shared_dirs.sort_by(|a, b| b.components().count().cmp(&a.components().count()));
+
+    for shared_dir in sorted_shared_dirs {
+        if shared_dir.exists() && is_dir_empty(shared_dir) {
+            // Check if this directory is still needed by other mods
+            // We can remove it if it's empty and was created for our mod
+            let _ = std::fs::remove_dir(shared_dir);
+            unlinked.push(shared_dir.clone());
+        }
+    }
+
+    Ok(unlinked)
+}

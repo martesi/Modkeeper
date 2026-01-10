@@ -91,3 +91,14 @@ pub fn restore_backup(
     library.persist()?;
     Ok(())
 }
+
+/// Removes all backups for a given mod.
+pub fn remove_all_backups(lib_paths: &LibPathRules, mod_id: &str) -> Result<(), SError> {
+    let backup_dir = lib_paths.backups.join(mod_id);
+
+    if backup_dir.exists() {
+        std::fs::remove_dir_all(&backup_dir)?;
+    }
+
+    Ok(())
+}

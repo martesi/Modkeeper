@@ -58,9 +58,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarContent>
-      <SidebarFooter>
-        {/* Footer content can be added here */}
-      </SidebarFooter>
+      <SidebarFooter>{/* Footer content can be added here */}</SidebarFooter>
       <SidebarRail />
     </Sidebar>
   )

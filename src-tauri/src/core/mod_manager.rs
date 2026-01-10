@@ -1,5 +1,6 @@
+use crate::core::cleanup;
+use crate::core::deployment;
 use crate::core::library::Library;
-use crate::core::linker;
 use crate::core::mod_backup;
 use crate::core::mod_fs::ModFS;
 use crate::models::error::SError;
@@ -9,11 +10,7 @@ use camino::Utf8Path;
 
 /// Adds or updates a mod in the library.
 /// Creates a backup if the mod already exists.
-pub fn add_mod(
-    library: &mut Library,
-    mod_root: &Utf8Path,
-    fs: ModFS,
-) -> Result<(), SError> {
+pub fn add_mod(library: &mut Library, mod_root: &Utf8Path, fs: ModFS) -> Result<(), SError> {
     let mod_id = fs.id.clone();
     let dst = library.lib_paths.mods.join(&mod_id);
 
@@ -25,7 +22,8 @@ pub fn add_mod(
     std::fs::create_dir_all(&dst)?;
     FileUtils::copy_recursive(mod_root, &dst)?;
 
-    library.mods
+    library
+        .mods
         .entry(mod_id.clone())
         .and_modify(|m| {
             m.mod_type = fs.mod_type.clone();
@@ -47,36 +45,59 @@ pub fn add_mod(
 }
 
 /// Removes a mod from the library.
-/// Unlinks files and removes from filesystem.
-pub fn remove_mod(
-    library: &mut Library,
-    id: &str,
-) -> Result<(), SError> {
-    // Remove from Cache and Filesystem
-    if let Some(m) = library.cache.mods.remove(id) {
-        // Note: We deliberately do not unlink here individually.
-        // A full sync() is required to properly clean up state,
-        // otherwise we risk leaving broken links if the user doesn't sync immediately.
-        // However, to strictly follow previous logic, we unlink specific files:
-        for f in &m.files {
-            let _ = linker::unlink(&library.game_root.join(f));
-        }
-        let _ = std::fs::remove_dir_all(library.lib_paths.mods.join(id));
+/// Unlinks files, junctions, and shared directories, then removes from filesystem.
+/// Always attempts to unlink regardless of active status, as library state may not be synced.
+/// Does not mark library dirty as sync status already reflects unlinked state.
+pub fn remove_mod(library: &mut Library, id: &str) -> Result<(), SError> {
+    // Get mod's ModFS from cache before removing
+    let mod_fs_exists = library.cache.mods.contains_key(id);
+
+    // Always attempt to unlink - active status may not match filesystem state
+    if mod_fs_exists {
+        // Find what paths need to be unlinked (treats mod as active for ownership calculation)
+        let (unlink_paths, shared_dirs) = deployment::find_mod_links(
+            &library.game_root,
+            &library.lib_paths,
+            &library.spt_rules,
+            &library.mods,
+            &library.cache,
+            id,
+        )?;
+
+        // Unlink all paths and shared directories
+        cleanup::unlink_mod(
+            &library.game_root,
+            &library.repo_root,
+            &library.lib_paths,
+            &library.cache,
+            id,
+            &unlink_paths,
+            &shared_dirs,
+        )?;
     }
 
+    // Remove all backups for this mod
+    mod_backup::remove_all_backups(&library.lib_paths, id)?;
+
+    // Remove mod directory from filesystem
+    let mod_dir = library.lib_paths.mods.join(id);
+    if mod_dir.exists() {
+        std::fs::remove_dir_all(&mod_dir)?;
+    }
+
+    // Remove from cache and mods map
+    library.cache.mods.remove(id);
     library.mods.remove(id);
-    library.mark_dirty();
+
+    // Do NOT mark dirty - sync status already reflects the unlinked state
     library.persist()?;
     Ok(())
 }
 
 /// Toggles the active state of a mod.
-pub fn toggle_mod(
-    library: &mut Library,
-    id: &str,
-    is_active: bool,
-) -> Result<(), SError> {
-    let mod_entry = library.mods
+pub fn toggle_mod(library: &mut Library, id: &str, is_active: bool) -> Result<(), SError> {
+    let mod_entry = library
+        .mods
         .get_mut(id)
         .ok_or_else(|| SError::ModNotFound(id.to_string()))?;
     mod_entry.is_active = is_active;

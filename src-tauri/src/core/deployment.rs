@@ -4,7 +4,7 @@ use crate::models::error::SError;
 use crate::models::mod_dto::Mod;
 use crate::models::paths::{LibPathRules, SPTPathRules};
 use camino::{Utf8Path, Utf8PathBuf};
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 type OwnershipMap = HashMap<Utf8PathBuf, Vec<String>>;
 
@@ -141,4 +141,72 @@ fn iter_active_files_and_ancestors<'a>(
                     .map(move |a| (a, id.as_str()))
             })
         })
+}
+
+/// Finds all paths that would be linked for a specific mod.
+/// Returns the paths that are uniquely owned by this mod (that need unlinking)
+/// and the shared directories that were created for this mod's files.
+/// Always includes the specified mod in ownership calculation regardless of its active status.
+pub fn find_mod_links(
+    game_root: &Utf8Path,
+    _lib_paths: &LibPathRules,
+    spt_rules: &SPTPathRules,
+    mods: &BTreeMap<String, Mod>,
+    cache: &LibraryCache,
+    mod_id: &str,
+) -> Result<(HashSet<Utf8PathBuf>, HashSet<Utf8PathBuf>), SError> {
+    // Get the mod's files from cache
+    let mod_fs = cache
+        .mods
+        .get(mod_id)
+        .ok_or_else(|| SError::ModNotFound(mod_id.to_string()))?;
+
+    // Build ownership map including this mod (treat it as active for ownership calculation)
+    let mut folder_ownership = build_folder_ownership_map(spt_rules, mods, cache);
+
+    // Ensure the mod being removed is included in ownership map (regardless of active status)
+    // This allows us to find links even if the mod wasn't marked as active
+    for file_path in &mod_fs.files {
+        for ancestor in file_path.ancestors() {
+            if ancestor.as_str().is_empty() || ancestor == "." {
+                continue;
+            }
+            let entry = folder_ownership.entry(ancestor.to_path_buf()).or_default();
+            if !entry.contains(&mod_id.to_string()) {
+                entry.push(mod_id.to_string());
+            }
+        }
+    }
+
+    let mut unlink_paths = HashSet::new();
+    let mut shared_dirs = HashSet::new();
+
+    // Iterate through each file in the mod
+    for file_path in &mod_fs.files {
+        let mut current_path = Utf8PathBuf::new();
+
+        for component in file_path.components() {
+            current_path.push(component);
+
+            let owners = folder_ownership.get(&current_path).ok_or_else(|| {
+                SError::ParseError(format!("Missing ownership for '{}'", current_path))
+            })?;
+
+            // Case A: Unique Ownership -> This path would be linked
+            if owners.len() == 1 && owners.contains(&mod_id.to_string()) {
+                let dst = game_root.join(&current_path);
+                unlink_paths.insert(dst);
+                // We found the link point, exit file loop
+                break;
+            }
+
+            // Case B: Shared -> This is a parent directory that might need cleanup
+            if owners.len() > 1 {
+                let shared_dir = game_root.join(&current_path);
+                shared_dirs.insert(shared_dir);
+            }
+        }
+    }
+
+    Ok((unlink_paths, shared_dirs))
 }

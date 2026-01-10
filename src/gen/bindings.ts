@@ -154,7 +154,7 @@ export type TaskStatus = never
 /**
  * Return type for game root creation command
  */
-export type TestGameRoot = { game_root: string; repo_root: string; temp_dir_path: string | null }
+export type TestGameRoot = { game_root: string; temp_dir_path: string | null }
 
 /** tauri-specta globals **/
 
