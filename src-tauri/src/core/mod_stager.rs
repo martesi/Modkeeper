@@ -1,7 +1,7 @@
 use crate::core::decompression;
 use crate::core::mod_fs::ModFS;
 use crate::models::error::SError;
-use crate::models::paths::SPTPathRules;
+use crate::models::paths::{ModPaths, SPTPathRules};
 use crate::utils::file::FileUtils;
 use crate::utils::process::ProcessChecker;
 use camino::{Utf8Path, Utf8PathBuf};
@@ -16,24 +16,26 @@ pub struct StagedMod {
     pub fs: ModFS,
     pub source_path: Utf8PathBuf, // The location in staging (or original folder)
     pub is_staging: bool,         // True if this is a temp folder we need to delete later
+    pub name: String,             // The resolved name for the mod
 }
 
 #[derive(Debug)]
 pub struct StageMaterial {
     pub rules: SPTPathRules,
     pub root: Utf8PathBuf,
+    pub name: String, // Translated "Unknown mod" string from frontend for loose files
 }
 
 /// Takes raw user inputs and converts them into validated ModFS objects ready for installation.
 /// Uses a functional pipeline to resolve inputs.
 pub fn resolve(
     inputs: &[Utf8PathBuf],
-    StageMaterial { root, rules }: &StageMaterial,
+    StageMaterial { root, rules, name }: &StageMaterial,
 ) -> Result<Vec<StagedMod>, SError> {
     // 1. Guard Clause: Collective "Loose File" Check
     // If the inputs collectively form a mod root, treat them as one unit immediately.
     if is_game_root_structure(inputs, &rules) {
-        return stage_loose_files(inputs, &rules, &root).map(|staged| vec![staged]);
+        return stage_loose_files(inputs, &rules, &root, name).map(|staged| vec![staged]);
     }
 
     // 2. Functional Pipeline: Process individual inputs
@@ -41,7 +43,8 @@ pub fn resolve(
         .iter()
         .map(|input| {
             // Chain strategies: Try Directory -> If None, Try Archive
-            process_as_directory(input, &rules).or_else(|| process_as_archive(input, &rules, &root))
+            process_as_directory(input, &rules, name)
+                .or_else(|| process_as_archive(input, &rules, &root, name))
         })
         // Remove inputs that matched no strategy (Option::None)
         .filter_map(|res_opt| res_opt)
@@ -73,6 +76,7 @@ pub fn any_mod_tool_running(sys: &mut System, mods_to_install: &[StagedMod]) -> 
 fn process_as_directory(
     input: &Utf8PathBuf,
     rules: &SPTPathRules,
+    unknown_mod_name: &str,
 ) -> Option<Result<StagedMod, SError>> {
     if !input.is_dir() {
         return None;
@@ -85,20 +89,30 @@ fn process_as_directory(
     match is_game_structure {
         Ok(true) => {
             // It IS a game structure, so it MUST be a valid mod. Fail if ModFS::new fails.
-            Some(ModFS::new(input, rules).map(|fs| StagedMod {
-                fs,
-                source_path: input.clone(),
-                is_staging: false,
+            Some(ModFS::new(input, rules).map(|fs| {
+                // Determine name: manifest name (highest priority) or directory name
+                let name = read_manifest_name(input)
+                    .unwrap_or_else(|| input.file_name().unwrap_or(unknown_mod_name).to_string());
+                StagedMod {
+                    fs,
+                    source_path: input.clone(),
+                    is_staging: false,
+                    name,
+                }
             }))
         }
         Ok(false) => {
             // Sub-strategy A2: Folder is a standard mod folder.
             // We try ModFS::new. If it succeeds, Good. If it fails, we treat it as "Not a mod" (None).
             ModFS::new(input, rules).ok().map(|fs| {
+                // Determine name: manifest name (highest priority) or directory name
+                let name = read_manifest_name(input)
+                    .unwrap_or_else(|| input.file_name().unwrap_or(unknown_mod_name).to_string());
                 Ok(StagedMod {
                     fs,
                     source_path: input.clone(),
                     is_staging: false,
+                    name,
                 })
             })
         }
@@ -111,11 +125,20 @@ fn process_as_archive(
     input: &Utf8PathBuf,
     rules: &SPTPathRules,
     staging_root: &Utf8Path,
+    unknown_mod_name: &str,
 ) -> Option<Result<StagedMod, SError>> {
-    is_archive(input).then(|| stage_archive(input, rules, staging_root))
+    is_archive(input).then(|| stage_archive(input, rules, staging_root, unknown_mod_name))
 }
 
 // --- Internal Helpers ---
+
+/// Reads the manifest name if a manifest exists at the mod root, otherwise returns None.
+fn read_manifest_name(mod_root: &Utf8Path) -> Option<String> {
+    let mod_paths = ModPaths::new(mod_root);
+    ModFS::read_manifest(&mod_paths.file)
+        .ok()
+        .map(|manifest| manifest.name)
+}
 
 fn is_game_root_structure(inputs: &[Utf8PathBuf], rules: &SPTPathRules) -> bool {
     let roots = [
@@ -149,6 +172,7 @@ fn stage_loose_files(
     inputs: &[Utf8PathBuf],
     rules: &SPTPathRules,
     staging_root: &Utf8Path,
+    unknown_mod_name: &str,
 ) -> Result<StagedMod, SError> {
     let uuid = Uuid::new_v4().to_string();
     let dest_dir = staging_root.join(uuid);
@@ -162,10 +186,15 @@ fn stage_loose_files(
     }
 
     let fs = ModFS::new(&dest_dir, rules)?;
+
+    // Determine name: manifest name (highest priority) or translated "Unknown mod" for loose files
+    let name = read_manifest_name(&dest_dir).unwrap_or_else(|| unknown_mod_name.to_string());
+
     Ok(StagedMod {
         fs,
         source_path: dest_dir,
         is_staging: true,
+        name,
     })
 }
 
@@ -173,6 +202,7 @@ fn stage_archive(
     archive: &Utf8Path,
     rules: &SPTPathRules,
     staging_root: &Utf8Path,
+    unknown_mod_name: &str,
 ) -> Result<StagedMod, SError> {
     let uuid = Uuid::new_v4().to_string();
     let dest_dir = staging_root.join(uuid);
@@ -181,10 +211,16 @@ fn stage_archive(
     decompression::extract(archive, &dest_dir)?;
 
     let fs = ModFS::new(&dest_dir, rules)?;
+
+    // Determine name: manifest name (highest priority) or archive name without extension
+    let name = read_manifest_name(&dest_dir)
+        .unwrap_or_else(|| archive.file_stem().unwrap_or(unknown_mod_name).to_string());
+
     Ok(StagedMod {
         fs,
         source_path: dest_dir,
         is_staging: true,
+        name,
     })
 }
 
@@ -198,13 +234,7 @@ fn get_root_component(path: &Utf8Path) -> Option<&str> {
     path.components().next().map(|c| c.as_str())
 }
 
-pub fn clean_up(
-    StagedMod {
-        is_staging,
-        source_path,
-        ..
-    }: &StagedMod,
-) -> Result<(), SError> {
+pub fn clean_up(is_staging: bool, source_path: &Utf8Path) -> Result<(), SError> {
     if !is_staging {
         return Ok(());
     }

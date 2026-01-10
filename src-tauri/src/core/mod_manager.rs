@@ -2,16 +2,15 @@ use crate::core::cleanup;
 use crate::core::deployment;
 use crate::core::library::Library;
 use crate::core::mod_backup;
-use crate::core::mod_fs::ModFS;
+use crate::core::mod_stager::StagedMod;
 use crate::models::error::SError;
 use crate::models::mod_dto::Mod;
 use crate::utils::file::FileUtils;
-use camino::Utf8Path;
 
 /// Adds or updates a mod in the library.
 /// Creates a backup if the mod already exists.
-pub fn add_mod(library: &mut Library, mod_root: &Utf8Path, fs: ModFS) -> Result<(), SError> {
-    let mod_id = fs.id.clone();
+pub fn add_mod(library: &mut Library, staged: StagedMod) -> Result<(), SError> {
+    let mod_id = staged.fs.id.clone();
     let dst = library.lib_paths.mods.join(&mod_id);
 
     // Create backup if mod already exists
@@ -20,25 +19,26 @@ pub fn add_mod(library: &mut Library, mod_root: &Utf8Path, fs: ModFS) -> Result<
     }
 
     std::fs::create_dir_all(&dst)?;
-    FileUtils::copy_recursive(mod_root, &dst)?;
+    FileUtils::copy_recursive(&staged.source_path, &dst)?;
 
     library
         .mods
         .entry(mod_id.clone())
         .and_modify(|m| {
-            m.mod_type = fs.mod_type.clone();
+            // Preserve existing name when updating - only update mod_type and icon_data
+            m.mod_type = staged.fs.mod_type.clone();
             m.icon_data = None; // Reset icon_data when updating
         })
         .or_insert_with(|| Mod {
             id: mod_id.clone(),
             is_active: false,
-            mod_type: fs.mod_type.clone(),
-            name: Default::default(),
+            mod_type: staged.fs.mod_type.clone(),
+            name: staged.name.clone(),
             manifest: None,
             icon_data: None,
         });
 
-    library.cache.add(&dst, fs);
+    library.cache.add(&dst, staged.fs);
     library.mark_dirty();
     library.persist()?;
     Ok(())

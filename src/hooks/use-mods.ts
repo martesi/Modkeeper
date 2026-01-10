@@ -12,12 +12,12 @@ export function useMods(
   const [error, setError] = useState<Error | null>(null)
 
   const addMods = useCallback(
-    async (paths: string[]) => {
+    async (paths: string[], unknownModName: string) => {
       try {
         setLoading(true)
         setError(null)
         const channel = new Channel<TaskStatus>()
-        const result = await unwrapResult(commands.addMods(paths, channel))
+        const result = await unwrapResult(commands.addMods(paths, unknownModName, channel))
         onUpdate?.(result)
         return result
       } catch (err) {

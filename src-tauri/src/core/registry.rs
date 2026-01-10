@@ -35,11 +35,11 @@ impl AppRegistry {
             .unwrap_or(false)
     }
 
-    pub fn get_stage_material(&self) -> Result<StageMaterial, SError> {
+    pub fn get_stage_material(&self, unknown_mod_name: String) -> Result<StageMaterial, SError> {
         self.active_instance
             .lock()
             .as_ref()
-            .map(|v| v.stage_material())
+            .map(|v| v.stage_material(unknown_mod_name))
             .ok_or(SError::NoActiveLibrary)
     }
 }

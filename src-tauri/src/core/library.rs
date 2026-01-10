@@ -107,10 +107,11 @@ impl Library {
     }
 
 
-    pub fn stage_material(&self) -> StageMaterial {
+    pub fn stage_material(&self, unknown_mod_name: String) -> StageMaterial {
         StageMaterial {
             rules: self.spt_rules.clone(),
             root: self.lib_paths.staging.clone(),
+            name: unknown_mod_name,
         }
     }
 

@@ -114,9 +114,9 @@ export const initAction = atom(
 
 export const addModsAction = atom(
   null,
-  withAsyncState(async (paths: string[]) => {
+  withAsyncState(async (paths: string[], unknownModName: string) => {
     const channel = new Channel<TaskStatus>()
-    return await unwrapResult(commands.addMods(paths, channel))
+    return await unwrapResult(commands.addMods(paths, unknownModName, channel))
   }, updateLibraryState),
 )
 

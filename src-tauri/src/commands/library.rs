@@ -19,6 +19,7 @@ use tracing::{debug, info};
 pub async fn add_mods(
     state: State<'_, AppRegistry>,
     paths: Vec<String>,
+    unknown_mod_name: String,
     channel: Channel<TaskStatus>,
 ) -> Result<LibraryDTO, SError> {
     let inputs = paths
@@ -26,7 +27,7 @@ pub async fn add_mods(
         .map(Utf8PathBuf::from)
         .collect::<Vec<Utf8PathBuf>>();
 
-    let material = state.get_stage_material()?;
+    let material = state.get_stage_material(unknown_mod_name.clone())?;
     debug!("staging_material: {:?}", material);
 
     // Clone the Arc handle so we can move it into the 'static blocking thread.
@@ -48,8 +49,11 @@ pub async fn add_mods(
                 .into_iter()
                 .try_for_each(|staged| {
                     debug!("current: {:?}", staged);
-                    mod_manager::add_mod(inst, &staged.source_path, staged.fs.clone())
-                        .and_then(|_| mod_stager::clean_up(&staged))
+                    // Extract cleanup data before moving staged into add_mod
+                    let is_staging = staged.is_staging;
+                    let source_path = staged.source_path.clone();
+                    mod_manager::add_mod(inst, staged)
+                        .and_then(|_| mod_stager::clean_up(is_staging, &source_path))
                 })
                 .map(|_| dto_builder::build_frontend_dto(inst))
         })

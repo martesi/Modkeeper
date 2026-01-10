@@ -7,7 +7,7 @@ import { Link } from '@tanstack/react-router'
 import type { Mod } from '@gen/bindings'
 import { Trash2, Package, ChevronRight } from 'lucide-react'
 import { useState, useEffect } from 'react'
-import { DIVIDER } from '@/utils/constants'
+import { DIVIDER } from '@/utils/translation'
 import {
   AlertDialog,
   AlertDialogAction,

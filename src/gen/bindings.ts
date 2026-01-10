@@ -5,9 +5,9 @@
 
 
 export const commands = {
-async addMods(paths: string[], channel: TAURI_CHANNEL<TaskStatus>) : Promise<Result<LibraryDTO, SError>> {
+async addMods(paths: string[], unknownModName: string, channel: TAURI_CHANNEL<TaskStatus>) : Promise<Result<LibraryDTO, SError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("add_mods", { paths, channel }) };
+    return { status: "ok", data: await TAURI_INVOKE("add_mods", { paths, unknownModName, channel }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
