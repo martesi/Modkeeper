@@ -14,10 +14,6 @@ use parking_lot::Mutex;
 use specta_typescript::Typescript;
 use std::sync::Arc;
 use tauri_specta::{collect_commands, Builder};
-use tracing_subscriber::fmt;
-use tracing_subscriber::layer::SubscriberExt;
-use tracing_subscriber::util::SubscriberInitExt;
-use tracing_subscriber::Registry;
 
 /// Stage 1: Setup command handler with all registered commands
 fn setup_command_handler() -> Builder<tauri::Wry> {

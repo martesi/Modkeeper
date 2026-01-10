@@ -30,37 +30,22 @@ pub async fn create_simulation_game_root(base_path: Option<String>) -> Result<St
 }
 
 fn create_simulation_game_root_internal(base_path: Option<Utf8PathBuf>) -> Result<String, SError> {
-    // Determine game root path
-    let game_root = if let Some(path) = base_path {
-        // Check if path is empty (empty string)
-        if path.as_str().trim().is_empty() {
-            // If empty, use temp directory directly as game root (no subdirectory)
-            let temp_dir = std::env::temp_dir();
-            let test_dir_name = format!("mod_keeper_test_{}", Uuid::new_v4());
-            let test_path = temp_dir.join(test_dir_name);
-            let game_root = Utf8PathBuf::from_path_buf(test_path)
-                .map_err(|e| SError::IOError(format!("Failed to convert path: {}", e.display())))?;
-            fs::create_dir_all(&game_root)?;
-            game_root
-        } else {
-            // Non-empty path provided - create a test directory under it, then "game" subdirectory
-            let test_dir_name = format!("mod_keeper_test_{}", Uuid::new_v4());
-            let test_dir = path.join(test_dir_name);
-            fs::create_dir_all(&test_dir)?;
-            test_dir.join("game")
-        }
-    } else {
-        // No path provided - use temp directory directly as game root (no subdirectory)
+    // Helper to create temp directory path when needed
+    let create_temp_dir = || -> Result<Utf8PathBuf, SError> {
         let temp_dir = std::env::temp_dir();
         let test_dir_name = format!("mod_keeper_test_{}", Uuid::new_v4());
         let test_path = temp_dir.join(test_dir_name);
-        let game_root = Utf8PathBuf::from_path_buf(test_path)
-            .map_err(|e| SError::IOError(format!("Failed to convert path: {}", e.display())))?;
-        fs::create_dir_all(&game_root)?;
-        game_root
+        Utf8PathBuf::from_path_buf(test_path)
+            .map_err(|e| SError::IOError(format!("Failed to convert path: {}", e.display())))
     };
 
-    // Create directories
+    // Determine game root path: use provided path if non-empty, otherwise create temp dir
+    let game_root = base_path
+        .filter(|path| !path.as_str().trim().is_empty())
+        .map(Ok)
+        .unwrap_or_else(create_temp_dir)?;
+
+    // Ensure game root directory exists
     fs::create_dir_all(&game_root)?;
 
     // Get the rules to find where SPT expects files
