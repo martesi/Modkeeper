@@ -38,13 +38,19 @@ pub fn validate_library_structure(repo_root: &Utf8Path) -> Result<(), SError> {
         if !dir.exists() {
             return Err(SError::InvalidLibrary(
                 repo_root.to_string(),
-                format!("missing required directory: {}", dir.file_name().unwrap_or("unknown")),
+                format!(
+                    "missing required directory: {}",
+                    dir.file_name().unwrap_or("unknown")
+                ),
             ));
         }
         if !dir.is_dir() {
             return Err(SError::InvalidLibrary(
                 repo_root.to_string(),
-                format!("expected directory but found file: {}", dir.file_name().unwrap_or("unknown")),
+                format!(
+                    "expected directory but found file: {}",
+                    dir.file_name().unwrap_or("unknown")
+                ),
             ));
         }
     }
@@ -82,7 +88,8 @@ pub fn create_library(
     requirement: LibraryCreationRequirement,
 ) -> Result<Library, SError> {
     // Use provided repo_root or derive from game_root
-    let repo_root = requirement.repo_root
+    let repo_root = requirement
+        .repo_root
         .clone()
         .unwrap_or_else(|| derive_library_root(&requirement.game_root));
 
@@ -159,4 +166,56 @@ pub fn to_library_switch(config: &GlobalConfig, active_library: Option<&Library>
         active,
         libraries: get_known_library_summary(config),
     }
+}
+
+/// Renames the active library and persists the change.
+pub fn rename_library(library: &mut Library, name: String) -> Result<(), SError> {
+    library.name = name;
+    library.persist()?;
+    Ok(())
+}
+
+/// Removes a library from known_libraries without deleting files.
+/// Returns true if the library was in the list.
+pub fn close_library(config: &mut GlobalConfig, repo_root: &Utf8Path) -> Result<bool, SError> {
+    let was_in_list = config.known_libraries.iter().any(|p| p == repo_root);
+    config.known_libraries.retain(|p| p != repo_root);
+    if was_in_list {
+        config.save();
+    }
+    Ok(was_in_list)
+}
+
+/// Removes a library: unlinks all mods, removes from known_libraries, and deletes the directory.
+/// Returns true if the library was in the list.
+pub fn remove_library(config: &mut GlobalConfig, repo_root: &Utf8Path) -> Result<bool, SError> {
+    use crate::core::cleanup;
+
+    // Load library to get cache for unlinking mods
+    let library = Library::load(repo_root).ok();
+
+    // If library exists and is loaded, unlink all mods
+    if let Some(lib) = library.as_ref() {
+        cleanup::purge(
+            &lib.game_root,
+            &lib.repo_root,
+            &lib.spt_rules,
+            &lib.lib_paths,
+            &lib.cache,
+        )?;
+    }
+
+    // Remove from known_libraries
+    let was_in_list = config.known_libraries.iter().any(|p| p == repo_root);
+    config.known_libraries.retain(|p| p != repo_root);
+    if was_in_list {
+        config.save();
+    }
+
+    // Remove library_root directory
+    if repo_root.exists() {
+        std::fs::remove_dir_all(repo_root)?;
+    }
+
+    Ok(was_in_list)
 }

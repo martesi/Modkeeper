@@ -1,6 +1,10 @@
-use crate::core::{cleanup, deployment, dto_builder, mod_backup, mod_documentation, mod_manager, mod_stager};
 use crate::core::registry::AppRegistry;
+use crate::core::{
+    cleanup, deployment, dto_builder, library_service, mod_backup, mod_documentation, mod_manager,
+    mod_stager,
+};
 use crate::models::error::SError;
+use crate::models::global::LibrarySwitch;
 use crate::models::library::LibraryDTO;
 use crate::models::task_status::TaskStatus;
 use crate::utils::context::TaskContext;
@@ -124,7 +128,9 @@ pub async fn sync_mods(
 pub async fn get_library(state: State<'_, AppRegistry>) -> Result<LibraryDTO, SError> {
     let instance_handle = state.active_instance.clone();
     tauri::async_runtime::spawn_blocking(move || {
-        with_lib_arc(instance_handle, |inst| dto_builder::build_frontend_dto(inst))
+        with_lib_arc(instance_handle, |inst| {
+            dto_builder::build_frontend_dto(inst)
+        })
     })
     .await
     .map_err(|e| SError::AsyncRuntimeError(e.to_string()))?
@@ -158,7 +164,9 @@ pub async fn get_backups(
 ) -> Result<Vec<String>, SError> {
     let instance_handle = state.active_instance.clone();
     tauri::async_runtime::spawn_blocking(move || {
-        with_lib_arc(instance_handle, |inst| mod_backup::list_backups(&inst.lib_paths, &mod_id))
+        with_lib_arc(instance_handle, |inst| {
+            mod_backup::list_backups(&inst.lib_paths, &mod_id)
+        })
     })
     .await
     .map_err(|e| SError::AsyncRuntimeError(e.to_string()))??
@@ -192,8 +200,36 @@ pub async fn get_mod_documentation(
 ) -> Result<String, SError> {
     let instance_handle = state.active_instance.clone();
     tauri::async_runtime::spawn_blocking(move || {
-        with_lib_arc(instance_handle, |inst| mod_documentation::read_documentation(inst, &mod_id))
+        with_lib_arc(instance_handle, |inst| {
+            mod_documentation::read_documentation(inst, &mod_id)
+        })
     })
     .await
     .map_err(|e| SError::AsyncRuntimeError(e.to_string()))??
+}
+
+#[tauri::command]
+#[specta::specta]
+#[instrument(skip(state))]
+pub async fn rename_library(
+    state: State<'_, AppRegistry>,
+    name: String,
+) -> Result<LibrarySwitch, SError> {
+    let config_handle = state.global_config.clone();
+    let instance_handle = state.active_instance.clone();
+
+    tauri::async_runtime::spawn_blocking(move || {
+        // Update library name via service
+        with_lib_arc_mut(instance_handle.clone(), |inst| {
+            library_service::rename_library(inst, name)
+        })??;
+
+        // Return updated switch
+        let config = config_handle.lock();
+        let instance_guard = instance_handle.lock();
+        let active_lib = instance_guard.as_ref();
+        Ok(library_service::to_library_switch(&config, active_lib))
+    })
+    .await
+    .map_err(|e| SError::AsyncRuntimeError(e.to_string()))?
 }

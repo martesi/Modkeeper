@@ -1,14 +1,14 @@
 mod common;
 
-use mod_keeper_lib::core::{cleanup, deployment, dto_builder, mod_manager, library_service};
+use camino::{Utf8Path, Utf8PathBuf};
+use common::{create_test_mod, setup_test_env};
+use mod_keeper_lib::config::global::GlobalConfig;
 use mod_keeper_lib::core::library::Library;
 use mod_keeper_lib::core::mod_fs::ModFS;
+use mod_keeper_lib::core::{cleanup, deployment, dto_builder, library_service, mod_manager};
+use mod_keeper_lib::models::error::SError;
 use mod_keeper_lib::models::library::LibraryCreationRequirement;
 use mod_keeper_lib::models::paths::SPTPathRules;
-use mod_keeper_lib::models::error::SError;
-use mod_keeper_lib::config::global::GlobalConfig;
-use common::{create_test_mod, setup_test_env};
-use camino::{Utf8Path, Utf8PathBuf};
 use std::fs;
 
 #[test]
@@ -30,10 +30,8 @@ fn test_library_init_and_add_mod() {
     create_test_mod(mod_src_utf8, "MyMod", true);
 
     // 3. Add mod to library
-    let mod_fs =
-        ModFS::new(mod_src_utf8, &SPTPathRules::default()).expect("Failed to parse mod");
-    mod_manager::add_mod(&mut lib, mod_src_utf8, mod_fs)
-        .expect("Failed to add mod");
+    let mod_fs = ModFS::new(mod_src_utf8, &SPTPathRules::default()).expect("Failed to parse mod");
+    mod_manager::add_mod(&mut lib, mod_src_utf8, mod_fs).expect("Failed to add mod");
 
     // 4. Verify persistence
     assert!(lib.mods.contains_key("MyMod"));
@@ -88,13 +86,16 @@ fn test_collision_detection() {
         &lib.spt_rules,
         &lib.lib_paths,
         &lib.cache,
-    ).and_then(|_| deployment::deploy(
-        &lib.game_root,
-        &lib.lib_paths,
-        &lib.spt_rules,
-        &lib.mods,
-        &lib.cache,
-    ));
+    )
+    .and_then(|_| {
+        deployment::deploy(
+            &lib.game_root,
+            &lib.lib_paths,
+            &lib.spt_rules,
+            &lib.mods,
+            &lib.cache,
+        )
+    });
 
     // Assert
     assert!(
@@ -159,14 +160,16 @@ fn test_recursive_linking_logic() {
         &lib.spt_rules,
         &lib.lib_paths,
         &lib.cache,
-    ).unwrap();
+    )
+    .unwrap();
     deployment::deploy(
         &lib.game_root,
         &lib.lib_paths,
         &lib.spt_rules,
         &lib.mods,
         &lib.cache,
-    ).expect("Sync failed");
+    )
+    .expect("Sync failed");
     lib.mark_clean();
     lib.persist().unwrap();
 
@@ -194,8 +197,22 @@ fn test_purge_removes_deactivated_mods() {
     lib.mods.get_mut("DeleteMe").unwrap().is_active = true;
 
     // Sync
-    cleanup::purge(&lib.game_root, &lib.repo_root, &lib.spt_rules, &lib.lib_paths, &lib.cache).unwrap();
-    deployment::deploy(&lib.game_root, &lib.lib_paths, &lib.spt_rules, &lib.mods, &lib.cache).unwrap();
+    cleanup::purge(
+        &lib.game_root,
+        &lib.repo_root,
+        &lib.spt_rules,
+        &lib.lib_paths,
+        &lib.cache,
+    )
+    .unwrap();
+    deployment::deploy(
+        &lib.game_root,
+        &lib.lib_paths,
+        &lib.spt_rules,
+        &lib.mods,
+        &lib.cache,
+    )
+    .unwrap();
     lib.mark_clean();
     lib.persist().unwrap();
 
@@ -204,8 +221,22 @@ fn test_purge_removes_deactivated_mods() {
 
     // 2. Deactivate and sync
     lib.mods.get_mut("DeleteMe").unwrap().is_active = false;
-    cleanup::purge(&lib.game_root, &lib.repo_root, &lib.spt_rules, &lib.lib_paths, &lib.cache).unwrap();
-    deployment::deploy(&lib.game_root, &lib.lib_paths, &lib.spt_rules, &lib.mods, &lib.cache).unwrap();
+    cleanup::purge(
+        &lib.game_root,
+        &lib.repo_root,
+        &lib.spt_rules,
+        &lib.lib_paths,
+        &lib.cache,
+    )
+    .unwrap();
+    deployment::deploy(
+        &lib.game_root,
+        &lib.lib_paths,
+        &lib.spt_rules,
+        &lib.mods,
+        &lib.cache,
+    )
+    .unwrap();
     lib.mark_clean();
     lib.persist().unwrap();
 
@@ -360,8 +391,22 @@ fn test_untracked_file_safety_in_shared_folder() {
     let id_b = setup_mod(&mut lib, "ModB");
 
     // Sync
-    cleanup::purge(&lib.game_root, &lib.repo_root, &lib.spt_rules, &lib.lib_paths, &lib.cache).unwrap();
-    deployment::deploy(&lib.game_root, &lib.lib_paths, &lib.spt_rules, &lib.mods, &lib.cache).unwrap();
+    cleanup::purge(
+        &lib.game_root,
+        &lib.repo_root,
+        &lib.spt_rules,
+        &lib.lib_paths,
+        &lib.cache,
+    )
+    .unwrap();
+    deployment::deploy(
+        &lib.game_root,
+        &lib.lib_paths,
+        &lib.spt_rules,
+        &lib.mods,
+        &lib.cache,
+    )
+    .unwrap();
     lib.mark_clean();
     lib.persist().unwrap();
 
@@ -375,8 +420,22 @@ fn test_untracked_file_safety_in_shared_folder() {
     // 3. Deactivate all mods and sync (purge)
     lib.mods.get_mut(&id_a).unwrap().is_active = false;
     lib.mods.get_mut(&id_b).unwrap().is_active = false;
-    cleanup::purge(&lib.game_root, &lib.repo_root, &lib.spt_rules, &lib.lib_paths, &lib.cache).unwrap();
-    deployment::deploy(&lib.game_root, &lib.lib_paths, &lib.spt_rules, &lib.mods, &lib.cache).unwrap();
+    cleanup::purge(
+        &lib.game_root,
+        &lib.repo_root,
+        &lib.spt_rules,
+        &lib.lib_paths,
+        &lib.cache,
+    )
+    .unwrap();
+    deployment::deploy(
+        &lib.game_root,
+        &lib.lib_paths,
+        &lib.spt_rules,
+        &lib.mods,
+        &lib.cache,
+    )
+    .unwrap();
     lib.mark_clean();
     lib.persist().unwrap();
 
@@ -424,8 +483,22 @@ fn test_persistence_cycle() {
 
     // FIX: Use lowercase "persistmod"
     lib.mods.get_mut("persistmod").unwrap().is_active = true;
-    cleanup::purge(&lib.game_root, &lib.repo_root, &lib.spt_rules, &lib.lib_paths, &lib.cache).unwrap();
-    deployment::deploy(&lib.game_root, &lib.lib_paths, &lib.spt_rules, &lib.mods, &lib.cache).unwrap();
+    cleanup::purge(
+        &lib.game_root,
+        &lib.repo_root,
+        &lib.spt_rules,
+        &lib.lib_paths,
+        &lib.cache,
+    )
+    .unwrap();
+    deployment::deploy(
+        &lib.game_root,
+        &lib.lib_paths,
+        &lib.spt_rules,
+        &lib.mods,
+        &lib.cache,
+    )
+    .unwrap();
     lib.mark_clean();
     lib.persist().unwrap();
 
@@ -493,7 +566,10 @@ fn test_validate_library_structure_missing_manifest() {
 
     // Validate should fail with InvalidLibrary error
     let result = library_service::validate_library_structure(&repo_root);
-    assert!(result.is_err(), "Library without manifest should fail validation");
+    assert!(
+        result.is_err(),
+        "Library without manifest should fail validation"
+    );
 
     match result {
         Err(SError::InvalidLibrary(path, reason)) => {
@@ -522,7 +598,10 @@ fn test_validate_library_structure_missing_directory() {
 
     // Validate should fail
     let result = library_service::validate_library_structure(&repo_root);
-    assert!(result.is_err(), "Library with missing directory should fail validation");
+    assert!(
+        result.is_err(),
+        "Library with missing directory should fail validation"
+    );
 
     match result {
         Err(SError::InvalidLibrary(path, reason)) => {
@@ -541,7 +620,10 @@ fn test_create_library_when_mod_keeper_not_exists() {
 
     // .mod_keeper should not exist yet
     let expected_repo_root = game_root.join(".mod_keeper");
-    assert!(!expected_repo_root.exists(), "Library directory should not exist initially");
+    assert!(
+        !expected_repo_root.exists(),
+        "Library directory should not exist initially"
+    );
 
     // Create library - should create new library
     let requirement = LibraryCreationRequirement {
@@ -556,7 +638,10 @@ fn test_create_library_when_mod_keeper_not_exists() {
     // Verify library was created
     assert_eq!(library.repo_root, expected_repo_root);
     assert_eq!(library.name, "New Library");
-    assert!(expected_repo_root.exists(), "Library directory should exist after creation");
+    assert!(
+        expected_repo_root.exists(),
+        "Library directory should exist after creation"
+    );
     assert!(expected_repo_root.join("manifest.toml").exists());
     assert!(expected_repo_root.join("mods").exists());
     assert!(expected_repo_root.join("backups").exists());
@@ -683,8 +768,7 @@ fn test_get_active_library_manifest_handles_invalid_library() {
         game_root: game_root.clone(),
         name: "Valid Library".to_string(),
     };
-    library_service::create_library(&mut config, requirement)
-        .expect("Failed to create library");
+    library_service::create_library(&mut config, requirement).expect("Failed to create library");
 
     // Add an invalid path as the first library
     let invalid_path = game_root.join("invalid_library");
@@ -707,8 +791,7 @@ fn test_to_library_switch_with_invalid_active() {
         game_root: game_root.clone(),
         name: "Valid Library".to_string(),
     };
-    library_service::create_library(&mut config, requirement)
-        .expect("Failed to create library");
+    library_service::create_library(&mut config, requirement).expect("Failed to create library");
 
     // Add an invalid path as the first library
     let invalid_path = game_root.join("invalid_library");
@@ -719,4 +802,214 @@ fn test_to_library_switch_with_invalid_active() {
     assert!(switch.active.is_none());
     // But should still list other valid libraries
     assert!(!switch.libraries.is_empty());
+}
+
+#[test]
+fn test_rename_library() {
+    let (_tmp, game_root, repo_root) = setup_test_env();
+
+    // Create library
+    let requirement = LibraryCreationRequirement {
+        repo_root: Some(repo_root.clone()),
+        game_root: game_root.clone(),
+        name: "Original Name".to_string(),
+    };
+    let mut lib = Library::create(requirement).expect("Failed to create library");
+
+    // Verify original name
+    assert_eq!(lib.name, "Original Name");
+
+    // Rename library
+    library_service::rename_library(&mut lib, "New Name".to_string())
+        .expect("Failed to rename library");
+
+    // Verify name was updated
+    assert_eq!(lib.name, "New Name");
+
+    // Verify persistence by reloading
+    let reloaded = Library::load(&repo_root).expect("Failed to reload library");
+    assert_eq!(reloaded.name, "New Name");
+}
+
+#[test]
+fn test_close_library() {
+    let (_tmp, game_root, repo_root) = setup_test_env();
+    let mut config = GlobalConfig::default();
+
+    // Remove repo_root directory if it exists (setup_test_env creates empty directory)
+    if repo_root.exists() {
+        std::fs::remove_dir_all(&repo_root).expect("Failed to remove repo_root");
+    }
+
+    // Create library and add to known_libraries
+    let requirement = LibraryCreationRequirement {
+        repo_root: Some(repo_root.clone()),
+        game_root: game_root.clone(),
+        name: "Test Library".to_string(),
+    };
+    library_service::create_library(&mut config, requirement).expect("Failed to create library");
+
+    // Verify library is in known_libraries
+    assert!(config.known_libraries.contains(&repo_root));
+
+    // Close library
+    let was_in_list =
+        library_service::close_library(&mut config, &repo_root).expect("Failed to close library");
+
+    // Verify return value
+    assert!(was_in_list);
+
+    // Verify library was removed from known_libraries
+    assert!(!config.known_libraries.contains(&repo_root));
+
+    // Verify library files still exist
+    assert!(repo_root.exists());
+    assert!(repo_root.join("manifest.toml").exists());
+}
+
+#[test]
+fn test_close_library_not_in_list() {
+    let (_tmp, _game_root, repo_root) = setup_test_env();
+    let mut config = GlobalConfig::default();
+
+    // Try to close a library that's not in known_libraries
+    let was_in_list =
+        library_service::close_library(&mut config, &repo_root).expect("Failed to close library");
+
+    // Should return false since it wasn't in the list
+    assert!(!was_in_list);
+
+    // Config should not have changed
+    assert!(config.known_libraries.is_empty());
+}
+
+#[test]
+fn test_remove_library() {
+    let (_tmp, game_root, repo_root) = setup_test_env();
+    let mut config = GlobalConfig::default();
+
+    // Remove repo_root directory if it exists (setup_test_env creates empty directory)
+    if repo_root.exists() {
+        std::fs::remove_dir_all(&repo_root).expect("Failed to remove repo_root");
+    }
+
+    // Create library and add to known_libraries
+    let requirement = LibraryCreationRequirement {
+        repo_root: Some(repo_root.clone()),
+        game_root: game_root.clone(),
+        name: "Test Library".to_string(),
+    };
+    library_service::create_library(&mut config, requirement).expect("Failed to create library");
+
+    // Verify library is in known_libraries
+    assert!(config.known_libraries.contains(&repo_root));
+    assert!(repo_root.exists());
+
+    // Remove library
+    let was_in_list =
+        library_service::remove_library(&mut config, &repo_root).expect("Failed to remove library");
+
+    // Verify return value
+    assert!(was_in_list);
+
+    // Verify library was removed from known_libraries
+    assert!(!config.known_libraries.contains(&repo_root));
+
+    // Verify library directory was deleted
+    assert!(!repo_root.exists());
+}
+
+#[test]
+fn test_remove_library_with_mods() {
+    let (_tmp, game_root, repo_root) = setup_test_env();
+    let mut config = GlobalConfig::default();
+
+    // Remove repo_root directory if it exists (setup_test_env creates empty directory)
+    if repo_root.exists() {
+        std::fs::remove_dir_all(&repo_root).expect("Failed to remove repo_root");
+    }
+
+    // Create library
+    let requirement = LibraryCreationRequirement {
+        repo_root: Some(repo_root.clone()),
+        game_root: game_root.clone(),
+        name: "Test Library".to_string(),
+    };
+    let mut lib = library_service::create_library(&mut config, requirement)
+        .expect("Failed to create library");
+
+    // Add a mod to the library
+    let mod_src = _tmp.path().join("test_mod");
+    let mod_src_utf8 = Utf8Path::from_path(&mod_src).unwrap();
+    create_test_mod(mod_src_utf8, "TestMod", true);
+
+    let mod_fs = ModFS::new(mod_src_utf8, &SPTPathRules::default()).expect("Failed to parse mod");
+    mod_manager::add_mod(&mut lib, mod_src_utf8, mod_fs).expect("Failed to add mod");
+
+    // Activate mod and sync (deploy links)
+    lib.mods.get_mut("TestMod").unwrap().is_active = true;
+    lib.persist().expect("Failed to persist library");
+
+    cleanup::purge(
+        &lib.game_root,
+        &lib.repo_root,
+        &lib.spt_rules,
+        &lib.lib_paths,
+        &lib.cache,
+    )
+    .expect("Failed to purge");
+    deployment::deploy(
+        &lib.game_root,
+        &lib.lib_paths,
+        &lib.spt_rules,
+        &lib.mods,
+        &lib.cache,
+    )
+    .expect("Failed to deploy");
+
+    // Note: Mod links would exist if deployed, but we verify cleanup happens during remove
+
+    // Remove library
+    let was_in_list =
+        library_service::remove_library(&mut config, &repo_root).expect("Failed to remove library");
+
+    assert!(was_in_list);
+
+    // Verify library was removed from known_libraries
+    assert!(!config.known_libraries.contains(&repo_root));
+
+    // Verify library directory was deleted
+    assert!(!repo_root.exists());
+}
+
+#[test]
+fn test_remove_library_not_in_list() {
+    let (_tmp, game_root, repo_root) = setup_test_env();
+    let mut config = GlobalConfig::default();
+
+    // Remove repo_root directory if it exists (setup_test_env creates empty directory)
+    if repo_root.exists() {
+        std::fs::remove_dir_all(&repo_root).expect("Failed to remove repo_root");
+    }
+
+    // Create library but don't add to known_libraries
+    let requirement = LibraryCreationRequirement {
+        repo_root: Some(repo_root.clone()),
+        game_root: game_root.clone(),
+        name: "Test Library".to_string(),
+    };
+    Library::create(requirement).expect("Failed to create library");
+
+    // Verify library exists
+    assert!(repo_root.exists());
+
+    // Remove library (even though not in known_libraries)
+    let was_in_list =
+        library_service::remove_library(&mut config, &repo_root).expect("Failed to remove library");
+
+    // Should return false since it wasn't in the list
+    assert!(!was_in_list);
+
+    // Verify library directory was still deleted
+    assert!(!repo_root.exists());
 }

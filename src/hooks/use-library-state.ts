@@ -11,6 +11,9 @@ import {
   fetchLibraryAction,
   openLibraryAction,
   createLibraryAction,
+  renameLibraryAction,
+  closeLibraryAction,
+  removeLibraryAction,
   addModsAction,
   removeModsAction,
   toggleModAction,
@@ -39,6 +42,9 @@ export function useLibrarySwitch() {
   const libraries = useAtomValue(knownLibrariesAtom)
   const openLibrary = useSetAtom(openLibraryAction)
   const createLibrary = useSetAtom(createLibraryAction)
+  const renameLibrary = useSetAtom(renameLibraryAction)
+  const closeLibrary = useSetAtom(closeLibraryAction)
+  const removeLibrary = useSetAtom(removeLibraryAction)
 
   return {
     librarySwitch,
@@ -48,6 +54,9 @@ export function useLibrarySwitch() {
     error,
     openLibrary,
     createLibrary,
+    renameLibrary,
+    closeLibrary,
+    removeLibrary,
     refresh: fetchLibraryAction,
   }
 }

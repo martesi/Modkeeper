@@ -102,3 +102,90 @@ pub async fn init(
 
     result
 }
+
+#[tauri::command]
+#[specta::specta]
+#[instrument(skip(state))]
+pub async fn close_library(
+    state: State<'_, AppRegistry>,
+    repo_root: String,
+) -> Result<LibrarySwitch, SError> {
+    let path_buf = Utf8PathBuf::from(repo_root);
+    let config_handle = state.global_config.clone();
+    let instance_handle = state.active_instance.clone();
+
+    tauri::async_runtime::spawn_blocking(move || {
+        // Check if this is the active library
+        let is_active = {
+            let instance_guard = instance_handle.lock();
+            instance_guard
+                .as_ref()
+                .map(|lib| lib.repo_root == path_buf)
+                .unwrap_or(false)
+        };
+
+        // Close library via service
+        let mut config = config_handle.lock();
+        library_service::close_library(&mut config, &path_buf)?;
+        drop(config);
+
+        // If closing active library, clear the instance
+        if is_active {
+            *instance_handle.lock() = None;
+        }
+
+        // Return updated switch
+        let config = config_handle.lock();
+        let instance_guard = instance_handle.lock();
+        let active_lib = instance_guard.as_ref();
+        Ok(library_service::to_library_switch(&config, active_lib))
+    })
+    .await
+    .map_err(|e| SError::AsyncRuntimeError(e.to_string()))?
+}
+
+#[tauri::command]
+#[specta::specta]
+#[instrument(skip(state))]
+pub async fn remove_library(
+    state: State<'_, AppRegistry>,
+    repo_root: String,
+) -> Result<LibrarySwitch, SError> {
+    // Check if game/server is running before proceeding
+    if state.is_game_or_server_running() {
+        return Err(SError::GameOrServerRunning);
+    }
+
+    let path_buf = Utf8PathBuf::from(repo_root);
+    let config_handle = state.global_config.clone();
+    let instance_handle = state.active_instance.clone();
+
+    tauri::async_runtime::spawn_blocking(move || {
+        // Check if this is the active library
+        let is_active = {
+            let instance_guard = instance_handle.lock();
+            instance_guard
+                .as_ref()
+                .map(|lib| lib.repo_root == path_buf)
+                .unwrap_or(false)
+        };
+
+        // Remove library via service (unlinks mods, removes from config, deletes directory)
+        let mut config = config_handle.lock();
+        library_service::remove_library(&mut config, &path_buf)?;
+        drop(config);
+
+        // If removing active library, clear the instance
+        if is_active {
+            *instance_handle.lock() = None;
+        }
+
+        // Return updated switch
+        let config = config_handle.lock();
+        let instance_guard = instance_handle.lock();
+        let active_lib = instance_guard.as_ref();
+        Ok(library_service::to_library_switch(&config, active_lib))
+    })
+    .await
+    .map_err(|e| SError::AsyncRuntimeError(e.to_string()))?
+}

@@ -142,3 +142,24 @@ export const syncModsAction = atom(
     return await unwrapResult(commands.syncMods(channel))
   }, updateLibraryState),
 )
+
+export const renameLibraryAction = atom(
+  null,
+  withAsyncState(async (name: string) => {
+    return await unwrapResult(commands.renameLibrary(name))
+  }, updateLibrarySwitchState),
+)
+
+export const closeLibraryAction = atom(
+  null,
+  withAsyncState(async (repoRoot: string) => {
+    return await unwrapResult(commands.closeLibrary(repoRoot))
+  }, updateLibrarySwitchState),
+)
+
+export const removeLibraryAction = atom(
+  null,
+  withAsyncState(async (repoRoot: string) => {
+    return await unwrapResult(commands.removeLibrary(repoRoot))
+  }, updateLibrarySwitchState),
+)

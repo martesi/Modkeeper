@@ -76,6 +76,57 @@ export function useLibrarySwitch() {
     [],
   )
 
+  const renameLibrary = useCallback(async (name: string) => {
+    try {
+      setLoading(true)
+      setError(null)
+      const result = await unwrapResult(commands.renameLibrary(name))
+      setLibrarySwitch(result)
+      return result
+    } catch (err) {
+      setError(
+        err instanceof Error ? err : new Error('Failed to rename library'),
+      )
+      throw err
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  const closeLibrary = useCallback(async (repoRoot: string) => {
+    try {
+      setLoading(true)
+      setError(null)
+      const result = await unwrapResult(commands.closeLibrary(repoRoot))
+      setLibrarySwitch(result)
+      return result
+    } catch (err) {
+      setError(
+        err instanceof Error ? err : new Error('Failed to close library'),
+      )
+      throw err
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  const removeLibrary = useCallback(async (repoRoot: string) => {
+    try {
+      setLoading(true)
+      setError(null)
+      const result = await unwrapResult(commands.removeLibrary(repoRoot))
+      setLibrarySwitch(result)
+      return result
+    } catch (err) {
+      setError(
+        err instanceof Error ? err : new Error('Failed to remove library'),
+      )
+      throw err
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
     fetchLibrarySwitch()
   }, [fetchLibrarySwitch])
@@ -86,6 +137,9 @@ export function useLibrarySwitch() {
     error,
     openLibrary,
     createLibrary,
+    renameLibrary,
+    closeLibrary,
+    removeLibrary,
     refresh: fetchLibrarySwitch,
   }
 }
