@@ -3,7 +3,6 @@ use crate::models::paths::SPTPathRules;
 use crate::models::test::{CreateSimulationGameRootOptions, TestGameRoot};
 use camino::Utf8PathBuf;
 use std::fs;
-use tracing::instrument;
 use uuid::Uuid;
 
 /// Creates a simulation game root structure for testing purposes.
@@ -16,7 +15,6 @@ use uuid::Uuid;
 /// - Directory structure for SPT/user/mods and BepInEx/plugins
 #[tauri::command]
 #[specta::specta]
-#[instrument(skip(options))]
 pub async fn create_simulation_game_root(
     options: CreateSimulationGameRootOptions,
 ) -> Result<TestGameRoot, SError> {

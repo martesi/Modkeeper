@@ -5,11 +5,9 @@ use crate::models::global::LibrarySwitch;
 use crate::models::library::LibraryCreationRequirement;
 use camino::Utf8PathBuf;
 use tauri::{AppHandle, Manager, State};
-use tracing::instrument;
 
 #[tauri::command]
 #[specta::specta]
-#[instrument(skip(state))]
 pub async fn open_library(
     state: State<'_, AppRegistry>,
     path: String,
@@ -45,7 +43,6 @@ pub async fn open_library(
 
 #[tauri::command]
 #[specta::specta]
-#[instrument(skip(state))]
 pub async fn create_library(
     state: State<'_, AppRegistry>,
     requirement: LibraryCreationRequirement,
@@ -75,7 +72,6 @@ pub async fn create_library(
 
 #[tauri::command]
 #[specta::specta]
-#[instrument(skip(app_handle, state))]
 pub async fn init(
     app_handle: AppHandle,
     state: State<'_, AppRegistry>,
@@ -110,7 +106,6 @@ pub async fn init(
 
 #[tauri::command]
 #[specta::specta]
-#[instrument(skip(state))]
 pub async fn close_library(
     state: State<'_, AppRegistry>,
     repo_root: String,
@@ -151,7 +146,6 @@ pub async fn close_library(
 
 #[tauri::command]
 #[specta::specta]
-#[instrument(skip(state))]
 pub async fn remove_library(
     state: State<'_, AppRegistry>,
     repo_root: String,

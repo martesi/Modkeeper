@@ -12,11 +12,10 @@ use crate::utils::thread::{with_lib_arc, with_lib_arc_mut};
 use camino::Utf8PathBuf;
 use tauri::ipc::Channel;
 use tauri::State;
-use tracing::{debug, info, instrument};
+use tracing::{debug, info};
 
 #[tauri::command]
 #[specta::specta]
-#[instrument(skip(channel, state), fields(paths_count = paths.len()))]
 pub async fn add_mods(
     state: State<'_, AppRegistry>,
     paths: Vec<String>,
@@ -60,7 +59,6 @@ pub async fn add_mods(
 
 #[tauri::command]
 #[specta::specta]
-#[instrument(skip(channel, state), fields(ids_count = ids.len()))]
 pub async fn remove_mods(
     state: State<'_, AppRegistry>,
     ids: Vec<String>,
@@ -84,7 +82,6 @@ pub async fn remove_mods(
 
 #[tauri::command]
 #[specta::specta]
-#[instrument(skip(channel, state))]
 pub async fn sync_mods(
     state: State<'_, AppRegistry>,
     channel: Channel<TaskStatus>,
@@ -124,7 +121,6 @@ pub async fn sync_mods(
 
 #[tauri::command]
 #[specta::specta]
-#[instrument(skip(state))]
 pub async fn get_library(state: State<'_, AppRegistry>) -> Result<LibraryDTO, SError> {
     let instance_handle = state.active_instance.clone();
     tauri::async_runtime::spawn_blocking(move || {
@@ -138,7 +134,6 @@ pub async fn get_library(state: State<'_, AppRegistry>) -> Result<LibraryDTO, SE
 
 #[tauri::command]
 #[specta::specta]
-#[instrument(skip(state))]
 pub async fn toggle_mod(
     state: State<'_, AppRegistry>,
     id: String,
@@ -157,7 +152,6 @@ pub async fn toggle_mod(
 
 #[tauri::command]
 #[specta::specta]
-#[instrument(skip(state))]
 pub async fn get_backups(
     state: State<'_, AppRegistry>,
     mod_id: String,
@@ -174,7 +168,6 @@ pub async fn get_backups(
 
 #[tauri::command]
 #[specta::specta]
-#[instrument(skip(state))]
 pub async fn restore_backup(
     state: State<'_, AppRegistry>,
     mod_id: String,
@@ -193,7 +186,6 @@ pub async fn restore_backup(
 
 #[tauri::command]
 #[specta::specta]
-#[instrument(skip(state))]
 pub async fn get_mod_documentation(
     state: State<'_, AppRegistry>,
     mod_id: String,
@@ -210,7 +202,6 @@ pub async fn get_mod_documentation(
 
 #[tauri::command]
 #[specta::specta]
-#[instrument(skip(state))]
 pub async fn rename_library(
     state: State<'_, AppRegistry>,
     name: String,

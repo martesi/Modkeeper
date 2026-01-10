@@ -173,12 +173,9 @@ fn setup_logging() -> tracing_appender::non_blocking::WorkerGuard {
         .with_file(true)
         .with_line_number(true)
         .with_writer(non_blocking)
-        .with_target(false)
-        .with_span_events(fmt::format::FmtSpan::ENTER | fmt::format::FmtSpan::EXIT);
+        .with_target(false);
 
     let console_layer = fmt::layer()
-        .with_file(true)
-        .with_line_number(true)
         .with_writer(std::io::stdout)
         .with_target(false)
         .with_span_events(fmt::format::FmtSpan::ENTER | fmt::format::FmtSpan::EXIT);
