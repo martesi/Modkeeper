@@ -12,6 +12,16 @@ import { commands } from '@gen/bindings'
 import { unwrapResult } from '@/lib/result'
 import type { Mod, ModManifest, Dependencies } from '@gen/bindings'
 import { msg, t } from '@lingui/core/macro'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@comps/alert-dialog'
 
 export const Route = createFileRoute('/$id')({
   component: ModDetailsComponent,
@@ -28,6 +38,9 @@ function ModDetailsComponent() {
   const [backups, setBackups] = useState<string[]>([])
   const [loadingDocs, setLoadingDocs] = useState(false)
   const [loadingBackups, setLoadingBackups] = useState(false)
+  const [showRemoveDialog, setShowRemoveDialog] = useState(false)
+  const [showRestoreDialog, setShowRestoreDialog] = useState(false)
+  const [restoreTimestamp, setRestoreTimestamp] = useState<string | null>(null)
 
   const mod = useMemo(() => {
     if (!library?.mods) return null
@@ -77,29 +90,40 @@ function ModDetailsComponent() {
     }
   }
 
-  const handleRemove = async () => {
+  const handleRemoveClick = () => {
     if (!mod) return
-    if (confirm(`Are you sure you want to remove "${mod.name}"?`)) {
-      try {
-        await removeMods([id])
-        window.history.back()
-      } catch (err) {
-        console.error('Failed to remove mod:', err)
-      }
+    setShowRemoveDialog(true)
+  }
+
+  const handleRemoveConfirm = async () => {
+    if (!mod) return
+    setShowRemoveDialog(false)
+    try {
+      await removeMods([id])
+      window.history.back()
+    } catch (err) {
+      console.error('Failed to remove mod:', err)
     }
   }
 
-  const handleRestoreBackup = async (timestamp: string) => {
+  const handleRestoreBackupClick = (timestamp: string) => {
     if (!id) return
-    if (confirm(`Are you sure you want to restore backup from ${timestamp}?`)) {
-      try {
-        await unwrapResult(commands.restoreBackup(id, timestamp))
-        // Reload backups after restore
-        const backupList = await unwrapResult(commands.getBackups(id))
-        setBackups(backupList)
-      } catch (err) {
-        console.error('Failed to restore backup:', err)
-      }
+    setRestoreTimestamp(timestamp)
+    setShowRestoreDialog(true)
+  }
+
+  const handleRestoreBackupConfirm = async () => {
+    if (!id || !restoreTimestamp) return
+    setShowRestoreDialog(false)
+    try {
+      await unwrapResult(commands.restoreBackup(id, restoreTimestamp))
+      // Reload backups after restore
+      const backupList = await unwrapResult(commands.getBackups(id))
+      setBackups(backupList)
+      setRestoreTimestamp(null)
+    } catch (err) {
+      console.error('Failed to restore backup:', err)
+      setRestoreTimestamp(null)
     }
   }
 
@@ -164,12 +188,70 @@ function ModDetailsComponent() {
           <Button onClick={handleToggle} variant="outline">
             {mod.is_active ? <Trans>Deactivate</Trans> : <Trans>Activate</Trans>}
           </Button>
-          <Button onClick={handleRemove} variant="destructive">
+          <Button onClick={handleRemoveClick} variant="destructive">
             <Trash2 className="size-4 mr-2" />
             <Trans>Remove</Trans>
           </Button>
         </div>
       </div>
+
+      <AlertDialog open={showRemoveDialog} onOpenChange={setShowRemoveDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              <Trans>Remove Mod</Trans>
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {mod && (
+                <Trans>Are you sure you want to remove "{mod.name}"? This action cannot be undone.</Trans>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>
+              <Trans>Cancel</Trans>
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleRemoveConfirm} variant="destructive">
+              <Trans>Remove</Trans>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={showRestoreDialog}
+        onOpenChange={(open) => {
+          setShowRestoreDialog(open)
+          if (!open) {
+            setRestoreTimestamp(null)
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              <Trans>Restore Backup</Trans>
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {restoreTimestamp && (
+                <Trans>
+                  Are you sure you want to restore backup from{' '}
+                  {formatTimestamp(restoreTimestamp)}? This will replace the
+                  current mod state.
+                </Trans>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>
+              <Trans>Cancel</Trans>
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleRestoreBackupConfirm}>
+              <Trans>Restore</Trans>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Tabs */}
       <Tabs defaultValue="overview" className="w-full">
@@ -220,7 +302,7 @@ function ModDetailsComponent() {
           <BackupsTab
             backups={backups}
             loading={loadingBackups}
-            onRestore={handleRestoreBackup}
+            onRestore={handleRestoreBackupClick}
           />
         </TabsContent>
 

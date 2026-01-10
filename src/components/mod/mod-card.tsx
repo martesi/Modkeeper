@@ -8,6 +8,16 @@ import type { Mod } from '@gen/bindings'
 import { Trash2, Package, ChevronRight } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { DIVIDER } from '@/utils/constants'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@comps/alert-dialog'
 
 interface ModCardProps {
   mod: Mod
@@ -18,6 +28,7 @@ interface ModCardProps {
 export function ModCard({ mod, onToggle, onRemove }: ModCardProps) {
   // Optimistic state for toggle
   const [optimisticActive, setOptimisticActive] = useState(mod.is_active)
+  const [showRemoveDialog, setShowRemoveDialog] = useState(false)
 
   // Sync with prop changes
   useEffect(() => {
@@ -30,10 +41,13 @@ export function ModCard({ mod, onToggle, onRemove }: ModCardProps) {
     onToggle?.(mod.id, newState) // Fire and forget (non-blocking)
   }
 
-  const handleRemove = () => {
-    if (confirm(`Are you sure you want to remove "${mod.name}"?`)) {
-      onRemove?.(mod.id)
-    }
+  const handleRemoveClick = () => {
+    setShowRemoveDialog(true)
+  }
+
+  const handleRemoveConfirm = () => {
+    setShowRemoveDialog(false)
+    onRemove?.(mod.id)
   }
 
   const getModTypeLabel = () => {
@@ -89,11 +103,38 @@ export function ModCard({ mod, onToggle, onRemove }: ModCardProps) {
           variant="ghost"
           size="icon"
           className="size-6 shrink-0 ml-2"
-          onClick={handleRemove}
+          onClick={handleRemoveClick}
         >
           <Trash2 className="size-4" />
         </Button>
       </div>
+
+      <AlertDialog open={showRemoveDialog} onOpenChange={setShowRemoveDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              <Trans>Remove Mod</Trans>
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              <Trans>
+                Are you sure you want to remove "{mod.name}"? This action cannot
+                be undone.
+              </Trans>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>
+              <Trans>Cancel</Trans>
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleRemoveConfirm}
+              variant="destructive"
+            >
+              <Trans>Remove</Trans>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Description with fixed height */}
       {mod.manifest?.description && (
