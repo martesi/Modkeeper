@@ -1,4 +1,5 @@
 use crate::core::cache::LibraryCache;
+use crate::core::deployment;
 use crate::core::linker;
 use crate::models::error::SError;
 use crate::models::paths::{LibPathRules, SPTPathRules};
@@ -19,10 +20,7 @@ pub fn purge(
     let managed_scope = build_managed_scope(cache);
     let managed_ids = build_managed_ids(lib_paths, cache);
 
-    let roots = [
-        game_root.join(&spt_rules.server_mods),
-        game_root.join(&spt_rules.client_plugins),
-    ];
+    let roots = deployment::get_protected_paths_absolute(game_root, spt_rules);
 
     for root in roots.iter().filter(|r| r.exists()) {
         let mut it = WalkDir::new(root).contents_first(false).into_iter();
@@ -136,16 +134,18 @@ fn is_dir_empty(path: &Utf8Path) -> bool {
 /// Unlinks all files, junctions, and shared directories for a specific mod.
 /// Returns the list of paths that were unlinked/removed.
 pub fn unlink_mod(
-    _game_root: &Utf8Path,
+    game_root: &Utf8Path,
     _repo_root: &Utf8Path,
     lib_paths: &LibPathRules,
     cache: &LibraryCache,
     mod_id: &str,
     unlink_paths: &HashSet<Utf8PathBuf>,
     shared_dirs: &HashSet<Utf8PathBuf>,
+    spt_rules: &SPTPathRules,
 ) -> Result<Vec<Utf8PathBuf>, SError> {
     let mut unlinked = Vec::new();
     let mod_source_dir = lib_paths.mods.join(mod_id);
+    let protected_paths = deployment::get_protected_paths_absolute(game_root, spt_rules);
 
     // Get the mod's file IDs for hard link matching
     let mod_file_ids: HashSet<FileId> = cache
@@ -161,6 +161,10 @@ pub fn unlink_mod(
 
     // Unlink all paths that were uniquely owned by this mod
     for path in unlink_paths {
+        // Skip protected system root paths
+        if protected_paths.iter().any(|protected| path == protected) {
+            continue;
+        }
         if path.exists() || path.is_symlink() {
             // Check if it's a junction/symlink pointing to our mod
             if let Ok(target) = linker::read_link_target(path) {
@@ -186,6 +190,10 @@ pub fn unlink_mod(
     sorted_shared_dirs.sort_by(|a, b| b.components().count().cmp(&a.components().count()));
 
     for shared_dir in sorted_shared_dirs {
+        // Skip protected system root paths - never remove server_mods or client_plugins directories
+        if protected_paths.iter().any(|protected| shared_dir == protected) {
+            continue;
+        }
         if shared_dir.exists() && is_dir_empty(shared_dir) {
             // Check if this directory is still needed by other mods
             // We can remove it if it's empty and was created for our mod

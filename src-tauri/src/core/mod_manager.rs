@@ -73,6 +73,7 @@ pub fn remove_mod(library: &mut Library, id: &str) -> Result<(), SError> {
             id,
             &unlink_paths,
             &shared_dirs,
+            &library.spt_rules,
         )?;
     }
 

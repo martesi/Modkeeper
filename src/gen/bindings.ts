@@ -69,6 +69,14 @@ async getModDocumentation(modId: string) : Promise<Result<string, SError>> {
     else return { status: "error", error: e  as any };
 }
 },
+async renameLibrary(name: string) : Promise<Result<LibrarySwitch, SError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("rename_library", { name }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async openLibrary(path: string) : Promise<Result<LibrarySwitch, SError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("open_library", { path }) };
@@ -80,6 +88,22 @@ async openLibrary(path: string) : Promise<Result<LibrarySwitch, SError>> {
 async createLibrary(requirement: LibraryCreationRequirement) : Promise<Result<LibrarySwitch, SError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("create_library", { requirement }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async closeLibrary(repoRoot: string) : Promise<Result<LibrarySwitch, SError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("close_library", { repoRoot }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async removeLibrary(repoRoot: string) : Promise<Result<LibrarySwitch, SError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("remove_library", { repoRoot }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };

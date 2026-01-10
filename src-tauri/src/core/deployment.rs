@@ -8,6 +8,47 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 type OwnershipMap = HashMap<Utf8PathBuf, Vec<String>>;
 
+// --- Protected Path Helpers ---
+
+/// Returns a vector of protected system root paths (relative paths).
+/// These paths should never be removed during mod operations.
+/// This is the single source of truth for protected paths - add new paths here.
+pub fn get_protected_paths(spt_rules: &SPTPathRules) -> Vec<&Utf8Path> {
+    vec![&spt_rules.server_mods, &spt_rules.client_plugins]
+}
+
+/// Returns a vector of protected system root paths as absolute paths.
+/// These paths should never be removed during mod operations.
+pub fn get_protected_paths_absolute(
+    game_root: &Utf8Path,
+    spt_rules: &SPTPathRules,
+) -> Vec<Utf8PathBuf> {
+    get_protected_paths(spt_rules)
+        .iter()
+        .map(|path| game_root.join(path))
+        .collect()
+}
+
+/// Checks if a relative path is a protected system root path.
+pub fn is_protected_path(path: &Utf8Path, spt_rules: &SPTPathRules) -> bool {
+    get_protected_paths(spt_rules)
+        .iter()
+        .any(|&protected| path == protected)
+}
+
+/// Checks if an absolute path is a protected system root path.
+/// For better performance when called multiple times, consider pre-computing protected paths
+/// using `get_protected_paths_absolute` and comparing directly.
+pub fn is_protected_path_absolute(
+    path: &Utf8Path,
+    game_root: &Utf8Path,
+    spt_rules: &SPTPathRules,
+) -> bool {
+    get_protected_paths_absolute(game_root, spt_rules)
+        .iter()
+        .any(|protected| path == protected)
+}
+
 /// Entry point for deployment logic.
 /// Performs conflict detection and recursive linking of active mods.
 pub fn deploy(
@@ -55,7 +96,7 @@ fn build_folder_ownership_map(
     cache: &LibraryCache,
 ) -> OwnershipMap {
     // 1. Initialize with System roots (e.g., user/mods, BepInEx/plugins)
-    let mut acc: OwnershipMap = [&spt_rules.server_mods, &spt_rules.client_plugins]
+    let mut acc: OwnershipMap = get_protected_paths(spt_rules)
         .iter()
         .flat_map(|path| path.ancestors())
         .filter(|a| !a.as_str().is_empty() && *a != ".")
@@ -171,7 +212,8 @@ pub fn find_mod_links(
             if ancestor.as_str().is_empty() || ancestor == "." {
                 continue;
             }
-            let entry = folder_ownership.entry(ancestor.to_path_buf()).or_default();
+            let ancestor_path = ancestor.to_path_buf();
+            let entry = folder_ownership.entry(ancestor_path).or_default();
             if !entry.contains(&mod_id.to_string()) {
                 entry.push(mod_id.to_string());
             }
@@ -193,6 +235,11 @@ pub fn find_mod_links(
             })?;
 
             // Case A: Unique Ownership -> This path would be linked
+            // Skip protected system root paths - never remove server_mods or client_plugins directories
+            if is_protected_path(&current_path, spt_rules) {
+                // Continue to next component, don't add to unlink_paths or shared_dirs
+                continue;
+            }
             if owners.len() == 1 && owners.contains(&mod_id.to_string()) {
                 let dst = game_root.join(&current_path);
                 unlink_paths.insert(dst);

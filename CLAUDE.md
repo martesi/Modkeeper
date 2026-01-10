@@ -5,3 +5,4 @@ Ignore TypeScript binding update since it happens when app runs.
 Frontend uses bun as package manager.
 Check for related tests after refactoring.
 Add tests if adding main logic.
+Prefer to extract logic that will be used in different places.
