@@ -44,11 +44,7 @@ pub fn list_backups(lib_paths: &LibPathRules, mod_id: &str) -> Result<Vec<String
 
 /// Restores a mod from a backup.
 /// Creates a backup of the current state before restoring.
-pub fn restore_backup(
-    library: &mut Library,
-    mod_id: &str,
-    timestamp: &str,
-) -> Result<(), SError> {
+pub fn restore_backup(library: &mut Library, mod_id: &str, timestamp: &str) -> Result<(), SError> {
     // Verify mod exists
     if !library.mods.contains_key(mod_id) {
         return Err(SError::ModNotFound(mod_id.to_string()));

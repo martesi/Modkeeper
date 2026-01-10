@@ -111,4 +111,3 @@ pub fn unlink(target: &Utf8Path) -> io::Result<()> {
         }
     }
 }
-

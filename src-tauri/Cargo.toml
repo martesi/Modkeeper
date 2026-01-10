@@ -49,6 +49,11 @@ tauri-plugin-dialog = "2"
 base64 = "0.22"
 blake3 = "1.5"
 tracing-appender = "0.2.4"
+tauri-plugin-log = "2"
+logcall = "0.1.13"
+syn = { version = "2", features = ["full"] }
+quote = "1"
+proc-macro2 = "1"
 
 [dev-dependencies]
 tempfile = "3"

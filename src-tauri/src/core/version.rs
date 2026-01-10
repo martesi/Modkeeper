@@ -1,9 +1,9 @@
 use crate::models::error::SError;
 use crate::models::paths::SPTPathRules;
+use regex;
 use semver::{Version, VersionReq};
 use serde_json::Value;
 use std::fs;
-use regex;
 
 /// Fetches the version from the SPT registry file and validates it against supported ranges.
 pub fn fetch_and_validate(config: &SPTPathRules) -> Result<String, SError> {

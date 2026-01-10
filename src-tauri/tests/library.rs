@@ -18,12 +18,7 @@ fn create_staged_mod_for_test(mod_root: &Utf8Path, fs: ModFS) -> StagedMod {
     let name = ModFS::read_manifest(&ModPaths::new(mod_root).file)
         .ok()
         .map(|m| m.name)
-        .unwrap_or_else(|| {
-            mod_root
-                .file_name()
-                .unwrap_or(&fs.id)
-                .to_string()
-        });
+        .unwrap_or_else(|| mod_root.file_name().unwrap_or(&fs.id).to_string());
     StagedMod {
         fs,
         source_path: mod_root.to_path_buf(),

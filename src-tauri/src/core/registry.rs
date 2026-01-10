@@ -3,12 +3,14 @@ use crate::core::library::Library;
 use crate::core::mod_stager::StageMaterial;
 use crate::models::error::SError;
 use crate::utils::process::ProcessChecker;
+use derive_more::derive;
 use parking_lot::Mutex;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use sysinfo::System;
 
+#[derive(Debug)]
 pub struct AppRegistry {
     // Arc<Mutex<Option>> allows us to "swap" the entire instance safely
     pub active_instance: Arc<Mutex<Option<Library>>>,

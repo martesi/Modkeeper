@@ -11,7 +11,9 @@ pub fn build_frontend_dto(library: &Library) -> LibraryDTO {
         m.manifest = library.cache.manifests.get(id).cloned();
 
         // Load icon data if manifest specifies an icon
-        m.icon_data = m.manifest.as_ref()
+        m.icon_data = m
+            .manifest
+            .as_ref()
             .and_then(|manifest| manifest.icon.as_ref())
             .and_then(|icon_filename| {
                 let icon_path = library.lib_paths.mods.join(id).join(icon_filename);

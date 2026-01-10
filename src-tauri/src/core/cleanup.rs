@@ -191,7 +191,10 @@ pub fn unlink_mod(
 
     for shared_dir in sorted_shared_dirs {
         // Skip protected system root paths - never remove server_mods or client_plugins directories
-        if protected_paths.iter().any(|protected| shared_dir == protected) {
+        if protected_paths
+            .iter()
+            .any(|protected| shared_dir == protected)
+        {
             continue;
         }
         if shared_dir.exists() && is_dir_empty(shared_dir) {

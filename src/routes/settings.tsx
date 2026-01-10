@@ -4,7 +4,6 @@ import { Trans } from '@lingui/react/macro'
 import { useState } from 'react'
 import { commands } from '@gen/bindings'
 import { unwrapResult } from '@/lib/result'
-import type { TestGameRoot } from '@gen/bindings'
 import { msg, t } from '@lingui/core/macro'
 import { Loader2, Copy, Check } from 'lucide-react'
 
@@ -16,7 +15,7 @@ export const Route = createFileRoute('/settings')({
 })
 
 function RouteComponent() {
-  const [gameRoot, setGameRoot] = useState<TestGameRoot | null>(null)
+  const [gameRoot, setGameRoot] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [copiedPath, setCopiedPath] = useState<string | null>(null)
@@ -43,10 +42,7 @@ function RouteComponent() {
       }
 
       const result = await unwrapResult(
-        commands.createSimulationGameRoot({
-          spt_version: undefined,
-          base_path: basePath,
-        }),
+        commands.createSimulationGameRoot(basePath),
       )
       setGameRoot(result)
     } catch (err) {
@@ -125,10 +121,10 @@ function RouteComponent() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => handleCopyPath(gameRoot.game_root)}
+                    onClick={() => handleCopyPath(gameRoot)}
                     className="h-7 w-7"
                   >
-                    {copiedPath === gameRoot.game_root ? (
+                    {copiedPath === gameRoot ? (
                       <Check className="size-3 text-green-600" />
                     ) : (
                       <Copy className="size-3" />
@@ -136,34 +132,9 @@ function RouteComponent() {
                   </Button>
                 </div>
                 <p className="text-sm text-muted-foreground font-mono break-all">
-                  {gameRoot.game_root}
+                  {gameRoot}
                 </p>
               </div>
-
-              {gameRoot.temp_dir_path && (
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="text-sm font-semibold">
-                      <Trans>Temp Directory Path</Trans>
-                    </p>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleCopyPath(gameRoot.temp_dir_path!)}
-                      className="h-7 w-7"
-                    >
-                      {copiedPath === gameRoot.temp_dir_path ? (
-                        <Check className="size-3 text-green-600" />
-                      ) : (
-                        <Copy className="size-3" />
-                      )}
-                    </Button>
-                  </div>
-                  <p className="text-sm text-muted-foreground font-mono break-all">
-                    {gameRoot.temp_dir_path}
-                  </p>
-                </div>
-              )}
             </div>
           )}
         </div>

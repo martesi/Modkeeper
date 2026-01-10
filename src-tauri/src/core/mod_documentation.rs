@@ -3,17 +3,15 @@ use crate::models::error::SError;
 
 /// Reads the documentation file for a mod.
 /// The documentation filename is specified in the mod's manifest.
-pub fn read_documentation(
-    library: &Library,
-    mod_id: &str,
-) -> Result<String, SError> {
+pub fn read_documentation(library: &Library, mod_id: &str) -> Result<String, SError> {
     // Verify mod exists
     if !library.mods.contains_key(mod_id) {
         return Err(SError::ModNotFound(mod_id.to_string()));
     }
 
     // Get documentation filename from manifest
-    let doc_filename = library.cache
+    let doc_filename = library
+        .cache
         .manifests
         .get(mod_id)
         .and_then(|manifest| manifest.documentation.as_ref())

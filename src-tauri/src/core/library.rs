@@ -28,11 +28,12 @@ pub struct Library {
 impl Library {
     pub fn create(requirement: LibraryCreationRequirement) -> Result<Self, SError> {
         // repo_root should always be Some at this point (set by library_service::create_library)
-        let repo_root = requirement.repo_root
-            .ok_or_else(|| SError::InvalidLibrary(
+        let repo_root = requirement.repo_root.ok_or_else(|| {
+            SError::InvalidLibrary(
                 requirement.game_root.to_string(),
                 "repo_root must be provided or derived".to_string(),
-            ))?;
+            )
+        })?;
 
         // Ensure the repo_root directory exists
         std::fs::create_dir_all(&repo_root)?;
@@ -93,7 +94,6 @@ impl Library {
         Toml::read::<LibraryDTO>(&LibPathRules::new(lib_root).manifest)
     }
 
-
     pub fn to_dto(&self) -> LibraryDTO {
         LibraryDTO {
             id: self.id.to_owned(),
@@ -105,7 +105,6 @@ impl Library {
             is_dirty: self.is_dirty,
         }
     }
-
 
     pub fn stage_material(&self, unknown_mod_name: String) -> StageMaterial {
         StageMaterial {
@@ -121,7 +120,6 @@ impl Library {
             self.spt_paths_canonical.server_exe.clone(),
         ]
     }
-
 
     /// Marks the library as dirty (modified).
     pub fn mark_dirty(&mut self) {
@@ -140,4 +138,3 @@ impl Library {
         Ok(())
     }
 }
-
