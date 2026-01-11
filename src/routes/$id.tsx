@@ -5,12 +5,10 @@ import { Button } from '@comps/button'
 import { Badge } from '@comps/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@comps/tabs'
 import { Trans } from '@lingui/react/macro'
-import { ArrowLeft, Package, Trash2, ChevronRight } from 'lucide-react'
-import { MarkdownContent } from '@/components/mod/markdown-content'
+import { ArrowLeft, Package, Trash2 } from 'lucide-react'
 import { useState, useEffect, useMemo } from 'react'
 import { commands } from '@gen/bindings'
 import { unwrapResult } from '@/lib/result'
-import type { Mod, ModManifest, Dependencies } from '@gen/bindings'
 import { msg, t } from '@lingui/core/macro'
 import {
   AlertDialog,
@@ -22,6 +20,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@comps/alert-dialog'
+import { ModTypeBadge } from '@/components/mod/mod-type-badge'
+import { OverviewTab } from '@/components/mod/mod-details/overview-tab'
+import { DependenciesTab } from '@/components/mod/mod-details/dependencies-tab'
+import { DocumentationTab } from '@/components/mod/mod-details/documentation-tab'
+import { BackupsTab } from '@/components/mod/mod-details/backups-tab'
+import { LinksTab } from '@/components/mod/mod-details/links-tab'
+import { formatTimestamp } from '@/utils/mod'
 
 export const Route = createFileRoute('/$id')({
   component: ModDetailsComponent,
@@ -179,14 +184,22 @@ function ModDetailsComponent() {
             <div className="flex gap-2">
               <ModTypeBadge type={mod.mod_type} />
               <Badge variant={mod.is_active ? 'default' : 'secondary'}>
-                {mod.is_active ? <Trans>Active</Trans> : <Trans>Inactive</Trans>}
+                {mod.is_active ? (
+                  <Trans>Active</Trans>
+                ) : (
+                  <Trans>Inactive</Trans>
+                )}
               </Badge>
             </div>
           </div>
         </div>
         <div className="flex gap-2">
           <Button onClick={handleToggle} variant="outline">
-            {mod.is_active ? <Trans>Deactivate</Trans> : <Trans>Activate</Trans>}
+            {mod.is_active ? (
+              <Trans>Deactivate</Trans>
+            ) : (
+              <Trans>Activate</Trans>
+            )}
           </Button>
           <Button onClick={handleRemoveClick} variant="destructive">
             <Trash2 className="size-4 mr-2" />
@@ -203,7 +216,10 @@ function ModDetailsComponent() {
             </AlertDialogTitle>
             <AlertDialogDescription>
               {mod && (
-                <Trans>Are you sure you want to remove "{mod.name}"? This action cannot be undone.</Trans>
+                <Trans>
+                  Are you sure you want to remove "{mod.name}"? This action
+                  cannot be undone.
+                </Trans>
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -211,7 +227,10 @@ function ModDetailsComponent() {
             <AlertDialogCancel>
               <Trans>Cancel</Trans>
             </AlertDialogCancel>
-            <AlertDialogAction onClick={handleRemoveConfirm} variant="destructive">
+            <AlertDialogAction
+              onClick={handleRemoveConfirm}
+              variant="destructive"
+            >
               <Trans>Remove</Trans>
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -314,303 +333,4 @@ function ModDetailsComponent() {
       </Tabs>
     </div>
   )
-}
-
-function ModTypeBadge({ type }: { type: Mod['mod_type'] }) {
-  const colorClass =
-    type === 'Client'
-      ? 'bg-blue-500/20 text-blue-700 dark:text-blue-400'
-      : type === 'Server'
-        ? 'bg-green-500/20 text-green-700 dark:text-green-400'
-        : type === 'Both'
-          ? 'bg-purple-500/20 text-purple-700 dark:text-purple-400'
-          : 'bg-gray-500/20 text-gray-700 dark:text-gray-400'
-
-  return (
-    <Badge variant="outline" className={colorClass}>
-      {type === 'Client' && <Trans>Client</Trans>}
-      {type === 'Server' && <Trans>Server</Trans>}
-      {type === 'Both' && <Trans>Both</Trans>}
-      {type === 'Unknown' && <Trans>Unknown</Trans>}
-    </Badge>
-  )
-}
-
-function OverviewTab({ mod }: { mod: Mod }) {
-  const manifest = mod.manifest
-
-  return (
-    <div className="space-y-4">
-      {manifest?.description && (
-        <div>
-          <h3 className="text-lg font-semibold mb-2">
-            <Trans>Description</Trans>
-          </h3>
-          <p className="text-muted-foreground">{manifest.description}</p>
-        </div>
-      )}
-
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <h4 className="text-sm font-semibold mb-1">
-            <Trans>Mod ID</Trans>
-          </h4>
-          <p className="text-sm text-muted-foreground font-mono">{mod.id}</p>
-        </div>
-        {manifest?.sptVersion && (
-          <div>
-            <h4 className="text-sm font-semibold mb-1">
-              <Trans>SPT Version</Trans>
-            </h4>
-            <p className="text-sm text-muted-foreground">{manifest.sptVersion}</p>
-          </div>
-        )}
-      </div>
-
-      {manifest?.effects && manifest.effects.length > 0 && (
-        <div>
-          <h3 className="text-lg font-semibold mb-2">
-            <Trans>Effects</Trans>
-          </h3>
-          <div className="flex gap-2 flex-wrap">
-            {manifest.effects.map((effect, idx) => (
-              <Badge key={idx} variant="outline">
-                {effect}
-              </Badge>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {manifest?.compatibility && (
-        <div>
-          <h3 className="text-lg font-semibold mb-2">
-            <Trans>Compatibility</Trans>
-          </h3>
-          {manifest.compatibility.include && (
-            <div className="mb-2">
-              <h4 className="text-sm font-semibold mb-1">
-                <Trans>Includes</Trans>
-              </h4>
-              <div className="flex gap-2 flex-wrap">
-                {manifest.compatibility.include.map((item, idx) => (
-                  <Badge key={idx} variant="secondary">
-                    {item}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          )}
-          {manifest.compatibility.exclude && (
-            <div>
-              <h4 className="text-sm font-semibold mb-1">
-                <Trans>Excludes</Trans>
-              </h4>
-              <div className="flex gap-2 flex-wrap">
-                {manifest.compatibility.exclude.map((item, idx) => (
-                  <Badge key={idx} variant="destructive">
-                    {item}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function DependenciesTab({ dependencies }: { dependencies: Dependencies }) {
-  const depList = useMemo(() => {
-    if ('Object' in dependencies) {
-      return Object.entries(dependencies.Object).map(([id, version]) => ({
-        id,
-        version,
-        optional: false,
-      }))
-    }
-    return dependencies.Array
-  }, [dependencies])
-
-  return (
-    <div className="space-y-2">
-      <h3 className="text-lg font-semibold mb-4">
-        <Trans>Dependencies</Trans>
-      </h3>
-      {depList.length === 0 ? (
-        <p className="text-muted-foreground">
-          <Trans>No dependencies</Trans>
-        </p>
-      ) : (
-        <div className="space-y-2">
-          {depList.map((dep, idx) => (
-            <div
-              key={idx}
-              className="flex items-center justify-between p-3 border rounded-lg"
-            >
-              <div>
-                <p className="font-medium">{dep.id}</p>
-                <p className="text-sm text-muted-foreground">v{dep.version}</p>
-              </div>
-              {dep.optional && (
-                <Badge variant="secondary">
-                  <Trans>Optional</Trans>
-                </Badge>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function DocumentationTab({
-  documentation,
-  loading,
-}: {
-  documentation: string | null
-  loading: boolean
-}) {
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Trans>Loading documentation...</Trans>
-      </div>
-    )
-  }
-
-  if (!documentation) {
-    return (
-      <div className="flex items-center justify-center h-64 text-muted-foreground">
-        <Trans>No documentation available</Trans>
-      </div>
-    )
-  }
-
-  return (
-    <div className="border rounded-lg p-6">
-      <MarkdownContent content={documentation} />
-    </div>
-  )
-}
-
-function BackupsTab({
-  backups,
-  loading,
-  onRestore,
-}: {
-  backups: string[]
-  loading: boolean
-  onRestore: (timestamp: string) => void
-}) {
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Trans>Loading backups...</Trans>
-      </div>
-    )
-  }
-
-  if (backups.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-64 text-muted-foreground">
-        <Trans>No backups available</Trans>
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-2">
-      <h3 className="text-lg font-semibold mb-4">
-        <Trans>Available Backups</Trans>
-      </h3>
-      <div className="space-y-2">
-        {backups.map((timestamp) => (
-          <div
-            key={timestamp}
-            className="flex items-center justify-between p-3 border rounded-lg"
-          >
-            <div>
-              <p className="font-medium">{formatTimestamp(timestamp)}</p>
-              <p className="text-sm text-muted-foreground font-mono">
-                {timestamp}
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onRestore(timestamp)}
-            >
-              <Trans>Restore</Trans>
-            </Button>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function LinksTab({ links }: { links: ModManifest['links'] }) {
-  if (!links || links.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-64 text-muted-foreground">
-        <Trans>No links available</Trans>
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-2">
-      <h3 className="text-lg font-semibold mb-4">
-        <Trans>External Links</Trans>
-      </h3>
-      <div className="space-y-2">
-        {links.map((link, idx) => (
-          <a
-            key={idx}
-            href={link.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
-          >
-            <div>
-              <p className="font-medium">
-                {link.name || getLinkTypeName(link.link_type)}
-              </p>
-              <p className="text-sm text-muted-foreground truncate">
-                {link.url}
-              </p>
-            </div>
-            <ChevronRight className="size-4 text-muted-foreground" />
-          </a>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function formatTimestamp(timestamp: string): string {
-  try {
-    const date = new Date(timestamp)
-    return date.toLocaleString()
-  } catch {
-    return timestamp
-  }
-}
-
-function getLinkTypeName(type: string | undefined | null): string {
-  switch (type) {
-    case 'code':
-      return 'Source Code'
-    case 'discord':
-      return 'Discord'
-    case 'website':
-      return 'Website'
-    case 'documentation':
-      return 'Documentation'
-    default:
-      return 'Link'
-  }
 }

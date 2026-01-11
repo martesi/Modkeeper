@@ -8,6 +8,7 @@ import type { Mod } from '@gen/bindings'
 import { Trash2, Package, ChevronRight } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { DIVIDER } from '@/utils/translation'
+import { ModTypeBadge } from '@/components/mod/mod-type-badge'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -49,19 +50,6 @@ export function ModCard({ mod, onToggle, onRemove }: ModCardProps) {
     onRemove?.(mod.id)
   }
 
-  const getModTypeLabel = () => {
-    switch (mod.mod_type) {
-      case 'Client':
-        return <Trans>Client</Trans>
-      case 'Server':
-        return <Trans>Server</Trans>
-      case 'Both':
-        return <Trans>Both</Trans>
-      default:
-        return <Trans>Unknown</Trans>
-    }
-  }
-
   // Format author for display
   const authorDisplay = mod.manifest?.author
     ? Array.isArray(mod.manifest.author)
@@ -84,11 +72,7 @@ export function ModCard({ mod, onToggle, onRemove }: ModCardProps) {
             {/* Version and Author inline */}
             {mod.manifest && (mod.manifest.version || authorDisplay) && (
               <div className="text-xs text-muted-foreground truncate">
-                {mod.manifest.version && (
-                  <span>
-                    <Trans>Version</Trans> {mod.manifest.version}
-                  </span>
-                )}
+                {mod.manifest.version && <span>{mod.manifest.version}</span>}
                 {mod.manifest.version && authorDisplay && <span> • </span>}
                 {authorDisplay && (
                   <span className="truncate">{authorDisplay}</span>
@@ -144,19 +128,9 @@ export function ModCard({ mod, onToggle, onRemove }: ModCardProps) {
 
       {/* Footer: Type Badge and Switch */}
       <div className="flex items-center justify-between mt-auto">
-        <span
-          className={`text-xs px-2 py-1 rounded ${
-            mod.mod_type === 'Client'
-              ? 'bg-blue-500/20 text-blue-700 dark:text-blue-400'
-              : mod.mod_type === 'Server'
-                ? 'bg-green-500/20 text-green-700 dark:text-green-400'
-                : mod.mod_type === 'Both'
-                  ? 'bg-purple-500/20 text-purple-700 dark:text-purple-400'
-                  : 'bg-gray-500/20 text-gray-700 dark:text-gray-400'
-          }`}
-        >
-          {getModTypeLabel()}
-        </span>
+        <div className="flex gap-2">
+          <ModTypeBadge type={mod.mod_type} />
+        </div>
 
         <div className="flex items-center gap-2">
           <span
@@ -168,10 +142,7 @@ export function ModCard({ mod, onToggle, onRemove }: ModCardProps) {
           >
             {optimisticActive ? <Trans>Active</Trans> : <Trans>Inactive</Trans>}
           </span>
-          <Switch
-            checked={optimisticActive}
-            onCheckedChange={handleToggle}
-          />
+          <Switch checked={optimisticActive} onCheckedChange={handleToggle} />
         </div>
       </div>
     </div>
