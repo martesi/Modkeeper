@@ -6,10 +6,16 @@
 // biome-ignore lint: disable
 export {}
 declare global {
+  const Activity: typeof import('react').Activity
+  const Fragment: typeof import('react').Fragment
   const Link: typeof import('@tanstack/react-router').Link
   const Navigate: typeof import('@tanstack/react-router').Navigate
   const Outlet: typeof import('@tanstack/react-router').Outlet
+  const Suspense: typeof import('react').Suspense
   const c: typeof import('clsx').default
+  const cache: typeof import('react').cache
+  const cacheSignal: typeof import('react').cacheSignal
+  const createContext: typeof import('react').createContext
   const createRef: typeof import('react').createRef
   const forwardRef: typeof import('react').forwardRef
   const lazy: typeof import('react').lazy
@@ -17,12 +23,15 @@ declare global {
   const notFound: typeof import('@tanstack/react-router').notFound
   const redirect: typeof import('@tanstack/react-router').redirect
   const startTransition: typeof import('react').startTransition
+  const use: typeof import('react').use
+  const useActionState: typeof import('react').useActionState
   const useBlocker: typeof import('@tanstack/react-router').useBlocker
   const useCallback: typeof import('react').useCallback
   const useContext: typeof import('react').useContext
   const useDebugValue: typeof import('react').useDebugValue
   const useDeferredValue: typeof import('react').useDeferredValue
   const useEffect: typeof import('react').useEffect
+  const useEffectEvent: typeof import('react').useEffectEvent
   const useId: typeof import('react').useId
   const useImperativeHandle: typeof import('react').useImperativeHandle
   const useInsertionEffect: typeof import('react').useInsertionEffect
@@ -32,6 +41,7 @@ declare global {
   const useMatches: typeof import('@tanstack/react-router').useMatches
   const useMemo: typeof import('react').useMemo
   const useNavigate: typeof import('@tanstack/react-router').useNavigate
+  const useOptimistic: typeof import('react').useOptimistic
   const useParams: typeof import('@tanstack/react-router').useParams
   const useReducer: typeof import('react').useReducer
   const useRef: typeof import('react').useRef
