@@ -6,17 +6,423 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "X-Generator: @lingui/cli\n"
 "Language: en-US\n"
+"Project-Id-Version: \n"
+"Report-Msgid-Bugs-To: \n"
+"PO-Revision-Date: \n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Plural-Forms: \n"
 
-#. placeholder {0}: team.name
-#. placeholder {1}: team.version
+#: src/utils/translation.ts:4
+msgid ", "
+msgstr ", "
+
+#: src/routes/index.tsx:135
+msgid "(Needs Sync)"
+msgstr "(Needs Sync)"
+
 #: src/components/instance-switcher.tsx:69
-msgid "{0} ({1})"
-msgstr "{0} ({1})"
+#~ msgid "{0} ({1})"
+#~ msgstr "{0} ({1})"
+
+#: src/lib/error.ts:49
+msgid "A file system error occurred. Please check your file permissions or if something is opened and try again."
+msgstr "A file system error occurred. Please check your file permissions or if something is opened and try again."
+
+#: src/lib/error.ts:43
+msgid "A parsing error occurred. The file may be corrupted or in an invalid format."
+msgstr "A parsing error occurred. The file may be corrupted or in an invalid format."
+
+#: src/routes/$id.tsx:201
+msgid "Activate"
+msgstr "Activate"
+
+#: src/components/mod/mod-card.tsx:143
+#: src/routes/$id.tsx:188
+msgid "Active"
+msgstr "Active"
 
 #: src/components/instance-switcher.tsx:78
-msgid "Add instance"
-msgstr "Add instance"
+#~ msgid "Add instance"
+#~ msgstr "Add instance"
+
+#: src/components/instance-switcher.tsx:310
+msgid "Add Library"
+msgstr "Add Library"
+
+#: src/routes/index.tsx:154
+msgid "Add Mod Files (.zip)"
+msgstr "Add Mod Files (.zip)"
+
+#: src/routes/index.tsx:158
+msgid "Add Mod Folder"
+msgstr "Add Mod Folder"
+
+#: src/routes/index.tsx:148
+msgid "Add Mods"
+msgstr "Add Mods"
+
+#: src/components/mod/mod-list.tsx:36
+#: src/components/mod/mod-list.tsx:51
+msgid "Add mods to get started"
+msgstr "Add mods to get started"
+
+#: src/lib/error.ts:27
+msgid "An error occurred. Please try again."
+msgstr "An error occurred. Please try again."
+
+#: src/lib/error.ts:73
+msgid "An internal error occurred. Please try again."
+msgstr "An internal error occurred. Please try again."
+
+#: src/lib/error.ts:31
+msgid "An unexpected error occurred. Please try again."
+msgstr "An unexpected error occurred. Please try again."
+
+#: src/lib/error.ts:88
+msgid "An unknown error occurred. Please try again."
+msgstr "An unknown error occurred. Please try again."
+
+#: src/routes/settings.tsx:73
+msgid "Application settings and test utilities"
+msgstr "Application settings and test utilities"
+
+#. placeholder {0}: closeLibraryInfo.name
+#: src/components/instance-switcher.tsx:370
+msgid "Are you sure you want to close \"{0}\"? It will be removed from your library list but files will remain on disk."
+msgstr "Are you sure you want to close \"{0}\"? It will be removed from your library list but files will remain on disk."
+
+#. placeholder {0}: mod.name
+#: src/components/mod/mod-card.tsx:102
+#: src/routes/$id.tsx:219
+msgid "Are you sure you want to remove \"{0}\"? This action cannot be undone."
+msgstr "Are you sure you want to remove \"{0}\"? This action cannot be undone."
+
+#. placeholder {0}: removeLibraryInfo.name
+#: src/components/instance-switcher.tsx:403
+msgid "Are you sure you want to remove \"{0}\"? This will unlink all mods, remove it from your library list, and delete the library directory. This action cannot be undone."
+msgstr "Are you sure you want to remove \"{0}\"? This will unlink all mods, remove it from your library list, and delete the library directory. This action cannot be undone."
+
+#. placeholder {0}: formatTimestamp(restoreTimestamp)
+#: src/routes/$id.tsx:256
+msgid "Are you sure you want to restore backup from {0}? This will replace the current mod state."
+msgstr "Are you sure you want to restore backup from {0}? This will replace the current mod state."
+
+#: src/components/mod/mod-details/backups-tab.tsx:37
+msgid "Available Backups"
+msgstr "Available Backups"
+
+#: src/routes/$id.tsx:144
+msgid "Back to Library"
+msgstr "Back to Library"
+
+#: src/routes/$id.tsx:292
+msgid "Backups"
+msgstr "Backups"
+
+#: src/components/instance-switcher.tsx:349
+#: src/components/instance-switcher.tsx:385
+#: src/components/instance-switcher.tsx:419
+#: src/components/mod/mod-card.tsx:110
+#: src/routes/$id.tsx:228
+#: src/routes/$id.tsx:266
+msgid "Cancel"
+msgstr "Cancel"
+
+#: src/components/instance-switcher.tsx:208
+msgid "Click to add library"
+msgstr "Click to add library"
+
+#: src/components/mod/mod-type-badge.tsx:25
+#: src/components/mod/mod-type-badge.tsx:40
+msgid "Client"
+msgstr "Client"
+
+#: src/components/instance-switcher.tsx:284
+#: src/components/instance-switcher.tsx:388
+msgid "Close"
+msgstr "Close"
+
+#: src/components/instance-switcher.tsx:366
+msgid "Close Library"
+msgstr "Close Library"
+
+#: src/components/mod/mod-details/overview-tab.tsx:60
+msgid "Compatibility"
+msgstr "Compatibility"
+
+#: src/routes/settings.tsx:84
+msgid "Create a simulation game root structure for testing purposes"
+msgstr "Create a simulation game root structure for testing purposes"
+
+#: src/routes/settings.tsx:101
+msgid "Create Simulation Game Root"
+msgstr "Create Simulation Game Root"
+
+#: src/routes/settings.tsx:98
+msgid "Creating..."
+msgstr "Creating..."
+
+#: src/routes/$id.tsx:199
+msgid "Deactivate"
+msgstr "Deactivate"
+
+#: src/components/mod/mod-details/dependencies-tab.tsx:27
+#: src/routes/$id.tsx:283
+msgid "Dependencies"
+msgstr "Dependencies"
+
+#: src/components/mod/mod-details/overview-tab.tsx:19
+msgid "Description"
+msgstr "Description"
+
+#: src/routes/$id.tsx:288
+msgid "Documentation"
+msgstr "Documentation"
+
+#: src/components/mod/mod-details/overview-tab.tsx:45
+msgid "Effects"
+msgstr "Effects"
+
+#: src/components/instance-switcher.tsx:326
+msgid "Enter a new name for this library."
+msgstr "Enter a new name for this library."
+
+#: src/routes/settings.tsx:108
+msgid "Error"
+msgstr "Error"
+
+#: src/lib/error.ts:24
+msgid "Error happended while linking files to the game direcory. Please try again."
+msgstr "Error happended while linking files to the game direcory. Please try again."
+
+#: src/components/mod/mod-details/overview-tab.tsx:79
+msgid "Excludes"
+msgstr "Excludes"
+
+#: src/components/mod/mod-details/links-tab.tsx:24
+msgid "External Links"
+msgstr "External Links"
+
+#: src/lib/error.ts:77
+msgid "Failed to update task status. Please try again."
+msgstr "Failed to update task status. Please try again."
+
+#: src/lib/error.ts:62
+msgid "File conflicts detected. Some mods may have conflicting files."
+msgstr "File conflicts detected. Some mods may have conflicting files."
+
+#: src/routes/settings.tsx:119
+msgid "Game Root"
+msgstr "Game Root"
+
+#: src/components/mod/mod-card.tsx:143
+#: src/routes/$id.tsx:190
+msgid "Inactive"
+msgstr "Inactive"
+
+#: src/components/mod/mod-details/overview-tab.tsx:65
+msgid "Includes"
+msgstr "Includes"
+
+#: src/lib/error.ts:84
+msgid "Invalid library found at {path}: {reason}. Please repair, recreate, or delete the library."
+msgstr "Invalid library found at {path}: {reason}. Please repair, recreate, or delete the library."
+
+#: src/components/instance-switcher.tsx:248
+msgid "Libraries"
+msgstr "Libraries"
+
+#: src/components/app-sidebar.tsx:42
+#: src/routes/index.tsx:21
+msgid "Library"
+msgstr "Library"
+
+#: src/routes/$id.tsx:296
+msgid "Links"
+msgstr "Links"
+
+#: src/components/mod/mod-details/backups-tab.tsx:21
+msgid "Loading backups..."
+msgstr "Loading backups..."
+
+#: src/components/mod/mod-details/documentation-tab.tsx:18
+msgid "Loading documentation..."
+msgstr "Loading documentation..."
+
+#: src/routes/index.tsx:107
+msgid "Loading library..."
+msgstr "Loading library..."
+
+#: src/components/instance-switcher.tsx:182
+msgid "Loading..."
+msgstr "Loading..."
+
+#: src/routes/$id.tsx:34
+msgid "Mod Details"
+msgstr "Mod Details"
+
+#: src/components/mod/mod-details/overview-tab.tsx:28
+msgid "Mod ID"
+msgstr "Mod ID"
+
+#: src/routes/index.tsx:128
+msgid "Mod Library"
+msgstr "Mod Library"
+
+#: src/routes/$id.tsx:139
+msgid "Mod not found"
+msgstr "Mod not found"
+
+#: src/lib/error.ts:16
+msgid "Mod related process is currently running. Please close it and try again."
+msgstr "Mod related process is currently running. Please close it and try again."
+
+#: src/components/mod/mod-details/backups-tab.tsx:29
+msgid "No backups available"
+msgstr "No backups available"
+
+#: src/components/mod/mod-details/dependencies-tab.tsx:31
+msgid "No dependencies"
+msgstr "No dependencies"
+
+#: src/components/mod/mod-details/documentation-tab.tsx:26
+msgid "No documentation available"
+msgstr "No documentation available"
+
+#: src/components/instance-switcher.tsx:205
+msgid "No Library"
+msgstr "No Library"
+
+#: src/components/mod/mod-list.tsx:24
+#: src/routes/index.tsx:186
+msgid "No library loaded"
+msgstr "No library loaded"
+
+#: src/components/mod/mod-details/links-tab.tsx:16
+msgid "No links available"
+msgstr "No links available"
+
+#: src/components/mod/mod-list.tsx:33
+#: src/components/mod/mod-list.tsx:48
+msgid "No mods installed"
+msgstr "No mods installed"
+
+#: src/routes/index.tsx:189
+msgid "Open or create a library from the sidebar"
+msgstr "Open or create a library from the sidebar"
+
+#: src/components/mod/mod-details/dependencies-tab.tsx:46
+msgid "Optional"
+msgstr "Optional"
+
+#: src/routes/$id.tsx:279
+msgid "Overview"
+msgstr "Overview"
+
+#: src/components/instance-switcher.tsx:296
+#: src/components/instance-switcher.tsx:425
+#: src/components/mod/mod-card.tsx:116
+#: src/routes/$id.tsx:206
+#: src/routes/$id.tsx:234
+msgid "Remove"
+msgstr "Remove"
+
+#: src/components/instance-switcher.tsx:399
+msgid "Remove Library"
+msgstr "Remove Library"
+
+#: src/components/mod/mod-card.tsx:99
+#: src/routes/$id.tsx:215
+msgid "Remove Mod"
+msgstr "Remove Mod"
+
+#: src/components/instance-switcher.tsx:273
+#: src/components/instance-switcher.tsx:355
+msgid "Rename"
+msgstr "Rename"
+
+#: src/components/instance-switcher.tsx:323
+msgid "Rename Library"
+msgstr "Rename Library"
+
+#: src/components/mod/mod-details/backups-tab.tsx:56
+#: src/routes/$id.tsx:269
+msgid "Restore"
+msgstr "Restore"
+
+#: src/routes/$id.tsx:252
+msgid "Restore Backup"
+msgstr "Restore Backup"
+
+#: src/routes/index.tsx:117
+msgid "Retry"
+msgstr "Retry"
+
+#: src/lib/library-actions.ts:21
+msgid "Select Game Root Directory"
+msgstr "Select Game Root Directory"
+
+#: src/components/mod/mod-type-badge.tsx:19
+#: src/components/mod/mod-type-badge.tsx:41
+msgid "Server"
+msgstr "Server"
+
+#: src/components/app-sidebar.tsx:56
+#: src/routes/settings.tsx:13
+#: src/routes/settings.tsx:70
+msgid "Settings"
+msgstr "Settings"
+
+#. placeholder {0}: library.spt_version
+#: src/routes/index.tsx:132
+msgid "SPT {0}"
+msgstr "SPT {0}"
 
 #: src/components/instance-switcher.tsx:60
-msgid "SPT Instance"
-msgstr "SPT Instance"
+#~ msgid "SPT Instance"
+#~ msgstr "SPT Instance"
+
+#: src/components/mod/mod-details/overview-tab.tsx:35
+msgid "SPT Version"
+msgstr "SPT Version"
+
+#: src/routes/index.tsx:170
+msgid "Sync Mods"
+msgstr "Sync Mods"
+
+#: src/routes/settings.tsx:81
+msgid "Test Game Root"
+msgstr "Test Game Root"
+
+#: src/lib/error.ts:68
+msgid "The archive format is not supported. Please extract them to a folder manually."
+msgstr "The archive format is not supported. Please extract them to a folder manually."
+
+#: src/lib/error.ts:12
+msgid "The game or server is currently running. Please close it before performing this operation."
+msgstr "The game or server is currently running. Please close it before performing this operation."
+
+#: src/lib/error.ts:55
+msgid "The requested file or directory was not found. Please check the path and try again."
+msgstr "The requested file or directory was not found. Please check the path and try again."
+
+#: src/lib/error.ts:20
+msgid "Unable to determine the mod ID. Please check the mod files and try again."
+msgstr "Unable to determine the mod ID. Please check the mod files and try again."
+
+#: src/components/mod/mod-type-badge.tsx:42
+msgid "Unknown"
+msgstr "Unknown"
+
+#: src/utils/translation.ts:6
+msgid "Unknown mod"
+msgstr "Unknown mod"
+
+#: src/lib/library-actions.ts:31
+msgid "Unnamed Library"
+msgstr "Unnamed Library"
+
+#: src/lib/error.ts:37
+msgid "Unsupported SPT version. Please check the supported version of this Mod Manager. If you think this is an error, please report the issue to the developer."
+msgstr "Unsupported SPT version. Please check the supported version of this Mod Manager. If you think this is an error, please report the issue to the developer."
