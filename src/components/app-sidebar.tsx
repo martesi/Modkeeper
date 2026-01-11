@@ -13,6 +13,7 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
+  SidebarGroup,
 } from '@/components/ui/sidebar'
 import { Home, Settings } from 'lucide-react'
 import { Trans } from '@lingui/react/macro'
@@ -27,36 +28,38 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <InstanceSwitcher />
       </SidebarHeader>
       <SidebarContent>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              asChild
-              isActive={currentPath === '/'}
-              tooltip="Library"
-            >
-              <Link to="/">
-                <Home className="size-4" />
-                <span>
-                  <Trans>Library</Trans>
-                </span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              asChild
-              isActive={currentPath === '/settings'}
-              tooltip="Settings"
-            >
-              <Link to="/settings">
-                <Settings className="size-4" />
-                <span>
-                  <Trans>Settings</Trans>
-                </span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+        <SidebarGroup>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                isActive={currentPath === '/'}
+                tooltip="Library"
+              >
+                <Link to="/">
+                  <Home className="size-4" />
+                  <span>
+                    <Trans>Library</Trans>
+                  </span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                isActive={currentPath === '/settings'}
+                tooltip="Settings"
+              >
+                <Link to="/settings">
+                  <Settings className="size-4" />
+                  <span>
+                    <Trans>Settings</Trans>
+                  </span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>{/* Footer content can be added here */}</SidebarFooter>
       <SidebarRail />
