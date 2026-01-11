@@ -2,7 +2,7 @@
 
 import { Trans } from '@lingui/react/macro'
 import { Button } from '@comps/button'
-import { Toggle } from '@comps/toggle'
+import { Switch } from '@comps/switch'
 import { Link } from '@tanstack/react-router'
 import type { Mod } from '@gen/bindings'
 import { Trash2, Package, ChevronRight } from 'lucide-react'
@@ -35,10 +35,9 @@ export function ModCard({ mod, onToggle, onRemove }: ModCardProps) {
     setOptimisticActive(mod.is_active)
   }, [mod.is_active])
 
-  const handleToggle = () => {
-    const newState = !optimisticActive
-    setOptimisticActive(newState) // Immediate UI update
-    onToggle?.(mod.id, newState) // Fire and forget (non-blocking)
+  const handleToggle = (checked: boolean) => {
+    setOptimisticActive(checked) // Immediate UI update
+    onToggle?.(mod.id, checked) // Fire and forget (non-blocking)
   }
 
   const handleRemoveClick = () => {
@@ -143,7 +142,7 @@ export function ModCard({ mod, onToggle, onRemove }: ModCardProps) {
         </div>
       )}
 
-      {/* Footer: Type Badge and Toggle */}
+      {/* Footer: Type Badge and Switch */}
       <div className="flex items-center justify-between mt-auto">
         <span
           className={`text-xs px-2 py-1 rounded ${
@@ -159,15 +158,21 @@ export function ModCard({ mod, onToggle, onRemove }: ModCardProps) {
           {getModTypeLabel()}
         </span>
 
-        <Toggle
-          pressed={optimisticActive}
-          onPressedChange={handleToggle}
-          variant="outline"
-          size="sm"
-          className="gap-1.5"
-        >
-          {optimisticActive ? <Trans>Active</Trans> : <Trans>Inactive</Trans>}
-        </Toggle>
+        <div className="flex items-center gap-2">
+          <span
+            className={`text-xs font-medium ${
+              optimisticActive
+                ? 'text-green-600 dark:text-green-400'
+                : 'text-muted-foreground'
+            }`}
+          >
+            {optimisticActive ? <Trans>Active</Trans> : <Trans>Inactive</Trans>}
+          </span>
+          <Switch
+            checked={optimisticActive}
+            onCheckedChange={handleToggle}
+          />
+        </div>
       </div>
     </div>
   )
