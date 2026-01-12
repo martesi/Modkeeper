@@ -1,0 +1,49 @@
+name: 'publish'
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish-tauri:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        # Define the three Windows architectures here
+        settings:
+          - target: 'x86_64-pc-windows-msvc'
+            args: ''
+          - target: 'i686-pc-windows-msvc'
+            args: '--target i686-pc-windows-msvc'
+          - target: 'aarch64-pc-windows-msvc'
+            args: '--target aarch64-pc-windows-msvc'
+
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: setup bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.settings.target }}
+
+      - name: install frontend dependencies
+        run: bun install
+
+      - name: build and release
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'App ${{ github.ref_name }}'
+          releaseBody: 'Automatic build for version ${{ github.ref_name }}'
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.settings.args }}
