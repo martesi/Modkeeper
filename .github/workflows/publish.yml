@@ -34,7 +34,7 @@ jobs:
           targets: ${{ matrix.settings.target }}
 
       - name: install frontend dependencies
-        run: npm install
+        run: bun install
 
       - name: build and release
         uses: tauri-apps/tauri-action@v1
