@@ -13,7 +13,6 @@ use crate::core::registry::AppRegistry;
 use parking_lot::Mutex;
 use specta_typescript::Typescript;
 use std::sync::Arc;
-use tauri::Manager;
 use tauri_specta::{collect_commands, Builder};
 
 /// Stage 1: Setup command handler with all registered commands
