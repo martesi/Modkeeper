@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
 
 jobs:
   publish-tauri:
@@ -12,7 +13,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Define the three Windows architectures here
         settings:
           - target: 'x86_64-pc-windows-msvc'
             args: ''
@@ -25,8 +25,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: setup bun
-        uses: oven-sh/setup-bun@v2
+      - name: setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
 
       - name: install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -34,16 +36,16 @@ jobs:
           targets: ${{ matrix.settings.target }}
 
       - name: install frontend dependencies
-        run: bun install
+        run: npm install
 
       - name: build and release
-        uses: tauri-apps/tauri-action@v1
+        uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: 'App ${{ github.ref_name }}'
-          releaseBody: 'Automatic build for version ${{ github.ref_name }}'
+          tagName: v__VERSION__
+          releaseName: 'App v__VERSION__'
+          releaseBody: 'Manual/Automatic build for version v__VERSION__'
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.settings.args }}
