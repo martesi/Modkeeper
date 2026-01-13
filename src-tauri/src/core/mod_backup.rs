@@ -1,6 +1,9 @@
+use camino::Utf8PathBuf;
+
 use crate::core::library::Library;
 use crate::core::mod_fs::ModFS;
 use crate::models::error::SError;
+use crate::models::mod_backup::ModBackup;
 use crate::models::paths::LibPathRules;
 use crate::utils::file::FileUtils;
 use crate::utils::time::get_unix_timestamp;
@@ -24,7 +27,7 @@ pub fn create_backup(lib_paths: &LibPathRules, mod_id: &str) -> Result<(), SErro
 
 /// Lists all available backups for a given mod.
 /// Returns timestamps in descending order (newest first).
-pub fn list_backups(lib_paths: &LibPathRules, mod_id: &str) -> Result<Vec<String>, SError> {
+pub fn list_backups(lib_paths: &LibPathRules, mod_id: &str) -> Result<Vec<ModBackup>, SError> {
     let backup_dir = lib_paths.backups.join(mod_id);
 
     if !backup_dir.exists() {
@@ -32,14 +35,21 @@ pub fn list_backups(lib_paths: &LibPathRules, mod_id: &str) -> Result<Vec<String
     }
 
     let entries = std::fs::read_dir(&backup_dir)?;
-    let mut timestamps: Vec<String> = entries
-        .filter_map(|entry| entry.ok().and_then(|e| e.file_name().into_string().ok()))
+    let mut backups: Vec<ModBackup> = entries
+        .filter_map(|entry| {
+            entry.ok().and_then(|e| {
+                Some(ModBackup {
+                    timestamp: e.file_name().into_string().ok()?,
+                    path: Utf8PathBuf::from_path_buf(e.path()).ok()?,
+                })
+            })
+        })
         .collect();
 
     // Sort descending (newest first)
-    timestamps.sort_by(|a, b| b.cmp(a));
+    backups.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
 
-    Ok(timestamps)
+    Ok(backups)
 }
 
 /// Restores a mod from a backup.
@@ -57,11 +67,6 @@ pub fn restore_backup(library: &mut Library, mod_id: &str, timestamp: &str) -> R
     }
 
     let mod_dir = library.lib_paths.mods.join(mod_id);
-
-    // Create a new backup of current state before restoring
-    if mod_dir.exists() {
-        create_backup(&library.lib_paths, mod_id)?;
-    }
 
     // Remove current mod directory
     if mod_dir.exists() {

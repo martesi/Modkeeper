@@ -6,6 +6,7 @@ use crate::core::{
 use crate::models::error::SError;
 use crate::models::global::LibrarySwitch;
 use crate::models::library::LibraryDTO;
+use crate::models::mod_backup::ModBackup;
 use crate::utils::thread::{with_lib_arc, with_lib_arc_mut};
 use camino::Utf8PathBuf;
 use tauri::State;
@@ -154,15 +155,19 @@ pub async fn toggle_mod(
 pub async fn get_backups(
     state: State<'_, AppRegistry>,
     mod_id: String,
-) -> Result<Vec<String>, SError> {
+) -> Result<Vec<ModBackup>, SError> {
     let instance_handle = state.active_instance.clone();
     tauri::async_runtime::spawn_blocking(move || {
-        with_lib_arc(instance_handle, |inst| {
-            mod_backup::list_backups(&inst.lib_paths, &mod_id)
-        })
+        let lib_paths = instance_handle
+            .lock()
+            .as_ref()
+            .ok_or(SError::NoActiveLibrary)?
+            .lib_paths
+            .clone();
+        mod_backup::list_backups(&lib_paths, &mod_id)
     })
     .await
-    .map_err(|e| SError::AsyncRuntimeError(e.to_string()))??
+    .map_err(|e| SError::AsyncRuntimeError(e.to_string()))?
 }
 
 #[tauri::command]

@@ -38,6 +38,7 @@ define_paths!(ModPaths {
 
 define_paths!(SPTPathRules {
     client_plugins: "BepInEx/plugins",
+    client_config: "BepInEx/config",
     server_mods: "SPT/user/mods",
     server_exe: "SPT/SPT.Server.exe",
     server_registry: "SPT/user/sptRegistry/registry.json",
@@ -64,5 +65,16 @@ impl SPTPathCanonical {
             server_exe: canonicalize(paths.server_exe)?,
             client_exe: canonicalize(paths.client_exe)?,
         })
+    }
+}
+
+define_paths!(BackupPathRules {
+    content: "content",
+    root: "."
+});
+
+impl BackupPathRules {
+    pub fn to_client_cfg(&self, mod_id: &str) -> Utf8PathBuf {
+        self.root.join(format!("{}.cfg", mod_id)).to_owned()
     }
 }

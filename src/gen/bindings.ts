@@ -45,7 +45,7 @@ async toggleMod(id: string, isActive: boolean) : Promise<Result<LibraryDTO, SErr
     else return { status: "error", error: e  as any };
 }
 },
-async getBackups(modId: string) : Promise<Result<string[], SError>> {
+async getBackups(modId: string) : Promise<Result<ModBackup[], SError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_backups", { modId }) };
 } catch (e) {
@@ -155,11 +155,12 @@ export type Dependencies = Partial<{ [key in string]: string }> | Dependency[]
 export type Dependency = { id: string; version: string; optional?: boolean | null }
 export type Effect = "trader" | "item" | "other"
 export type LibraryCreationRequirement = { game_root: string; repo_root: string | null; name: string }
-export type LibraryDTO = { id: string; name?: string; game_root: string; repo_root: string; spt_version: string; mods: Partial<{ [key in string]: Mod }>; is_dirty: boolean }
+export type LibraryDTO = { id: string; name: string; game_root: string; repo_root: string; spt_version: string; mods: Partial<{ [key in string]: Mod }>; is_dirty: boolean }
 export type LibrarySwitch = { active: LibraryDTO | null; libraries: LibraryDTO[] }
 export type Link = { type?: LinkType | null; name?: string | null; url: string }
 export type LinkType = "code" | "discord" | "website" | "documentation"
 export type Mod = { id: string; is_active: boolean; mod_type: ModType; name: string; manifest: ModManifest | null; icon_data?: string | null }
+export type ModBackup = { timestamp: string; path: string }
 export type ModManifest = { id: string; name: string; author: Author; version: string; sptVersion: string; description?: string | null; icon?: string | null; documentation?: string | null; compatibility?: Compatibility | null; dependencies?: Dependencies | null; effects?: Effect[] | null; links?: Link[] | null }
 export type ModType = "Client" | "Server" | "Both" | "Unknown"
 export type SError = { UnsupportedSPTVersion: string } | { ParseError: string } | { IOError: string } | "GameOrServerRunning" | "ProcessRunning" | "UnableToDetermineModId" | { ModNotFound: string } | { FileOrDirectoryNotFound: string } | { FileCollision: string[] } | "Unexpected" | { UnhandledCompression: string } | { AsyncRuntimeError: string } | "NoActiveLibrary" | { InvalidLibrary: [string, string] }

@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@comps/tabs'
 import { Trans } from '@lingui/react/macro'
 import { ArrowLeft, Package, Trash2 } from 'lucide-react'
 import { useState, useEffect, useMemo } from 'react'
-import { commands } from '@gen/bindings'
+import { commands, ModBackup } from '@gen/bindings'
 import { ur } from '@/utils/result'
 import { msg, t } from '@lingui/core/macro'
 import {
@@ -28,11 +28,23 @@ import { DocumentationTab } from '@/components/mod/mod-details/documentation-tab
 import { BackupsTab } from '@/components/mod/mod-details/backups-tab'
 import { LinksTab } from '@/components/mod/mod-details/links-tab'
 import { formatTimestamp } from '@/utils/mod'
+import { ett } from '@/utils/error'
 
 export const Route = createFileRoute('/$id')({
   component: ModDetailsComponent,
   staticData: {
     breadcrumb: () => t(msg`Mod Details`),
+  },
+  loader: async ({ params: { id } }) => {
+    const backups = await commands
+      .getBackups(id)
+      .then(ur)
+      .catch((v) => {
+        ett(v)
+        return []
+      })
+
+    return { backups }
   },
 })
 
@@ -41,12 +53,12 @@ function ModDetailsComponent() {
   const library = useAtomValue(ALibraryActive)
   const { toggle, remove } = useLibrary()
   const [documentation, setDocumentation] = useState<string | null>(null)
-  const [backups, setBackups] = useState<string[]>([])
   const [loadingDocs, setLoadingDocs] = useState(false)
-  const [loadingBackups, setLoadingBackups] = useState(false)
   const [showRemoveDialog, setShowRemoveDialog] = useState(false)
   const [showRestoreDialog, setShowRestoreDialog] = useState(false)
   const [restoreTimestamp, setRestoreTimestamp] = useState<string | null>(null)
+  const { backups } = Route.useLoaderData()
+  const router = useRouter()
 
   const mod = useMemo(() => {
     if (!library?.mods) return null
@@ -69,23 +81,6 @@ function ModDetailsComponent() {
         })
     }
   }, [id, mod?.manifest?.documentation])
-
-  useEffect(() => {
-    if (id) {
-      setLoadingBackups(true)
-      ur(commands.getBackups(id))
-        .then((backupList) => {
-          setBackups(backupList)
-        })
-        .catch((err) => {
-          console.error('Failed to load backups:', err)
-          setBackups([])
-        })
-        .finally(() => {
-          setLoadingBackups(false)
-        })
-    }
-  }, [id])
 
   const handleToggle = async () => {
     if (!mod) return
@@ -123,9 +118,7 @@ function ModDetailsComponent() {
     setShowRestoreDialog(false)
     try {
       await ur(commands.restoreBackup(id, restoreTimestamp))
-      // Reload backups after restore
-      const backupList = await ur(commands.getBackups(id))
-      setBackups(backupList)
+      router.invalidate()
       setRestoreTimestamp(null)
     } catch (err) {
       console.error('Failed to restore backup:', err)
@@ -319,11 +312,7 @@ function ModDetailsComponent() {
         )}
 
         <TabsContent value="backups" className="space-y-4">
-          <BackupsTab
-            backups={backups}
-            loading={loadingBackups}
-            onRestore={handleRestoreBackupClick}
-          />
+          <BackupsTab backups={backups} onRestore={handleRestoreBackupClick} />
         </TabsContent>
 
         {mod.manifest?.links && mod.manifest.links.length > 0 && (
