@@ -19,10 +19,6 @@ export function translateError(error: SError): string {
         return t(
           msg`Unable to determine the mod ID. Please check the mod files and try again.`,
         )
-      case 'Link':
-        return t(
-          msg`Error happended while linking files to the game direcory. Please try again.`,
-        )
       case 'NoActiveLibrary':
       case 'Unexpected':
         return t(msg`An unexpected error occurred. Please try again.`)

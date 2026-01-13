@@ -5,25 +5,25 @@
 
 
 export const commands = {
-async addMods(paths: string[], unknownModName: string, channel: TAURI_CHANNEL<TaskStatus>) : Promise<Result<LibraryDTO, SError>> {
+async addMods(paths: string[], unknownModName: string) : Promise<Result<LibraryDTO, SError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("add_mods", { paths, unknownModName, channel }) };
+    return { status: "ok", data: await TAURI_INVOKE("add_mods", { paths, unknownModName }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
-async removeMods(ids: string[], channel: TAURI_CHANNEL<TaskStatus>) : Promise<Result<LibraryDTO, SError>> {
+async removeMods(ids: string[]) : Promise<Result<LibraryDTO, SError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("remove_mods", { ids, channel }) };
+    return { status: "ok", data: await TAURI_INVOKE("remove_mods", { ids }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
-async syncMods(channel: TAURI_CHANNEL<TaskStatus>) : Promise<Result<LibraryDTO, SError>> {
+async syncMods() : Promise<Result<LibraryDTO, SError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("sync_mods", { channel }) };
+    return { status: "ok", data: await TAURI_INVOKE("sync_mods") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -162,9 +162,7 @@ export type LinkType = "code" | "discord" | "website" | "documentation"
 export type Mod = { id: string; is_active: boolean; mod_type: ModType; name: string; manifest: ModManifest | null; icon_data?: string | null }
 export type ModManifest = { id: string; name: string; author: Author; version: string; sptVersion: string; description?: string | null; icon?: string | null; documentation?: string | null; compatibility?: Compatibility | null; dependencies?: Dependencies | null; effects?: Effect[] | null; links?: Link[] | null }
 export type ModType = "Client" | "Server" | "Both" | "Unknown"
-export type SError = { UnsupportedSPTVersion: string } | { ParseError: string } | { IOError: string } | "GameOrServerRunning" | "ProcessRunning" | "UnableToDetermineModId" | { ModNotFound: string } | { FileOrDirectoryNotFound: string } | { FileCollision: string[] } | "Unexpected" | { UnhandledCompression: string } | { AsyncRuntimeError: string } | "ContextUnprovided" | { UpdateStatusError: string } | "NoActiveLibrary" | { InvalidLibrary: [string, string] }
-export type TAURI_CHANNEL<TSend> = null
-export type TaskStatus = never
+export type SError = { UnsupportedSPTVersion: string } | { ParseError: string } | { IOError: string } | "GameOrServerRunning" | "ProcessRunning" | "UnableToDetermineModId" | { ModNotFound: string } | { FileOrDirectoryNotFound: string } | { FileCollision: string[] } | "Unexpected" | { UnhandledCompression: string } | { AsyncRuntimeError: string } | "NoActiveLibrary" | { InvalidLibrary: [string, string] }
 
 /** tauri-specta globals **/
 
