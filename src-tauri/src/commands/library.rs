@@ -6,11 +6,8 @@ use crate::core::{
 use crate::models::error::SError;
 use crate::models::global::LibrarySwitch;
 use crate::models::library::LibraryDTO;
-use crate::models::task_status::TaskStatus;
-use crate::utils::context::TaskContext;
 use crate::utils::thread::{with_lib_arc, with_lib_arc_mut};
 use camino::Utf8PathBuf;
-use tauri::ipc::Channel;
 use tauri::State;
 use tracing::{debug, info};
 
@@ -20,7 +17,6 @@ pub async fn add_mods(
     state: State<'_, AppRegistry>,
     paths: Vec<String>,
     unknown_mod_name: String,
-    channel: Channel<TaskStatus>,
 ) -> Result<LibraryDTO, SError> {
     let inputs = paths
         .into_iter()
@@ -34,7 +30,7 @@ pub async fn add_mods(
     // 'state' cannot be moved, but the Arc inside it can be cloned.
     let instance_handle = state.active_instance.clone();
 
-    TaskContext::provide(channel, move || {
+    tauri::async_runtime::spawn_blocking(move || {
         info!("Staging mod files");
         // 1. Resolve (Heavy Compute/IO)
         // We do this here to avoid blocking the async runtime
@@ -58,7 +54,8 @@ pub async fn add_mods(
                 .map(|_| dto_builder::build_frontend_dto(inst))
         })
     })
-    .await??
+    .await
+    .map_err(|e| SError::AsyncRuntimeError(e.to_string()))??
 }
 
 #[tauri::command]
@@ -66,11 +63,10 @@ pub async fn add_mods(
 pub async fn remove_mods(
     state: State<'_, AppRegistry>,
     ids: Vec<String>,
-    channel: Channel<TaskStatus>,
 ) -> Result<LibraryDTO, SError> {
     let instance_handle = state.active_instance.clone();
     // Offload synchronous file IO and locking to a blocking thread
-    TaskContext::provide(channel, move || {
+    tauri::async_runtime::spawn_blocking(move || {
         with_lib_arc_mut(instance_handle, |inst| -> Result<LibraryDTO, SError> {
             ids.iter()
                 .try_for_each(|mod_id| {
@@ -81,21 +77,19 @@ pub async fn remove_mods(
         })
         // Iterate and remove each mod, exiting immediately on the first error
     })
-    .await??
+    .await
+    .map_err(|e| SError::AsyncRuntimeError(e.to_string()))??
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn sync_mods(
-    state: State<'_, AppRegistry>,
-    channel: Channel<TaskStatus>,
-) -> Result<LibraryDTO, SError> {
+pub async fn sync_mods(state: State<'_, AppRegistry>) -> Result<LibraryDTO, SError> {
     if state.is_game_or_server_running() {
         return Err(SError::GameOrServerRunning.into());
     }
 
     let instance_handle = state.active_instance.clone();
-    TaskContext::provide(channel, move || {
+    tauri::async_runtime::spawn_blocking(move || {
         with_lib_arc_mut(instance_handle, |inst| {
             // 1. Purge existing managed links
             cleanup::purge(
@@ -120,7 +114,8 @@ pub async fn sync_mods(
             Ok(dto_builder::build_frontend_dto(inst))
         })
     })
-    .await??
+    .await
+    .map_err(|e| SError::AsyncRuntimeError(e.to_string()))??
 }
 
 #[tauri::command]

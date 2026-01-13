@@ -23,12 +23,11 @@ export function translateError(error: SError): string {
         return t(
           msg`Error happended while linking files to the game direcory. Please try again.`,
         )
-      default:
-        return t(msg`An error occurred. Please try again.`)
-      case 'ContextUnprovided':
       case 'NoActiveLibrary':
       case 'Unexpected':
         return t(msg`An unexpected error occurred. Please try again.`)
+      default:
+        return t(msg`An error occurred. Please try again.`)
     }
   }
 
@@ -73,15 +72,11 @@ export function translateError(error: SError): string {
     return t(msg`An internal error occurred. Please try again.`)
   }
 
-  if ('UpdateStatusError' in error) {
-    return t(msg`Failed to update task status. Please try again.`)
-  }
-
   if ('InvalidLibrary' in error) {
     // InvalidLibrary is serialized as a tuple [path, reason]
     const [path, reason] = error.InvalidLibrary as [string, string]
     return t(
-      msg`Invalid library found at ${path}: ${reason}. Please repair, recreate, or delete the library.`
+      msg`Invalid library found at ${path}: ${reason}. Please repair, recreate, or delete the library.`,
     )
   }
 

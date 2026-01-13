@@ -1,8 +1,7 @@
 import { useState, useCallback } from 'react'
-import { Channel } from '@tauri-apps/api/core'
 import { commands } from '@gen/bindings'
 import { unwrapResult } from '@/lib/result'
-import type { LibraryDTO, TaskStatus } from '@gen/bindings'
+import type { LibraryDTO } from '@gen/bindings'
 
 export function useMods(
   library: LibraryDTO | null,
@@ -16,8 +15,7 @@ export function useMods(
       try {
         setLoading(true)
         setError(null)
-        const channel = new Channel<TaskStatus>()
-        const result = await unwrapResult(commands.addMods(paths, unknownModName, channel))
+        const result = await unwrapResult(commands.addMods(paths, unknownModName))
         onUpdate?.(result)
         return result
       } catch (err) {
@@ -37,8 +35,7 @@ export function useMods(
       try {
         setLoading(true)
         setError(null)
-        const channel = new Channel<TaskStatus>()
-        const result = await unwrapResult(commands.removeMods(ids, channel))
+        const result = await unwrapResult(commands.removeMods(ids))
         onUpdate?.(result)
         return result
       } catch (err) {
@@ -77,8 +74,7 @@ export function useMods(
     try {
       setLoading(true)
       setError(null)
-      const channel = new Channel<TaskStatus>()
-      const result = await unwrapResult(commands.syncMods(channel))
+      const result = await unwrapResult(commands.syncMods())
       onUpdate?.(result)
       return result
     } catch (err) {

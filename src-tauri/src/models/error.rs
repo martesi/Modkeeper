@@ -18,8 +18,6 @@ pub enum SError {
     Unexpected,
     UnhandledCompression(String),
     AsyncRuntimeError(String),
-    ContextUnprovided,
-    UpdateStatusError(String),
     NoActiveLibrary,
     #[display("Invalid library at {}: {}", _0, _1)]
     InvalidLibrary(String, String),

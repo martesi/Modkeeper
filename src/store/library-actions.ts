@@ -1,6 +1,5 @@
 import { atom } from 'jotai'
 import type { Getter, Setter } from 'jotai'
-import { Channel } from '@tauri-apps/api/core'
 import { commands } from '@gen/bindings'
 import { unwrapResult } from '@/lib/result'
 import {
@@ -13,7 +12,6 @@ import type {
   LibraryDTO,
   LibrarySwitch,
   LibraryCreationRequirement,
-  TaskStatus,
 } from '@gen/bindings'
 
 /**
@@ -115,16 +113,14 @@ export const initAction = atom(
 export const addModsAction = atom(
   null,
   withAsyncState(async (paths: string[], unknownModName: string) => {
-    const channel = new Channel<TaskStatus>()
-    return await unwrapResult(commands.addMods(paths, unknownModName, channel))
+    return await unwrapResult(commands.addMods(paths, unknownModName))
   }, updateLibraryState),
 )
 
 export const removeModsAction = atom(
   null,
   withAsyncState(async (ids: string[]) => {
-    const channel = new Channel<TaskStatus>()
-    return await unwrapResult(commands.removeMods(ids, channel))
+    return await unwrapResult(commands.removeMods(ids))
   }, updateLibraryState),
 )
 
@@ -138,8 +134,7 @@ export const toggleModAction = atom(
 export const syncModsAction = atom(
   null,
   withAsyncState(async () => {
-    const channel = new Channel<TaskStatus>()
-    return await unwrapResult(commands.syncMods(channel))
+    return await unwrapResult(commands.syncMods())
   }, updateLibraryState),
 )
 
