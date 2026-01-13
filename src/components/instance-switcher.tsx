@@ -41,23 +41,16 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Trans } from '@lingui/react/macro'
-import { useLibrarySwitch } from '@/hooks/use-library-state'
+import { useAtomValue } from 'jotai'
+import { ALibraryActive, ALibraryList } from '@/store/library'
+import { useLibrarySwitch } from '@/hooks/use-library-switch'
 import { addLibraryFromDialog } from '@/lib/library-actions'
 
 export function InstanceSwitcher() {
   const { isMobile } = useSidebar()
-  const {
-    librarySwitch,
-    loading,
-    createLibrary,
-    openLibrary,
-    renameLibrary,
-    closeLibrary,
-    removeLibrary,
-  } = useLibrarySwitch()
-
-  const active = librarySwitch?.active
-  const libraries = librarySwitch?.libraries ?? []
+  const active = useAtomValue(ALibraryActive)
+  const libraries = useAtomValue(ALibraryList)
+  const { create, open, rename, close, remove } = useLibrarySwitch()
 
   // State for rename dialog
   const [renameDialogOpen, setRenameDialogOpen] = React.useState(false)
@@ -84,23 +77,23 @@ export function InstanceSwitcher() {
 
   const handleAddLibrary = React.useCallback(async () => {
     try {
-      await addLibraryFromDialog(createLibrary)
+      await addLibraryFromDialog(create)
     } catch (err) {
       // Error is already logged in the function
       // You might want to show a toast notification here
     }
-  }, [createLibrary])
+  }, [create])
 
   const handleSwitchLibrary = React.useCallback(
     async (libPath: string) => {
       try {
-        await openLibrary(libPath)
+        await open(libPath)
       } catch (err) {
         console.error('Failed to switch library:', err)
         // You might want to show a toast notification here
       }
     },
-    [openLibrary],
+    [open],
   )
 
   const handleRenameClick = React.useCallback((lib: (typeof libraries)[0]) => {
@@ -113,9 +106,9 @@ export function InstanceSwitcher() {
     if (!renameLibraryId || !renameValue.trim()) return
 
     try {
-      // Only rename active library (renameLibrary only works on active library)
+      // Only rename active library (rename only works on active library)
       if (active && active.id === renameLibraryId) {
-        await renameLibrary(renameValue.trim())
+        await rename(renameValue.trim())
       }
       setRenameDialogOpen(false)
       setRenameLibraryId(null)
@@ -123,7 +116,7 @@ export function InstanceSwitcher() {
     } catch (err) {
       console.error('Failed to rename library:', err)
     }
-  }, [renameLibraryId, renameValue, active, renameLibrary])
+  }, [renameLibraryId, renameValue, active, rename])
 
   const handleCloseClick = React.useCallback((lib: (typeof libraries)[0]) => {
     if (!lib.repo_root) return
@@ -139,13 +132,13 @@ export function InstanceSwitcher() {
     if (!closeLibraryInfo) return
 
     try {
-      await closeLibrary(closeLibraryInfo.repoRoot)
+      await close(closeLibraryInfo.repoRoot)
       setCloseDialogOpen(false)
       setCloseLibraryInfo(null)
     } catch (err) {
       console.error('Failed to close library:', err)
     }
-  }, [closeLibraryInfo, closeLibrary])
+  }, [closeLibraryInfo, close])
 
   const handleRemoveClick = React.useCallback((lib: (typeof libraries)[0]) => {
     if (!lib.repo_root) return
@@ -161,32 +154,13 @@ export function InstanceSwitcher() {
     if (!removeLibraryInfo) return
 
     try {
-      await removeLibrary(removeLibraryInfo.repoRoot)
+      await remove(removeLibraryInfo.repoRoot)
       setRemoveDialogOpen(false)
       setRemoveLibraryInfo(null)
     } catch (err) {
       console.error('Failed to remove library:', err)
     }
-  }, [removeLibraryInfo, removeLibrary])
-
-  if (loading && !active) {
-    return (
-      <SidebarMenu>
-        <SidebarMenuItem>
-          <SidebarMenuButton size="lg" disabled>
-            <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
-              <Server className="size-4" />
-            </div>
-            <div className="grid flex-1 text-left text-sm leading-tight">
-              <span className="truncate font-medium">
-                <Trans>Loading...</Trans>
-              </span>
-            </div>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
-      </SidebarMenu>
-    )
-  }
+  }, [removeLibraryInfo, remove])
 
   if (!active) {
     return (

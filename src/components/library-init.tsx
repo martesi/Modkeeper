@@ -1,20 +1,22 @@
 'use client'
 
-import { useEffect } from 'react'
+import { ALibrarySwitch } from '@/store/library'
+import { createSetter } from '@/utils/function'
+import { commands } from '@gen/bindings'
 import { useSetAtom } from 'jotai'
-import { initAction } from '@/store/library-actions'
+import { useEffect } from 'react'
 
 /**
  * Component that initializes the library on app start
  * Calls the init command which shows the window and returns synced state
  */
 export function LibraryInit() {
-  const init = useSetAtom(initAction)
+  const set = useSetAtom(ALibrarySwitch)
+
+  const init = createSetter(commands.init, set)
 
   useEffect(() => {
-    init().catch(() => {
-      // Silently fail - no library is loaded yet
-    })
+    init()
   }, [init])
 
   return null

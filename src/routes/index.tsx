@@ -1,7 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { ModList } from '@/components/mod/mod-list'
-import { useLibrary } from '@/hooks/use-library-state'
-import { useMods } from '@/hooks/use-library-state'
+import { useLibrary } from '@/hooks/use-library'
+import { useAtomValue } from 'jotai'
+import { ALibraryActive } from '@/store/library'
 import { Button } from '@comps/button'
 import { Trans } from '@lingui/react/macro'
 import { Upload, RefreshCw, FileArchive, FolderOpen } from 'lucide-react'
@@ -23,14 +24,8 @@ export const Route = createFileRoute('/')({
 })
 
 function RouteComponent() {
-  const { library, loading, error, refresh } = useLibrary()
-  const {
-    addMods,
-    removeMods,
-    toggleMod,
-    syncMods,
-    loading: modsLoading,
-  } = useMods()
+  const library = useAtomValue(ALibraryActive)
+  const { add, remove, sync, toggle } = useLibrary()
   const [isSyncing, setIsSyncing] = useState(false)
 
   const handleAddModFiles = async () => {
@@ -48,9 +43,9 @@ function RouteComponent() {
       })
       const unknownModName = getUnknownModName()
       if (selected && Array.isArray(selected)) {
-        await addMods(selected, unknownModName)
+        await add(selected, unknownModName)
       } else if (selected && typeof selected === 'string') {
-        await addMods([selected], unknownModName)
+        await add([selected], unknownModName)
       }
     } catch (err) {
       console.error('Failed to add mod files:', err)
@@ -67,7 +62,7 @@ function RouteComponent() {
       })
       const unknownModName = getUnknownModName()
       if (selected && typeof selected === 'string') {
-        await addMods([selected], unknownModName)
+        await add([selected], unknownModName)
       }
     } catch (err) {
       console.error('Failed to add mod folder:', err)
@@ -77,7 +72,7 @@ function RouteComponent() {
   const handleSync = async () => {
     setIsSyncing(true)
     try {
-      await syncMods()
+      await sync()
     } catch (err) {
       console.error('Failed to sync mods:', err)
     } finally {
@@ -87,7 +82,7 @@ function RouteComponent() {
 
   const handleToggleMod = async (id: string, isActive: boolean) => {
     try {
-      await toggleMod(id, isActive)
+      await toggle(id, isActive)
     } catch (err) {
       console.error('Failed to toggle mod:', err)
     }
@@ -95,29 +90,10 @@ function RouteComponent() {
 
   const handleRemoveMods = async (id: string) => {
     try {
-      await removeMods([id])
+      await remove([id])
     } catch (err) {
       console.error('Failed to remove mod:', err)
     }
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <Trans>Loading library...</Trans>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full gap-4">
-        <p className="text-destructive">{error.message}</p>
-        <Button onClick={refresh} variant="outline">
-          <Trans>Retry</Trans>
-        </Button>
-      </div>
-    )
   }
 
   return (
@@ -143,7 +119,7 @@ function RouteComponent() {
             <>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" disabled={modsLoading}>
+                  <Button variant="outline" disabled={isSyncing}>
                     <Upload className="size-4 mr-2" />
                     <Trans>Add Mods</Trans>
                   </Button>
@@ -162,7 +138,7 @@ function RouteComponent() {
               <Button
                 variant="default"
                 onClick={handleSync}
-                disabled={modsLoading || isSyncing}
+                disabled={isSyncing}
               >
                 <RefreshCw
                   className={`size-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`}

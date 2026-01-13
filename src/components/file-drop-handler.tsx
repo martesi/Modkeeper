@@ -3,8 +3,8 @@
 import { useEffect } from 'react'
 import { useAtomValue } from 'jotai'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { libraryAtom } from '@/store/library'
-import { useMods } from '@/hooks/use-library-state'
+import { ALibraryActive } from '@/store/library'
+import { useLibrary } from '@/hooks/use-library'
 import { getUnknownModName } from '@/utils/translation'
 
 /**
@@ -12,8 +12,8 @@ import { getUnknownModName } from '@/utils/translation'
  * Listens for dropped files and passes them to addMods command
  */
 export function FileDropHandler() {
-  const library = useAtomValue(libraryAtom)
-  const { addMods } = useMods()
+  const library = useAtomValue(ALibraryActive)
+  const { add } = useLibrary()
 
   useEffect(() => {
     let unlistenPromise: Promise<() => void> | undefined
@@ -31,7 +31,7 @@ export function FileDropHandler() {
           }
 
           // Process the dropped files
-          addMods(paths, getUnknownModName()).catch((err) => {
+          add(paths, getUnknownModName()).catch((err) => {
             console.error('Failed to add mods from file drop:', err)
           })
         }
@@ -43,7 +43,7 @@ export function FileDropHandler() {
     return () => {
       unlistenPromise?.then((unlisten) => unlisten())
     }
-  }, [library, addMods])
+  }, [library, add])
 
   return null
 }

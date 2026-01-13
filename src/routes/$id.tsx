@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { useLibrary } from '@/hooks/use-library-state'
-import { useMods } from '@/hooks/use-library-state'
+import { useAtomValue } from 'jotai'
+import { ALibraryActive } from '@/store/library'
+import { useLibrary } from '@/hooks/use-library'
 import { Button } from '@comps/button'
 import { Badge } from '@comps/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@comps/tabs'
@@ -37,8 +38,8 @@ export const Route = createFileRoute('/$id')({
 
 function ModDetailsComponent() {
   const { id } = Route.useParams()
-  const { library } = useLibrary()
-  const { toggleMod, removeMods } = useMods()
+  const library = useAtomValue(ALibraryActive)
+  const { toggle, remove } = useLibrary()
   const [documentation, setDocumentation] = useState<string | null>(null)
   const [backups, setBackups] = useState<string[]>([])
   const [loadingDocs, setLoadingDocs] = useState(false)
@@ -89,7 +90,7 @@ function ModDetailsComponent() {
   const handleToggle = async () => {
     if (!mod) return
     try {
-      await toggleMod(id, !mod.is_active)
+      await toggle(id, !mod.is_active)
     } catch (err) {
       console.error('Failed to toggle mod:', err)
     }
@@ -104,7 +105,7 @@ function ModDetailsComponent() {
     if (!mod) return
     setShowRemoveDialog(false)
     try {
-      await removeMods([id])
+      await remove([id])
       window.history.back()
     } catch (err) {
       console.error('Failed to remove mod:', err)

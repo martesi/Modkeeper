@@ -3,7 +3,7 @@ import { createSetter } from '@/utils/function'
 import { commands } from '@gen/bindings'
 import { useSetAtom } from 'jotai'
 
-export function useLibrarySwitcher() {
+export function useLibrarySwitch() {
   const set = useSetAtom(ALibrarySwitch)
 
   const open = createSetter(commands.openLibrary, set)
