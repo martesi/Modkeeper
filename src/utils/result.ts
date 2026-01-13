@@ -1,5 +1,5 @@
 import type { Result, SError } from '@gen/bindings'
-import { translateError } from './error'
+import { translateError } from '../lib/error'
 
 /**
  * FP-style Result unwrapper
@@ -7,8 +7,8 @@ import { translateError } from './error'
  * @param handler - Optional function that receives (ok, err) and returns a value
  * @returns If handler provided, returns handler result. Otherwise returns ok value or throws translated error
  */
-export async function unwrapResult<T, R = T>(
-  resultPromise: Promise<Result<T, SError>>,
+export async function ur<T, R = T>(
+  resultPromise: Promise<Result<T, SError>> | Result<T, SError>,
   handler?: (ok?: T, err?: SError) => R,
 ): Promise<R> {
   const result = await resultPromise

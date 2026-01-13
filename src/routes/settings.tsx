@@ -3,7 +3,7 @@ import { Button } from '@comps/button'
 import { Trans } from '@lingui/react/macro'
 import { useState } from 'react'
 import { commands } from '@gen/bindings'
-import { unwrapResult } from '@/lib/result'
+import { ur } from '@/utils/result'
 import { msg, t } from '@lingui/core/macro'
 import { Loader2, Copy, Check } from 'lucide-react'
 
@@ -41,9 +41,7 @@ function RouteComponent() {
         console.log('No base path selected, using temp directory')
       }
 
-      const result = await unwrapResult(
-        commands.createSimulationGameRoot(basePath),
-      )
+      const result = await ur(commands.createSimulationGameRoot(basePath))
       setGameRoot(result)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))

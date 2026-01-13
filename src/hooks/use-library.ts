@@ -1,39 +1,20 @@
-import { useState, useEffect, useCallback } from 'react'
+import { ALibraryActive } from '@/store/library'
+import { createSetter } from '@/utils/function'
 import { commands } from '@gen/bindings'
-import { unwrapResult } from '@/lib/result'
-import type { LibraryDTO } from '@gen/bindings'
+import { useSetAtom } from 'jotai'
 
 export function useLibrary() {
-  const [library, setLibrary] = useState<LibraryDTO | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<Error | null>(null)
+  const set = useSetAtom(ALibraryActive)
 
-  const fetchLibrary = useCallback(async () => {
-    try {
-      setLoading(true)
-      setError(null)
-      const data = await unwrapResult(commands.getLibrary())
-      setLibrary(data)
-    } catch (err) {
-      setError(err instanceof Error ? err : new Error('Failed to load library'))
-      setLibrary(null)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    fetchLibrary()
-  }, [fetchLibrary])
-
-  const refresh = useCallback(() => {
-    return fetchLibrary()
-  }, [fetchLibrary])
+  const add = createSetter(commands.addMods, set)
+  const remove = createSetter(commands.removeMods, set)
+  const sync = createSetter(commands.syncMods, set)
+  const toggle = createSetter(commands.toggleMod, set)
 
   return {
-    library,
-    loading,
-    error,
-    refresh,
+    add,
+    remove,
+    sync,
+    toggle,
   }
 }

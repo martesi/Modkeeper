@@ -1,7 +1,7 @@
 import { atom } from 'jotai'
 import type { Getter, Setter } from 'jotai'
 import { commands } from '@gen/bindings'
-import { unwrapResult } from '@/lib/result'
+import { ur } from '@/utils/result'
 import {
   libraryAtom,
   librarySwitchAtom,
@@ -74,7 +74,7 @@ export const fetchLibraryAction = atom(
   null,
   withAsyncState(
     async () => {
-      return await unwrapResult(commands.getLibrary())
+      return await ur(commands.getLibrary())
     },
     (_get, set, library) => set(libraryAtom, library),
   ),
@@ -84,7 +84,7 @@ export const openLibraryAction = atom(
   null,
   withAsyncState(
     async (path: string) => {
-      return await unwrapResult(commands.openLibrary(path))
+      return await ur(commands.openLibrary(path))
     },
     (_get, set, switchData) => updateLibrarySwitchState(_get, set, switchData),
   ),
@@ -96,7 +96,7 @@ export const createLibraryAction = atom(
     // Backend automatically derives repoRoot from gameRoot as gameRoot/.mod_keeper
     // If .mod_keeper exists and is valid, it opens it. If invalid, it returns InvalidLibrary error.
     // The requirement.repoRoot will be overridden by the backend.
-    return await unwrapResult(commands.createLibrary(requirement))
+    return await ur(commands.createLibrary(requirement))
   }, updateLibrarySwitchState),
 )
 
@@ -104,7 +104,7 @@ export const initAction = atom(
   null,
   withAsyncState(
     async () => {
-      return await unwrapResult(commands.init())
+      return await ur(commands.init())
     },
     (_get, set, switchData) => updateLibrarySwitchState(_get, set, switchData),
   ),
@@ -113,48 +113,48 @@ export const initAction = atom(
 export const addModsAction = atom(
   null,
   withAsyncState(async (paths: string[], unknownModName: string) => {
-    return await unwrapResult(commands.addMods(paths, unknownModName))
+    return await ur(commands.addMods(paths, unknownModName))
   }, updateLibraryState),
 )
 
 export const removeModsAction = atom(
   null,
   withAsyncState(async (ids: string[]) => {
-    return await unwrapResult(commands.removeMods(ids))
+    return await ur(commands.removeMods(ids))
   }, updateLibraryState),
 )
 
 export const toggleModAction = atom(
   null,
   withAsyncState(async (id: string, isActive: boolean) => {
-    return await unwrapResult(commands.toggleMod(id, isActive))
+    return await ur(commands.toggleMod(id, isActive))
   }, updateLibraryState),
 )
 
 export const syncModsAction = atom(
   null,
   withAsyncState(async () => {
-    return await unwrapResult(commands.syncMods())
+    return await ur(commands.syncMods())
   }, updateLibraryState),
 )
 
 export const renameLibraryAction = atom(
   null,
   withAsyncState(async (name: string) => {
-    return await unwrapResult(commands.renameLibrary(name))
+    return await ur(commands.renameLibrary(name))
   }, updateLibrarySwitchState),
 )
 
 export const closeLibraryAction = atom(
   null,
   withAsyncState(async (repoRoot: string) => {
-    return await unwrapResult(commands.closeLibrary(repoRoot))
+    return await ur(commands.closeLibrary(repoRoot))
   }, updateLibrarySwitchState),
 )
 
 export const removeLibraryAction = atom(
   null,
   withAsyncState(async (repoRoot: string) => {
-    return await unwrapResult(commands.removeLibrary(repoRoot))
+    return await ur(commands.removeLibrary(repoRoot))
   }, updateLibrarySwitchState),
 )

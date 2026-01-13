@@ -8,7 +8,7 @@ import { Trans } from '@lingui/react/macro'
 import { ArrowLeft, Package, Trash2 } from 'lucide-react'
 import { useState, useEffect, useMemo } from 'react'
 import { commands } from '@gen/bindings'
-import { unwrapResult } from '@/lib/result'
+import { ur } from '@/utils/result'
 import { msg, t } from '@lingui/core/macro'
 import {
   AlertDialog,
@@ -55,7 +55,7 @@ function ModDetailsComponent() {
   useEffect(() => {
     if (mod?.manifest?.documentation && id) {
       setLoadingDocs(true)
-      unwrapResult(commands.getModDocumentation(id))
+      ur(commands.getModDocumentation(id))
         .then((docs) => {
           setDocumentation(docs)
         })
@@ -72,7 +72,7 @@ function ModDetailsComponent() {
   useEffect(() => {
     if (id) {
       setLoadingBackups(true)
-      unwrapResult(commands.getBackups(id))
+      ur(commands.getBackups(id))
         .then((backupList) => {
           setBackups(backupList)
         })
@@ -121,9 +121,9 @@ function ModDetailsComponent() {
     if (!id || !restoreTimestamp) return
     setShowRestoreDialog(false)
     try {
-      await unwrapResult(commands.restoreBackup(id, restoreTimestamp))
+      await ur(commands.restoreBackup(id, restoreTimestamp))
       // Reload backups after restore
-      const backupList = await unwrapResult(commands.getBackups(id))
+      const backupList = await ur(commands.getBackups(id))
       setBackups(backupList)
       setRestoreTimestamp(null)
     } catch (err) {
