@@ -14,7 +14,7 @@ import {
   DropdownMenuTrigger,
 } from '@comps/dropdown-menu'
 import { msg, t } from '@lingui/core/macro'
-import { getUnknownModName } from '@/utils/translation'
+import { tUnknownModName } from '@/utils/translation'
 
 export const Route = createFileRoute('/')({
   component: RouteComponent,
@@ -41,7 +41,7 @@ function RouteComponent() {
         ],
         title: 'Select Mod Files',
       })
-      const unknownModName = getUnknownModName()
+      const unknownModName = tUnknownModName()
       if (selected && Array.isArray(selected)) {
         await add(selected, unknownModName)
       } else if (selected && typeof selected === 'string') {
@@ -60,7 +60,7 @@ function RouteComponent() {
         multiple: false,
         title: 'Select Mod Folder',
       })
-      const unknownModName = getUnknownModName()
+      const unknownModName = tUnknownModName()
       if (selected && typeof selected === 'string') {
         await add([selected], unknownModName)
       }

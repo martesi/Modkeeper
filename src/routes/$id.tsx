@@ -29,6 +29,8 @@ import { BackupsTab } from '@/components/mod/mod-details/backups-tab'
 import { LinksTab } from '@/components/mod/mod-details/links-tab'
 import { formatTimestamp } from '@/utils/mod'
 import { ett } from '@/utils/error'
+import { tDivider } from '@/utils/translation'
+import { ModVersion } from '@/components/mod/mod-version'
 
 export const Route = createFileRoute('/$id')({
   component: ModDetailsComponent,
@@ -165,14 +167,7 @@ function ModDetailsComponent() {
               )}
               <div>
                 <h1 className="text-3xl font-bold">{mod.name}</h1>
-                {mod.manifest && (
-                  <p className="text-sm text-muted-foreground">
-                    v{mod.manifest.version} by{' '}
-                    {Array.isArray(mod.manifest.author)
-                      ? mod.manifest.author.join(', ')
-                      : mod.manifest.author}
-                  </p>
-                )}
+                <ModVersion mod={mod} />
               </div>
             </div>
             <div className="flex gap-2">

@@ -5,7 +5,7 @@ import { useAtomValue } from 'jotai'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { ALibraryActive } from '@/store/library'
 import { useLibrary } from '@/hooks/use-library'
-import { getUnknownModName } from '@/utils/translation'
+import { tUnknownModName } from '@/utils/translation'
 
 /**
  * Component that handles file drop events
@@ -31,7 +31,7 @@ export function FileDropHandler() {
           }
 
           // Process the dropped files
-          add(paths, getUnknownModName()).catch((err) => {
+          add(paths, tUnknownModName()).catch((err) => {
             console.error('Failed to add mods from file drop:', err)
           })
         }

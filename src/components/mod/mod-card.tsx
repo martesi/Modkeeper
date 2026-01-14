@@ -7,7 +7,7 @@ import { Link } from '@tanstack/react-router'
 import type { Mod } from '@gen/bindings'
 import { Trash2, Package, ChevronRight } from 'lucide-react'
 import { useState, useEffect } from 'react'
-import { DIVIDER } from '@/utils/translation'
+import { tDivider } from '@/utils/translation'
 import { ModTypeBadge } from '@/components/mod/mod-type-badge'
 import {
   AlertDialog,
@@ -19,6 +19,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@comps/alert-dialog'
+import { ModVersion } from './mod-version'
 
 interface ModCardProps {
   mod: Mod
@@ -53,7 +54,7 @@ export function ModCard({ mod, onToggle, onRemove }: ModCardProps) {
   // Format author for display
   const authorDisplay = mod.manifest?.author
     ? Array.isArray(mod.manifest.author)
-      ? mod.manifest.author.join(DIVIDER())
+      ? mod.manifest.author.join(tDivider())
       : mod.manifest.author
     : null
 
@@ -70,15 +71,7 @@ export function ModCard({ mod, onToggle, onRemove }: ModCardProps) {
           <div className="flex-1 min-w-0">
             <h3 className="font-semibold truncate">{mod.name}</h3>
             {/* Version and Author inline */}
-            {mod.manifest && (mod.manifest.version || authorDisplay) && (
-              <div className="text-xs text-muted-foreground truncate">
-                {mod.manifest.version && <span>{mod.manifest.version}</span>}
-                {mod.manifest.version && authorDisplay && <span> • </span>}
-                {authorDisplay && (
-                  <span className="truncate">{authorDisplay}</span>
-                )}
-              </div>
-            )}
+            <ModVersion className="text-xs" mod={mod} />
           </div>
           <ChevronRight className="size-4 text-muted-foreground shrink-0" />
         </Link>
