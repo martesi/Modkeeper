@@ -21,8 +21,6 @@ export function BackupsTab({ backups, onRestore }: BackupsTabProps) {
     )
   }
 
-  console.log(backups)
-
   return (
     <div className="space-y-2">
       <h3 className="text-lg font-semibold mb-4">
