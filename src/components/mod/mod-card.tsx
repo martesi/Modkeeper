@@ -1,62 +1,24 @@
 'use client'
 
-import { Trans } from '@lingui/react/macro'
+import { ModTypeBadge } from '@/components/mod/mod-type-badge'
+import { useLibrary } from '@/hooks/use-library'
 import { Button } from '@comps/button'
 import { Switch } from '@comps/switch'
-import { Link } from '@tanstack/react-router'
 import type { Mod } from '@gen/bindings'
-import { Trash2, Package, ChevronRight } from 'lucide-react'
-import { useState, useEffect } from 'react'
-import { tDivider } from '@/utils/translation'
-import { ModTypeBadge } from '@/components/mod/mod-type-badge'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@comps/alert-dialog'
+import { Trans } from '@lingui/react/macro'
+import { Link } from '@tanstack/react-router'
+import { useBoolean } from 'ahooks'
+import { ChevronRight, Package, Trash2 } from 'lucide-react'
+import { RemoveModDialog } from '../dialog/remove-mod'
 import { ModVersion } from './mod-version'
 
 interface ModCardProps {
   mod: Mod
-  onToggle?: (id: string, isActive: boolean) => void
-  onRemove?: (id: string) => void
 }
 
-export function ModCard({ mod, onToggle, onRemove }: ModCardProps) {
-  // Optimistic state for toggle
-  const [optimisticActive, setOptimisticActive] = useState(mod.is_active)
-  const [showRemoveDialog, setShowRemoveDialog] = useState(false)
-
-  // Sync with prop changes
-  useEffect(() => {
-    setOptimisticActive(mod.is_active)
-  }, [mod.is_active])
-
-  const handleToggle = (checked: boolean) => {
-    setOptimisticActive(checked) // Immediate UI update
-    onToggle?.(mod.id, checked) // Fire and forget (non-blocking)
-  }
-
-  const handleRemoveClick = () => {
-    setShowRemoveDialog(true)
-  }
-
-  const handleRemoveConfirm = () => {
-    setShowRemoveDialog(false)
-    onRemove?.(mod.id)
-  }
-
-  // Format author for display
-  const authorDisplay = mod.manifest?.author
-    ? Array.isArray(mod.manifest.author)
-      ? mod.manifest.author.join(tDivider())
-      : mod.manifest.author
-    : null
+export function ModCard({ mod }: ModCardProps) {
+  const { toggle, remove } = useLibrary()
+  const [open, { setTrue, set }] = useBoolean()
 
   return (
     <div className="rounded-lg p-4 border bg-card border-primary/20 flex flex-col h-full">
@@ -79,38 +41,18 @@ export function ModCard({ mod, onToggle, onRemove }: ModCardProps) {
           variant="ghost"
           size="icon"
           className="size-6 shrink-0 ml-2"
-          onClick={handleRemoveClick}
+          onClick={setTrue}
         >
           <Trash2 className="size-4" />
         </Button>
       </div>
 
-      <AlertDialog open={showRemoveDialog} onOpenChange={setShowRemoveDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              <Trans>Remove Mod</Trans>
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              <Trans>
-                Are you sure you want to remove "{mod.name}"? This action cannot
-                be undone.
-              </Trans>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>
-              <Trans>Cancel</Trans>
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleRemoveConfirm}
-              variant="destructive"
-            >
-              <Trans>Remove</Trans>
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <RemoveModDialog
+        mod={mod}
+        open={open}
+        setOpen={set}
+        onConfirm={() => remove([mod.id])}
+      />
 
       {/* Description with fixed height */}
       {mod.manifest?.description && (
@@ -128,14 +70,17 @@ export function ModCard({ mod, onToggle, onRemove }: ModCardProps) {
         <div className="flex items-center gap-2">
           <span
             className={`text-xs font-medium ${
-              optimisticActive
+              mod.is_active
                 ? 'text-green-600 dark:text-green-400'
                 : 'text-muted-foreground'
             }`}
           >
-            {optimisticActive ? <Trans>Active</Trans> : <Trans>Inactive</Trans>}
+            {mod.is_active ? <Trans>Active</Trans> : <Trans>Inactive</Trans>}
           </span>
-          <Switch checked={optimisticActive} onCheckedChange={handleToggle} />
+          <Switch
+            checked={mod.is_active}
+            onCheckedChange={() => toggle(mod.id, !mod.is_active)}
+          />
         </div>
       </div>
     </div>

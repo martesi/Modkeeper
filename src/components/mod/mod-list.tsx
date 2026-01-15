@@ -4,17 +4,16 @@ import { Trans } from '@lingui/react/macro'
 import { useMemo } from 'react'
 import type { LibraryDTO, Mod } from '@gen/bindings'
 import { ModCard } from './mod-card'
+import { useAtomValue } from 'jotai'
+import { ALibraryActive } from '@/store/library'
 
-interface ModListProps {
-  library: LibraryDTO | null
-  onModToggle?: (id: string, isActive: boolean) => void
-  onModRemove?: (id: string) => void
-}
+export function ModList () {
+  const library = useAtomValue(ALibraryActive)
 
-export function ModList({ library, onModToggle, onModRemove }: ModListProps) {
+
   const mods = useMemo(() => {
     if (!library?.mods) return []
-    return Object.values(library.mods).filter(Boolean) as Mod[]
+    return Object.values(library.mods) as Mod[]
   }, [library])
 
 
@@ -57,8 +56,6 @@ export function ModList({ library, onModToggle, onModRemove }: ModListProps) {
             <ModCard
               key={mod.id}
               mod={mod}
-              onToggle={onModToggle}
-              onRemove={onModRemove}
             />
           ))}
         </div>
