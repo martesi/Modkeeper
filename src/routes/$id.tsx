@@ -29,7 +29,6 @@ import { BackupsTab } from '@/components/mod/mod-details/backups-tab'
 import { LinksTab } from '@/components/mod/mod-details/links-tab'
 import { formatTimestamp } from '@/utils/mod'
 import { ett } from '@/utils/error'
-import { tDivider } from '@/utils/translation'
 import { ModVersion } from '@/components/mod/mod-version'
 
 export const Route = createFileRoute('/$id')({
@@ -147,53 +146,51 @@ function ModDetailsComponent() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between">
-        <div className="flex items-start gap-4">
+      <div className="">
+        <div className="flex items-center gap-4 mb-2 w-full">
           <Link to="/">
             <Button variant="ghost" size="icon">
               <ArrowLeft className="size-4" />
             </Button>
           </Link>
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              {mod.icon_data ? (
-                <img
-                  src={mod.icon_data}
-                  alt={mod.name}
-                  className="size-12 rounded"
-                />
-              ) : (
-                <Package className="size-12 text-muted-foreground" />
-              )}
-              <div>
-                <h1 className="text-3xl font-bold">{mod.name}</h1>
+          <div className="shrink-0">
+            {mod.icon_data ? (
+              <img
+                src={mod.icon_data}
+                alt={mod.name}
+                className="size-12 rounded"
+              />
+            ) : (
+              <Package className="size-12 text-muted-foreground" />
+            )}
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2 w-full relative">
+              <div className="absolute w-full">
+                <h1 className="text-3xl font-bold truncate">{mod.name}</h1>
                 <ModVersion mod={mod} />
               </div>
             </div>
-            <div className="flex gap-2">
-              <ModTypeBadge type={mod.mod_type} />
-              <Badge variant={mod.is_active ? 'default' : 'secondary'}>
-                {mod.is_active ? (
-                  <Trans>Active</Trans>
-                ) : (
-                  <Trans>Inactive</Trans>
-                )}
-              </Badge>
-            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button onClick={handleToggle} variant="outline">
+              {mod.is_active ? (
+                <Trans>Deactivate</Trans>
+              ) : (
+                <Trans>Activate</Trans>
+              )}
+            </Button>
+            <Button onClick={handleRemoveClick} variant="destructive">
+              <Trash2 className="size-4 mr-2" />
+              <Trans>Remove</Trans>
+            </Button>
           </div>
         </div>
-        <div className="flex gap-2">
-          <Button onClick={handleToggle} variant="outline">
-            {mod.is_active ? (
-              <Trans>Deactivate</Trans>
-            ) : (
-              <Trans>Activate</Trans>
-            )}
-          </Button>
-          <Button onClick={handleRemoveClick} variant="destructive">
-            <Trash2 className="size-4 mr-2" />
-            <Trans>Remove</Trans>
-          </Button>
+        <div className="flex gap-2 ml-13">
+          <ModTypeBadge type={mod.mod_type} />
+          <Badge variant={mod.is_active ? 'default' : 'secondary'}>
+            {mod.is_active ? <Trans>Active</Trans> : <Trans>Inactive</Trans>}
+          </Badge>
         </div>
       </div>
 
