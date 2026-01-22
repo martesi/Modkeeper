@@ -23,7 +23,7 @@ export const Route = createFileRoute('/')({
   },
 })
 
-function RouteComponent() {
+function RouteComponent () {
   const library = useAtomValue(ALibraryActive)
   const { add, remove, sync, toggle } = useLibrary()
   const [isSyncing, setIsSyncing] = useState(false)
@@ -77,22 +77,6 @@ function RouteComponent() {
       console.error('Failed to sync mods:', err)
     } finally {
       setIsSyncing(false)
-    }
-  }
-
-  const handleToggleMod = async (id: string, isActive: boolean) => {
-    try {
-      await toggle(id, isActive)
-    } catch (err) {
-      console.error('Failed to toggle mod:', err)
-    }
-  }
-
-  const handleRemoveMods = async (id: string) => {
-    try {
-      await remove([id])
-    } catch (err) {
-      console.error('Failed to remove mod:', err)
     }
   }
 
@@ -151,11 +135,7 @@ function RouteComponent() {
       </div>
 
       {library ? (
-        <ModList
-          library={library}
-          onModToggle={handleToggleMod}
-          onModRemove={handleRemoveMods}
-        />
+        <ModList />
       ) : (
         <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
           <p className="text-lg mb-2">
