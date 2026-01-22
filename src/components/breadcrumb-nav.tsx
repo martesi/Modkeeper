@@ -9,7 +9,7 @@ import {
 } from '@comps/breadcrumb.tsx'
 import { useMemo, Fragment } from 'react'
 
-export function BreadcrumbNav() {
+export function BreadcrumbNav () {
   const matches = useMatches()
 
   const breadcrumbs = useMemo(() => {
@@ -37,7 +37,7 @@ export function BreadcrumbNav() {
   }
 
   return (
-    <Breadcrumb>
+    <Breadcrumb className='shrink-0'>
       <BreadcrumbList>
         {breadcrumbs.map((item, index) => {
           const isLast = index === breadcrumbs.length - 1

@@ -1,6 +1,6 @@
-import { msg, t } from '@lingui/core/macro'
 import { translateError } from './error'
 import type { LibraryCreationRequirement, SError } from '@gen/bindings'
+import { tSelectGameRootDirectory, tUnknownModName } from '@/utils/translation'
 
 /**
  * Adds a library by prompting the user to select a game root directory.
@@ -18,7 +18,7 @@ export async function addLibraryFromDialog(
     const selected = await open({
       directory: true,
       multiple: false,
-      title: t(msg`Select Game Root Directory`),
+      title: tSelectGameRootDirectory(),
     })
 
     // Ignore if no path received (user cancelled)
@@ -28,7 +28,7 @@ export async function addLibraryFromDialog(
 
     try {
       // Use translated "Unnamed Library" as the library name
-      const libraryName = t(msg`Unnamed Library`)
+      const libraryName = tUnknownModName()
       // Backend will derive repo_root from game_root automatically if not provided
 
       await createLibrary({
