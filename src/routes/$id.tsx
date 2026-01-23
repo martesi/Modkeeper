@@ -148,7 +148,7 @@ function ModDetailsComponent() {
       {/* Header */}
       <div className="">
         <div className="flex items-center gap-4 mb-2 w-full">
-          <Link to="/">
+          <Link to="..">
             <Button variant="ghost" size="icon">
               <ArrowLeft className="size-4" />
             </Button>

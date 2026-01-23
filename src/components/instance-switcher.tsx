@@ -14,12 +14,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import {
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  useSidebar,
-} from '@/components/ui/sidebar'
+
 import {
   Dialog,
   DialogContent,
@@ -47,7 +42,6 @@ import { useLibrarySwitch } from '@/hooks/use-library-switch'
 import { addLibraryFromDialog } from '@/lib/library-actions'
 
 export function InstanceSwitcher() {
-  const { isMobile } = useSidebar()
   const active = useAtomValue(ALibraryActive)
   const libraries = useAtomValue(ALibraryList)
   const { create, open, rename, close, remove } = useLibrarySwitch()
@@ -78,7 +72,7 @@ export function InstanceSwitcher() {
   const handleAddLibrary = React.useCallback(async () => {
     try {
       await addLibraryFromDialog(create)
-    } catch (err) {
+    } catch {
       // Error is already logged in the function
       // You might want to show a toast notification here
     }
@@ -164,130 +158,121 @@ export function InstanceSwitcher() {
 
   if (!active) {
     return (
-      <SidebarMenu>
-        <SidebarMenuItem>
-          <SidebarMenuButton
-            size="lg"
-            onClick={handleAddLibrary}
-            className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-          >
-            <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
-              <Plus className="size-4" />
-            </div>
-            <div className="grid flex-1 text-left text-sm leading-tight">
-              <span className="truncate font-medium">
-                <Trans>No Library</Trans>
-              </span>
-              <span className="truncate text-xs">
-                <Trans>Click to add library</Trans>
-              </span>
-            </div>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
-      </SidebarMenu>
+      <Button
+        variant="ghost"
+        size="lg"
+        onClick={handleAddLibrary}
+        className="w-full justify-start px-2"
+      >
+        <div className="bg-primary/10 text-primary flex aspect-square size-8 items-center justify-center rounded-lg">
+          <Plus className="size-4" />
+        </div>
+        <div className="grid flex-1 text-left text-sm leading-tight ml-2">
+          <span className="truncate font-medium">
+            <Trans>No Library</Trans>
+          </span>
+          <span className="truncate text-xs text-muted-foreground">
+            <Trans>Click to add library</Trans>
+          </span>
+        </div>
+      </Button>
     )
   }
 
   return (
     <>
-      <SidebarMenu>
-        <SidebarMenuItem>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <SidebarMenuButton
-                size="lg"
-                className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-              >
-                <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
-                  <Server className="size-4" />
-                </div>
-                <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">
-                    {active.name || 'Unnamed Library'}
-                  </span>
-                  <span className="truncate text-xs">
-                    SPT {active.spt_version}
-                  </span>
-                </div>
-                <ChevronsUpDown className="ml-auto" />
-              </SidebarMenuButton>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
-              align="start"
-              side={isMobile ? 'bottom' : 'right'}
-              sideOffset={4}
-            >
-              <DropdownMenuLabel className="text-muted-foreground text-xs">
-                <Trans>Libraries</Trans>
-              </DropdownMenuLabel>
-              {libraries.map((lib) => (
-                <DropdownMenuSub key={lib.id}>
-                  <DropdownMenuSubTrigger
-                    onClick={(e) => {
-                      // Switch library on click of the sub trigger
-                      if (lib.repo_root) {
-                        handleSwitchLibrary(lib.repo_root)
-                      }
-                    }}
-                    className="gap-2 p-2"
-                  >
-                    {lib.name || 'Unnamed Library'} (SPT {lib.spt_version})
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent>
-                    {active && active.id === lib.id && (
-                      <DropdownMenuItem
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleRenameClick(lib)
-                        }}
-                        className="gap-2"
-                      >
-                        <Pencil className="size-4" />
-                        <Trans>Rename</Trans>
-                      </DropdownMenuItem>
-                    )}
-                    <DropdownMenuItem
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleCloseClick(lib)
-                      }}
-                      className="gap-2"
-                    >
-                      <X className="size-4" />
-                      <Trans>Close</Trans>
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleRemoveClick(lib)
-                      }}
-                      variant="destructive"
-                      className="gap-2"
-                    >
-                      <Trash2 className="size-4" />
-                      <Trans>Remove</Trans>
-                    </DropdownMenuItem>
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
-              ))}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="lg"
+            className="w-full justify-start px-2 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+          >
+            <div className="bg-primary/10 text-primary flex aspect-square size-8 items-center justify-center rounded-lg">
+              <Server className="size-4" />
+            </div>
+            <div className="grid flex-1 text-left text-sm leading-tight ml-2">
+              <span className="truncate font-medium">
+                {active.name || 'Unnamed Library'}
+              </span>
+              <span className="truncate text-xs text-muted-foreground">
+                SPT {active.spt_version}
+              </span>
+            </div>
+            <ChevronsUpDown className="ml-auto size-4 opacity-50" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          className="w-56 rounded-lg"
+          align="start"
+          side="bottom"
+          sideOffset={4}
+        >
+          <DropdownMenuLabel className="text-muted-foreground text-xs">
+            <Trans>Libraries</Trans>
+          </DropdownMenuLabel>
+          {libraries.map((lib) => (
+            <DropdownMenuSub key={lib.id}>
+              <DropdownMenuSubTrigger
+                onClick={() => {
+                  // Switch library on click of the sub trigger
+                  if (lib.repo_root) {
+                    handleSwitchLibrary(lib.repo_root)
+                  }
+                }}
                 className="gap-2 p-2"
-                onClick={handleAddLibrary}
               >
-                <div className="flex size-6 items-center justify-center rounded-md border bg-transparent">
-                  <Plus className="size-4" />
-                </div>
-                <div className="text-muted-foreground font-medium">
-                  <Trans>Add Library</Trans>
-                </div>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </SidebarMenuItem>
-      </SidebarMenu>
+                {lib.name || 'Unnamed Library'} (SPT {lib.spt_version})
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                {active && active.id === lib.id && (
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleRenameClick(lib)
+                    }}
+                    className="gap-2"
+                  >
+                    <Pencil className="size-4" />
+                    <Trans>Rename</Trans>
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleCloseClick(lib)
+                  }}
+                  className="gap-2"
+                >
+                  <X className="size-4" />
+                  <Trans>Close</Trans>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleRemoveClick(lib)
+                  }}
+                  variant="destructive"
+                  className="gap-2"
+                >
+                  <Trash2 className="size-4" />
+                  <Trans>Remove</Trans>
+                </DropdownMenuItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          ))}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem className="gap-2 p-2" onClick={handleAddLibrary}>
+            <div className="flex size-6 items-center justify-center rounded-md border bg-transparent">
+              <Plus className="size-4" />
+            </div>
+            <div className="text-muted-foreground font-medium">
+              <Trans>Add Library</Trans>
+            </div>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       {/* Rename Dialog */}
       <Dialog open={renameDialogOpen} onOpenChange={setRenameDialogOpen}>
@@ -342,9 +327,9 @@ export function InstanceSwitcher() {
             <AlertDialogDescription>
               {closeLibraryInfo && (
                 <Trans>
-                  Are you sure you want to close "{closeLibraryInfo.name}"? It
-                  will be removed from your library list but files will remain
-                  on disk.
+                  Are you sure you want to close &quot;{closeLibraryInfo.name}
+                  &quot;? It will be removed from your library list but files
+                  will remain on disk.
                 </Trans>
               )}
             </AlertDialogDescription>
@@ -375,9 +360,9 @@ export function InstanceSwitcher() {
             <AlertDialogDescription>
               {removeLibraryInfo && (
                 <Trans>
-                  Are you sure you want to remove "{removeLibraryInfo.name}"?
-                  This will unlink all mods, remove it from your library list,
-                  and delete the library directory. This action cannot be
+                  Are you sure you want to remove &quot;{removeLibraryInfo.name}
+                  &quot;? This will unlink all mods, remove it from your library
+                  list, and delete the library directory. This action cannot be
                   undone.
                 </Trans>
               )}

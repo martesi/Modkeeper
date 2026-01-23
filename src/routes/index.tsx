@@ -13,9 +13,15 @@ import {
   DropdownMenuTrigger,
 } from '@comps/dropdown-menu'
 import { msg, t } from '@lingui/core/macro'
-import { tArchive, tSelectModFiles, tSelectModFolder, tUnknownModName } from '@/utils/translation'
+import {
+  tArchive,
+  tSelectModFiles,
+  tSelectModFolder,
+  tUnknownModName,
+} from '@/utils/translation'
 import { HeaderPortal } from '@/components/header-portal'
 import { ButtonGroup } from '@/components/ui/button-group'
+import { InstanceSwitcher } from '@/components/instance-switcher'
 
 export const Route = createFileRoute('/')({
   component: RouteComponent,
@@ -24,7 +30,7 @@ export const Route = createFileRoute('/')({
   },
 })
 
-function RouteComponent () {
+function RouteComponent() {
   const library = useAtomValue(ALibraryActive)
   const { add, sync } = useLibrary()
 
@@ -69,35 +75,43 @@ function RouteComponent () {
     }
   }
 
-
   return (
     <div className="space-y-4">
-      {library && <HeaderPortal>
-        <ButtonGroup>
-          <ButtonGroup>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size={'icon'}>
-                  <Upload className="" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem onClick={handleAddModFiles}>
-                  <FileArchive className="size-4 mr-2" />
-                  <Trans>Add Mod Files (.zip)</Trans>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleAddModFolder}>
-                  <FolderOpen className="size-4 mr-2" />
-                  <Trans>Add Mod Folder</Trans>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </ButtonGroup>
-          <ButtonGroup>
-            <Button variant={library?.is_dirty ? "default" : "outline"} size="icon" onClick={sync}><RefreshCw /></Button>
-          </ButtonGroup>
-        </ButtonGroup>
-      </HeaderPortal>}
+      {library && (
+        <HeaderPortal>
+          <div className="flex items-center gap-2">
+            <ButtonGroup>
+              <InstanceSwitcher />
+            </ButtonGroup>
+            <ButtonGroup>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size={'icon'}>
+                    <Upload className="" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem onClick={handleAddModFiles}>
+                    <FileArchive className="size-4 mr-2" />
+                    <Trans>Add Mod Files (.zip)</Trans>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleAddModFolder}>
+                    <FolderOpen className="size-4 mr-2" />
+                    <Trans>Add Mod Folder</Trans>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button
+                variant={library?.is_dirty ? 'default' : 'outline'}
+                size="icon"
+                onClick={sync}
+              >
+                <RefreshCw />
+              </Button>
+            </ButtonGroup>
+          </div>
+        </HeaderPortal>
+      )}
       {library ? (
         <ModList />
       ) : (
