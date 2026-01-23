@@ -6,7 +6,7 @@ use mod_keeper_lib::config::global::GlobalConfig;
 use mod_keeper_lib::core::library::Library;
 use mod_keeper_lib::core::mod_fs::ModFS;
 use mod_keeper_lib::core::mod_stager::StagedMod;
-use mod_keeper_lib::core::{cleanup, deployment, dto_builder, library_service, mod_manager};
+use mod_keeper_lib::core::{cleanup, deployment, dto_builder, global_service, library_service, mod_manager};
 use mod_keeper_lib::models::error::SError;
 use mod_keeper_lib::models::library::LibraryCreationRequirement;
 use mod_keeper_lib::models::paths::{ModPaths, SPTPathRules};
@@ -879,7 +879,7 @@ fn test_close_library() {
 
     // Close library
     let was_in_list =
-        library_service::close_library(&mut config, &repo_root).expect("Failed to close library");
+        global_service::close_library(&mut config, &repo_root).expect("Failed to close library");
 
     // Verify return value
     assert!(was_in_list);
@@ -899,7 +899,7 @@ fn test_close_library_not_in_list() {
 
     // Try to close a library that's not in known_libraries
     let was_in_list =
-        library_service::close_library(&mut config, &repo_root).expect("Failed to close library");
+        global_service::close_library(&mut config, &repo_root).expect("Failed to close library");
 
     // Should return false since it wasn't in the list
     assert!(!was_in_list);
@@ -932,7 +932,7 @@ fn test_remove_library() {
 
     // Remove library
     let was_in_list =
-        library_service::remove_library(&mut config, &repo_root).expect("Failed to remove library");
+        global_service::remove_library(&mut config, &repo_root).expect("Failed to remove library");
 
     // Verify return value
     assert!(was_in_list);
@@ -997,7 +997,7 @@ fn test_remove_library_with_mods() {
 
     // Remove library
     let was_in_list =
-        library_service::remove_library(&mut config, &repo_root).expect("Failed to remove library");
+        global_service::remove_library(&mut config, &repo_root).expect("Failed to remove library");
 
     assert!(was_in_list);
 
@@ -1031,7 +1031,7 @@ fn test_remove_library_not_in_list() {
 
     // Remove library (even though not in known_libraries)
     let was_in_list =
-        library_service::remove_library(&mut config, &repo_root).expect("Failed to remove library");
+        global_service::remove_library(&mut config, &repo_root).expect("Failed to remove library");
 
     // Should return false since it wasn't in the list
     assert!(!was_in_list);

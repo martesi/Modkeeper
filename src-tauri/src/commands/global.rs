@@ -1,5 +1,5 @@
-use crate::core::library_service;
 use crate::core::registry::AppRegistry;
+use crate::core::{global_service, library_service};
 use crate::models::error::SError;
 use crate::models::global::LibrarySwitch;
 use crate::models::library::LibraryCreationRequirement;
@@ -126,7 +126,7 @@ pub async fn close_library(
 
         // Close library via service
         let mut config = config_handle.lock();
-        library_service::close_library(&mut config, &path_buf)?;
+        global_service::close_library(&mut config, &path_buf)?;
         drop(config);
 
         // If closing active library, clear the instance
@@ -171,7 +171,7 @@ pub async fn remove_library(
 
         // Remove library via service (unlinks mods, removes from config, deletes directory)
         let mut config = config_handle.lock();
-        library_service::remove_library(&mut config, &path_buf)?;
+        global_service::remove_library(&mut config, &path_buf)?;
         drop(config);
 
         // If removing active library, clear the instance

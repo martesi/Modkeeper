@@ -228,3 +228,15 @@ pub async fn rename_library(
     .await
     .map_err(|e| SError::AsyncRuntimeError(e.to_string()))?
 }
+
+pub async fn rebuild_library_cache(state: State<'_, AppRegistry>) -> Result<LibraryDTO, SError> {
+    let instance_handle = state.active_instance.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        with_lib_arc_mut(instance_handle, |inst| {
+            library_service::rebuild_library_cache(inst)
+                .and_then(|_| Ok(dto_builder::build_frontend_dto(inst)))
+        })
+    })
+    .await
+    .map_err(|e| SError::AsyncRuntimeError(e.to_string()))??
+}

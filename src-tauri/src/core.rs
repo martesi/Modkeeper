@@ -3,6 +3,7 @@ pub mod cleanup;
 pub mod decompression;
 pub mod deployment;
 pub mod dto_builder;
+pub mod global_service;
 pub mod library;
 pub mod library_service;
 pub mod linker;
