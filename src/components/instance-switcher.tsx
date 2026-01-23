@@ -1,7 +1,16 @@
 'use client'
 
 import * as React from 'react'
-import { ChevronsUpDown, Plus, Server, Pencil, X, Trash2 } from 'lucide-react'
+import {
+  ChevronsUpDown,
+  FolderOpen,
+  Plus,
+  RefreshCw,
+  Server,
+  Pencil,
+  X,
+  Trash2,
+} from 'lucide-react'
 
 import {
   DropdownMenu,
@@ -41,10 +50,10 @@ import { ALibraryActive, ALibraryList } from '@/store/library'
 import { useLibrarySwitch } from '@/hooks/use-library-switch'
 import { addLibraryFromDialog } from '@/lib/library-actions'
 
-export function InstanceSwitcher() {
+export function InstanceSwitcher () {
   const active = useAtomValue(ALibraryActive)
   const libraries = useAtomValue(ALibraryList)
-  const { create, open, rename, close, remove } = useLibrarySwitch()
+  const { create, open, rename, close, remove, rebuildCache } = useLibrarySwitch()
 
   // State for rename dialog
   const [renameDialogOpen, setRenameDialogOpen] = React.useState(false)
@@ -100,17 +109,25 @@ export function InstanceSwitcher() {
     if (!renameLibraryId || !renameValue.trim()) return
 
     try {
-      // Only rename active library (rename only works on active library)
-      if (active && active.id === renameLibraryId) {
-        await rename(renameValue.trim())
-      }
+      await rename(renameValue.trim(), renameLibraryId)
       setRenameDialogOpen(false)
       setRenameLibraryId(null)
       setRenameValue('')
     } catch (err) {
       console.error('Failed to rename library:', err)
     }
-  }, [renameLibraryId, renameValue, active, rename])
+  }, [renameLibraryId, renameValue, rename])
+
+  const handleRebuildCache = React.useCallback(
+    async (libId: string) => {
+      try {
+        await rebuildCache(libId)
+      } catch (err) {
+        console.error('Failed to rebuild library cache:', err)
+      }
+    },
+    [rebuildCache],
+  )
 
   const handleCloseClick = React.useCallback((lib: (typeof libraries)[0]) => {
     if (!lib.repo_root) return
@@ -222,32 +239,56 @@ export function InstanceSwitcher() {
                 }}
                 className="gap-2 p-2"
               >
-                {lib.name || 'Unnamed Library'} (SPT {lib.spt_version})
+                {lib.name} (SPT {lib.spt_version})
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent>
-                {active && active.id === lib.id && (
+                {!(active && active.id === lib.id) && (
                   <DropdownMenuItem
                     onClick={(e) => {
                       e.stopPropagation()
-                      handleRenameClick(lib)
+                      if (lib.repo_root) {
+                        handleSwitchLibrary(lib.repo_root)
+                      }
                     }}
                     className="gap-2"
                   >
-                    <Pencil className="size-4" />
-                    <Trans>Rename</Trans>
+                    <FolderOpen className="size-4" />
+                    <Trans>Open</Trans>
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem
                   onClick={(e) => {
                     e.stopPropagation()
-                    handleCloseClick(lib)
+                    handleRenameClick(lib)
                   }}
                   className="gap-2"
                 >
-                  <X className="size-4" />
-                  <Trans>Close</Trans>
+                  <Pencil className="size-4" />
+                  <Trans>Rename</Trans>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleRebuildCache(lib.id)
+                  }}
+                  className="gap-2"
+                >
+                  <RefreshCw className="size-4" />
+                  <Trans>Rebuild Cache</Trans>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
+                {active && active.id === lib.id && (
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleCloseClick(lib)
+                    }}
+                    className="gap-2"
+                  >
+                    <X className="size-4" />
+                    <Trans>Close</Trans>
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem
                   onClick={(e) => {
                     e.stopPropagation()

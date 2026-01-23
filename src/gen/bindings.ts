@@ -69,9 +69,17 @@ async getModDocumentation(modId: string) : Promise<Result<string, SError>> {
     else return { status: "error", error: e  as any };
 }
 },
-async renameLibrary(name: string) : Promise<Result<LibrarySwitch, SError>> {
+async renameLibrary(name: string, libraryId: string | null) : Promise<Result<LibrarySwitch, SError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("rename_library", { name }) };
+    return { status: "ok", data: await TAURI_INVOKE("rename_library", { name, libraryId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async rebuildLibraryCache(libraryId: string | null) : Promise<Result<LibrarySwitch, SError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("rebuild_library_cache", { libraryId }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };

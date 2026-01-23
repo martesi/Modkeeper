@@ -1,6 +1,5 @@
 'use client'
 
-import { ModTypeBadge } from '@/components/mod/mod-type-badge'
 import { useLibrary } from '@/hooks/use-library'
 import { Button } from '@comps/button'
 import { Switch } from '@comps/switch'

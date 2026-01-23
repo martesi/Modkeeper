@@ -6,8 +6,8 @@ pub mod utils;
 
 use crate::commands::global::{close_library, create_library, init, open_library, remove_library};
 use crate::commands::library::{
-    add_mods, get_backups, get_library, get_mod_documentation, remove_mods, rename_library,
-    reveal_mod, restore_backup, sync_mods, toggle_mod,
+    add_mods, get_backups, get_library, get_mod_documentation, rebuild_library_cache, remove_mods,
+    rename_library, reveal_mod, restore_backup, sync_mods, toggle_mod,
 };
 use crate::core::registry::AppRegistry;
 use parking_lot::Mutex;
@@ -29,6 +29,7 @@ fn setup_command_handler() -> Builder<tauri::Wry> {
         restore_backup,
         get_mod_documentation,
         rename_library,
+        rebuild_library_cache,
         reveal_mod,
         // global
         open_library,

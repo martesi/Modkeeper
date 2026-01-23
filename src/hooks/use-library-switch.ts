@@ -11,6 +11,7 @@ export function useLibrarySwitch() {
   const rename = createSetter(commands.renameLibrary, set)
   const close = createSetter(commands.closeLibrary, set)
   const remove = createSetter(commands.removeLibrary, set)
+  const rebuildCache = createSetter(commands.rebuildLibraryCache, set)
 
   return {
     open,
@@ -18,5 +19,6 @@ export function useLibrarySwitch() {
     rename,
     close,
     remove,
+    rebuildCache,
   }
 }
