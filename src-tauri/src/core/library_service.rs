@@ -7,6 +7,8 @@ use crate::models::global::LibrarySwitch;
 use crate::models::library::{LibraryCreationRequirement, LibraryDTO};
 use crate::models::paths::LibPathRules;
 use camino::{Utf8Path, Utf8PathBuf};
+use tauri::AppHandle;
+use tauri_plugin_opener::OpenerExt;
 use tracing::error;
 
 /// Service for managing library lifecycle operations.
@@ -179,5 +181,21 @@ pub fn rename_library(library: &mut Library, name: String) -> Result<(), SError>
 pub fn rebuild_library_cache(library: &mut Library) -> Result<(), SError> {
     library.cache = LibraryCache::build(&library.lib_paths.mods, &library.spt_rules)?;
     library.persist()?;
+    Ok(())
+}
+
+/// Reveals the mod directory in the file explorer.
+pub fn reveal_mod(app: &AppHandle, library: &Library, mod_id: &str) -> Result<(), SError> {
+    let mod_dir = library.lib_paths.mods.join(mod_id);
+
+    if !mod_dir.exists() {
+        return Err(SError::ModNotFound(mod_id.to_string()));
+    }
+
+    // Use the opener plugin to reveal the directory
+    app.opener()
+        .reveal_item_in_dir(mod_dir.as_std_path())
+        .map_err(|e| SError::IOError(e.to_string()))?;
+
     Ok(())
 }

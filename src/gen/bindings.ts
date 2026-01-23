@@ -77,6 +77,14 @@ async renameLibrary(name: string) : Promise<Result<LibrarySwitch, SError>> {
     else return { status: "error", error: e  as any };
 }
 },
+async revealMod(modId: string) : Promise<Result<null, SError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("reveal_mod", { modId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async openLibrary(path: string) : Promise<Result<LibrarySwitch, SError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("open_library", { path }) };

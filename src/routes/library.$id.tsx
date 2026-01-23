@@ -8,9 +8,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@comps/tabs'
 import { Trans } from '@lingui/react/macro'
 import { ArrowLeft, Package, Trash2 } from 'lucide-react'
 import { useState, useEffect, useMemo } from 'react'
+import { useBoolean } from 'ahooks'
 import { commands, ModBackup } from '@gen/bindings'
 import { ur } from '@/utils/result'
 import { msg, t } from '@lingui/core/macro'
+import { ConfirmPopover } from '@comps/confirm-popover'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -58,7 +60,7 @@ function ModDetailsComponent() {
   const { toggle, remove } = useLibrary()
   const [documentation, setDocumentation] = useState<string | null>(null)
   const [loadingDocs, setLoadingDocs] = useState(false)
-  const [showRemoveDialog, setShowRemoveDialog] = useState(false)
+  const [showRemoveDialog, { setTrue: setShowRemoveDialogTrue, set: setShowRemoveDialog }] = useBoolean()
   const [showRestoreDialog, setShowRestoreDialog] = useState(false)
   const [restoreTimestamp, setRestoreTimestamp] = useState<string | null>(null)
   const { backups } = Route.useLoaderData()
@@ -95,14 +97,9 @@ function ModDetailsComponent() {
     }
   }
 
-  const handleRemoveClick = () => {
-    if (!mod) return
-    setShowRemoveDialog(true)
-  }
-
   const handleRemoveConfirm = async () => {
+    if (!id) return
     if (!mod) return
-    setShowRemoveDialog(false)
     try {
       await remove([id])
       window.history.back()
@@ -183,10 +180,31 @@ function ModDetailsComponent() {
                 <Trans>Activate</Trans>
               )}
             </Button>
-            <Button onClick={handleRemoveClick} variant="destructive">
-              <Trash2 className="size-4 mr-2" />
-              <Trans>Remove</Trans>
-            </Button>
+            <ConfirmPopover
+              open={showRemoveDialog}
+              onOpenChange={setShowRemoveDialog}
+              title={<Trans>Remove Mod</Trans>}
+              description={
+                mod ? (
+                  <Trans>
+                    Are you sure you want to remove &quot;{mod.name}&quot;? This
+                    action cannot be undone.
+                  </Trans>
+                ) : (
+                  ''
+                )
+              }
+              confirmLabel={<Trans>Remove</Trans>}
+              variant="destructive"
+              onConfirm={handleRemoveConfirm}
+              trigger={
+                <Button variant="destructive" onClick={setShowRemoveDialogTrue}>
+                  <Trash2 className="size-4 mr-2" />
+                  <Trans>Remove</Trans>
+                </Button>
+              }
+              side="top"
+            />
           </div>
         </div>
         <div className="flex gap-2 ml-13">
@@ -197,34 +215,6 @@ function ModDetailsComponent() {
         </div>
       </div>
 
-      <AlertDialog open={showRemoveDialog} onOpenChange={setShowRemoveDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              <Trans>Remove Mod</Trans>
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {mod && (
-                <Trans>
-                  Are you sure you want to remove "{mod.name}"? This action
-                  cannot be undone.
-                </Trans>
-              )}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>
-              <Trans>Cancel</Trans>
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleRemoveConfirm}
-              variant="destructive"
-            >
-              <Trans>Remove</Trans>
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       <AlertDialog
         open={showRestoreDialog}

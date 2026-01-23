@@ -9,7 +9,7 @@ use crate::models::library::LibraryDTO;
 use crate::models::mod_backup::ModBackup;
 use crate::utils::thread::{with_lib_arc, with_lib_arc_mut};
 use camino::Utf8PathBuf;
-use tauri::State;
+use tauri::{AppHandle, State};
 use tracing::{debug, info};
 
 #[tauri::command]
@@ -235,6 +235,23 @@ pub async fn rebuild_library_cache(state: State<'_, AppRegistry>) -> Result<Libr
         with_lib_arc_mut(instance_handle, |inst| {
             library_service::rebuild_library_cache(inst)
                 .and_then(|_| Ok(dto_builder::build_frontend_dto(inst)))
+        })
+    })
+    .await
+    .map_err(|e| SError::AsyncRuntimeError(e.to_string()))??
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn reveal_mod(
+    app: AppHandle,
+    state: State<'_, AppRegistry>,
+    mod_id: String,
+) -> Result<(), SError> {
+    let instance_handle = state.active_instance.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        with_lib_arc(instance_handle, |inst| {
+            library_service::reveal_mod(&app, inst, &mod_id)
         })
     })
     .await

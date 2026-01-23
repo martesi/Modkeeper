@@ -27,7 +27,7 @@ export const Route = createFileRoute('/library/')({
   component: RouteComponent,
 })
 
-function RouteComponent() {
+function RouteComponent () {
   const library = useAtomValue(ALibraryActive)
   const { add, sync } = useLibrary()
 
@@ -73,7 +73,7 @@ function RouteComponent() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pt-4">
       {library && (
         <HeaderPortal>
           <div className="flex items-center gap-2">
