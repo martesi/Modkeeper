@@ -3,54 +3,53 @@ import type { LibraryCreationRequirement, SError } from '@gen/bindings'
 import { tSelectGameRootDirectory, tUnknownModName } from '@/utils/translation'
 
 /**
- * Adds a library by prompting the user to select a game root directory.
+ * Adds a library by prompting the user to select a game root directory, or uses the provided game root.
  * The backend automatically:
  * - Derives repo_root from game_root as game_root/.mod_keeper
  * - If a library already exists at that location and is valid, opens it
  * - If no library exists, creates a new one
  * @param createLibrary - Function to add the library (from useLibrarySwitch hook)
+ * @param gameRoot - Optional game root directory path. If provided, skips the dialog and uses this path directly.
  */
-export async function addLibraryFromDialog(
+export function addLibraryFromDialog(
   createLibrary: (requirement: LibraryCreationRequirement) => Promise<unknown>,
+  gameRoot?: string,
 ): Promise<void> {
-  try {
-    const { open } = await import('@tauri-apps/plugin-dialog')
-    const selected = await open({
-      directory: true,
-      multiple: false,
-      title: tSelectGameRootDirectory(),
-    })
+  const getGameRoot = gameRoot
+    ? Promise.resolve(gameRoot)
+    : import('@tauri-apps/plugin-dialog')
+        .then(({ open }) =>
+          open({
+            directory: true,
+            multiple: false,
+            title: tSelectGameRootDirectory(),
+          })
+        )
+        .then((selected) => {
+          if (!selected || typeof selected !== 'string') {
+            return Promise.reject(new Error('User cancelled'))
+          }
+          return selected
+        })
 
-    // Ignore if no path received (user cancelled)
-    if (!selected || typeof selected !== 'string') {
-      return
-    }
-
-    try {
-      // Use translated "Unnamed Library" as the library name
+  return getGameRoot
+    .then((selectedGameRoot) => {
       const libraryName = tUnknownModName()
-      // Backend will derive repo_root from game_root automatically if not provided
-
-      await createLibrary({
+      return createLibrary({
         name: libraryName,
-        game_root: selected,
+        game_root: selectedGameRoot,
         repo_root: null,
-      })
-    } catch (err) {
+      }).then(() => undefined)
+    })
+    .catch((err) => {
+      if (err instanceof Error && err.message === 'User cancelled') {
+        return undefined
+      }
       const errorMessage =
         err instanceof Error
           ? err.message
           : translateError(err as SError) || 'Failed to add library'
-      // Show error to user - you might want to use a toast notification here
       console.error('Failed to add library:', errorMessage)
       throw new Error(errorMessage)
-    }
-  } catch (err) {
-    // Re-throw if it's already an Error with message
-    if (err instanceof Error && err.message !== 'Failed to add library') {
-      throw err
-    }
-    // User cancelled or error opening dialog - silently return
-    return
-  }
+    })
 }

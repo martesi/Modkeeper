@@ -1,5 +1,5 @@
 import { HeaderPortalContext as Context } from '@/utils/header-portal-context'
-import { PropsWithChildren } from 'react'
+import { PropsWithChildren, useContext } from 'react'
 import { createPortal } from 'react-dom'
 
 export function HeaderPortal ({ children }: PropsWithChildren) {

@@ -73,7 +73,7 @@ function RouteComponent () {
   }
 
   return (
-    <div className="space-y-4 pt-4">
+    <div className="space-y-4">
       {library && (
         <HeaderPortal>
           <div className="flex items-center gap-2">
