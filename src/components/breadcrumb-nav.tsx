@@ -10,6 +10,7 @@ import {
   BreadcrumbSeparator,
 } from '@comps/breadcrumb.tsx'
 import { useMemo, Fragment } from 'react'
+import { LibraryDTO } from '@gen/bindings'
 
 export function BreadcrumbNav() {
   const matches = useMatches()
@@ -21,7 +22,12 @@ export function BreadcrumbNav() {
     // Add breadcrumbs from route matches (skip root route)
     for (const match of matches.slice(1)) {
       const staticData = match.staticData as
-        | { breadcrumb?: (context: any) => string }
+        | {
+            breadcrumb?: (context: {
+              params: any
+              library?: LibraryDTO
+            }) => string
+          }
         | undefined
       const breadcrumb = staticData?.breadcrumb
       if (breadcrumb) {
@@ -36,8 +42,6 @@ export function BreadcrumbNav() {
 
     return items
   }, [matches, library])
-
-  console.log(matches, breadcrumbs)
 
   if (breadcrumbs.length === 0) {
     return null
