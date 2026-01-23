@@ -16,4 +16,10 @@ export default defineConfig([
   pluginReact.configs.flat.recommended,
   pluginReact.configs.flat['jsx-runtime'],
   reactHooks.configs.flat.recommended,
+  {
+    rules: {
+      'no-undef': 'off',
+      'react/jsx-no-undef': 'off',
+    },
+  },
 ])
