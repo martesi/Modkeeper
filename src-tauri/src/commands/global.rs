@@ -94,13 +94,11 @@ pub async fn init(
     .await
     .map_err(|e| SError::AsyncRuntimeError(e.to_string()))?;
 
-    // Show the window
-    if let Some(window) = app_handle.get_webview_window("main") {
-        window
-            .show()
-            .map_err(|e| SError::IOError(format!("Failed to show window: {}", e)))?;
-    }
-
+    app_handle.get_webview_window("main").inspect(|window| {
+        let _ = window.center();
+        let _ = window.show();
+        let _ = window.set_focus();
+    });
     result
 }
 
