@@ -25,7 +25,7 @@ export function ModCard({ mod }: ModCardProps) {
       {/* Header: Icon, Name Link, Remove Button */}
       <div className="flex items-cen justify-between mb-2">
         <Link
-          to="/$id"
+          to="$id"
           params={{ id: mod.id }}
           className="flex items-center gap-2 flex-1 min-w-0 hover:opacity-70 transition-opacity"
         >

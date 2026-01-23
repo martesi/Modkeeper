@@ -1,4 +1,6 @@
 import { useMatches, Link } from '@tanstack/react-router'
+import { useAtomValue } from 'jotai'
+import { ALibraryActive } from '@/store/library'
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -9,8 +11,9 @@ import {
 } from '@comps/breadcrumb.tsx'
 import { useMemo, Fragment } from 'react'
 
-export function BreadcrumbNav () {
+export function BreadcrumbNav() {
   const matches = useMatches()
+  const library = useAtomValue(ALibraryActive)
 
   const breadcrumbs = useMemo(() => {
     const items: Array<{ label: string; to?: string }> = []
@@ -18,26 +21,30 @@ export function BreadcrumbNav () {
     // Add breadcrumbs from route matches (skip root route)
     for (const match of matches.slice(1)) {
       const staticData = match.staticData as
-        | { breadcrumb?: () => string }
+        | { breadcrumb?: (context: any) => string }
         | undefined
       const breadcrumb = staticData?.breadcrumb
       if (breadcrumb) {
         const label =
-          typeof breadcrumb === 'function' ? breadcrumb() : breadcrumb
+          typeof breadcrumb === 'function'
+            ? breadcrumb({ params: match.params, library })
+            : breadcrumb
         const to = match.pathname
         items.push({ label, to })
       }
     }
 
     return items
-  }, [matches])
+  }, [matches, library])
+
+  console.log(matches, breadcrumbs)
 
   if (breadcrumbs.length === 0) {
     return null
   }
 
   return (
-    <Breadcrumb className='shrink-0'>
+    <Breadcrumb className="shrink-0">
       <BreadcrumbList>
         {breadcrumbs.map((item, index) => {
           const isLast = index === breadcrumbs.length - 1

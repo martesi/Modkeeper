@@ -33,10 +33,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <SidebarMenuItem>
               <SidebarMenuButton
                 asChild
-                isActive={currentPath === '/'}
+                isActive={currentPath === '/library'}
                 tooltip="Library"
               >
-                <Link to="/">
+                <Link to="/library">
                   <Home className="size-4" />
                   <span>
                     <Trans>Library</Trans>

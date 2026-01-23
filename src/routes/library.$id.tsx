@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { useAtomValue } from 'jotai'
 import { ALibraryActive } from '@/store/library'
 import { useLibrary } from '@/hooks/use-library'
@@ -31,10 +31,13 @@ import { formatTimestamp } from '@/utils/mod'
 import { ett } from '@/utils/error'
 import { ModVersion } from '@/components/mod/mod-version'
 
-export const Route = createFileRoute('/$id')({
+export const Route = createFileRoute('/library/$id')({
   component: ModDetailsComponent,
   staticData: {
-    breadcrumb: () => t(msg`Mod Details`),
+    breadcrumb: (ctx: any) => {
+      const mod = ctx.library?.mods?.[ctx.params?.id]
+      return mod ? mod.name : t(msg`Mod Details`)
+    },
   },
   loader: async ({ params: { id } }) => {
     const backups = await commands
@@ -133,7 +136,7 @@ function ModDetailsComponent() {
         <p className="text-destructive">
           <Trans>Mod not found</Trans>
         </p>
-        <Link to="/">
+        <Link to="/library">
           <Button variant="outline">
             <ArrowLeft className="size-4 mr-2" />
             <Trans>Back to Library</Trans>
