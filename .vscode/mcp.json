@@ -1,0 +1,14 @@
+{
+	"servers": {
+		"Shadcn": {
+			"type": "stdio",
+			"command": "bun",
+			"args": [
+				"x",
+				"shadcn",
+				"mcp"
+			]
+		}
+	},
+	"inputs": []
+}
