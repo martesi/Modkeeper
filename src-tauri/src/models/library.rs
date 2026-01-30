@@ -5,6 +5,7 @@ use specta::Type;
 use std::collections::BTreeMap;
 
 #[derive(Serialize, Deserialize, Type, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct LibraryDTO {
     pub id: String,
     pub name: String,
@@ -12,12 +13,14 @@ pub struct LibraryDTO {
     pub game_root: Utf8PathBuf,
     #[specta(type=String)]
     pub repo_root: Utf8PathBuf,
+    #[specta(type=String)]
     pub spt_version: String,
     pub mods: BTreeMap<String, Mod>,
     pub is_dirty: bool,
 }
 
 #[derive(Serialize, Deserialize, Type, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct LibraryCreationRequirement {
     #[specta(type=String)]
     pub game_root: Utf8PathBuf,

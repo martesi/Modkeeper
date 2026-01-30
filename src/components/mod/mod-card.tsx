@@ -41,10 +41,10 @@ export function ModCard ({ mod }: ModCardProps) {
 
   return (
     <Item variant="outline" className="mb-3">
-      <ItemMedia variant={mod.icon_data ? 'image' : 'icon'}>
-        {mod.icon_data ? (
+      <ItemMedia variant={mod.iconData ? 'image' : 'icon'}>
+        {mod.iconData ? (
           <img
-            src={mod.icon_data}
+            src={mod.iconData}
             alt={mod.name}
             onError={(e) => {
               // Fallback to Package icon on error
@@ -56,7 +56,7 @@ export function ModCard ({ mod }: ModCardProps) {
         ) : null}
         <Package
           className="size-5 text-muted-foreground"
-          style={{ display: mod.icon_data ? 'none' : 'block' }}
+          style={{ display: mod.iconData ? 'none' : 'block' }}
         />
       </ItemMedia>
       <ItemContent>
@@ -109,7 +109,7 @@ export function ModCard ({ mod }: ModCardProps) {
             <FolderSearch className="size-4" />
           </Button>
           <Switch
-            checked={mod.is_active}
+            checked={mod.isActive}
             onCheckedChange={(checked) => {
               toggle(mod.id, checked)
             }}

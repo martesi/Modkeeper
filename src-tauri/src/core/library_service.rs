@@ -75,7 +75,7 @@ pub fn open_library(config: &mut GlobalConfig, path: &Utf8Path) -> Result<Librar
     // and do NOT update the configuration.
     let library = Library::load(path)?;
 
-    config.update_recent(path);
+    config.open_library(path);
 
     // Persist the configuration changes
     config.save();
@@ -119,7 +119,7 @@ pub fn create_library(
     let library = Library::create(updated_requirement.clone())?;
 
     // Update config only on success
-    config.update_recent(&repo_root);
+    config.open_library(&repo_root);
     config.save();
 
     Ok(library)
@@ -128,7 +128,7 @@ pub fn create_library(
 /// Returns a summary of all known libraries.
 pub fn get_known_library_summary(config: &GlobalConfig) -> Vec<LibraryDTO> {
     config
-        .known_libraries
+        .all_libraries()
         .iter()
         .filter_map(|path| {
             // Attempt to read the manifest for each known path
@@ -149,11 +149,11 @@ pub fn get_known_library_summary(config: &GlobalConfig) -> Vec<LibraryDTO> {
 }
 
 /// Returns the manifest for the currently active library, if any.
-/// Uses the first item in known_libraries (most recently used).
+/// Uses library_last if set.
 pub fn get_active_library_manifest(config: &GlobalConfig) -> Option<LibraryDTO> {
     config
-        .known_libraries
-        .first()
+        .library_last
+        .as_ref()
         .and_then(|path| Library::read_library_manifest(path).ok())
 }
 

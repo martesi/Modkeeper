@@ -5,20 +5,15 @@ use parking_lot::{RawMutex, lock_api::Mutex};
 
 use crate::{config::global::GlobalConfig, core::library::Library, models::error::SError};
 
-/// Removes a library from known_libraries without deleting files.
-/// Returns true if the library was in the list.
-pub fn close_library(config: &mut GlobalConfig, repo_root: &Utf8Path) -> Result<bool, SError> {
-    let was_in_list = config.known_libraries.iter().any(|p| p == repo_root);
-    config.known_libraries.retain(|p| p != repo_root);
-    if was_in_list {
-        config.save();
-    }
-    Ok(was_in_list)
+/// Closes a library: moves from library_last to front of library_recent.
+pub fn close_library(config: &mut GlobalConfig, repo_root: &Utf8Path) -> Result<(), SError> {
+    config.close_library(repo_root);
+    config.save();
+    Ok(())
 }
 
-/// Removes a library: unlinks all mods, removes from known_libraries, and deletes the directory.
-/// Returns true if the library was in the list.
-pub fn remove_library(config: &mut GlobalConfig, repo_root: &Utf8Path) -> Result<bool, SError> {
+/// Removes a library: unlinks all mods, removes completely, and deletes the directory.
+pub fn remove_library(config: &mut GlobalConfig, repo_root: &Utf8Path) -> Result<(), SError> {
     use crate::core::cleanup;
 
     // Load library to get cache for unlinking mods
@@ -35,25 +30,22 @@ pub fn remove_library(config: &mut GlobalConfig, repo_root: &Utf8Path) -> Result
         )?;
     }
 
-    // Remove from known_libraries
-    let was_in_list = config.known_libraries.iter().any(|p| p == repo_root);
-    config.known_libraries.retain(|p| p != repo_root);
-    if was_in_list {
-        config.save();
-    }
+    // Remove from both library_last and library_recent
+    config.remove_library(repo_root);
+    config.save();
 
     // Remove library_root directory
     if repo_root.exists() {
         std::fs::remove_dir_all(repo_root)?;
     }
 
-    Ok(was_in_list)
+    Ok(())
 }
 
-/// Finds a library by its ID from known_libraries.
+/// Finds a library by its ID from all known libraries.
 /// Returns the repo_root path of the matching library.
 pub fn find_library_by_id(config: &GlobalConfig, library_id: &str) -> Result<Utf8PathBuf, SError> {
-    for path in &config.known_libraries {
+    for path in config.all_libraries() {
         match Library::read_library_manifest(path) {
             Ok(dto) => {
                 if dto.id == library_id {

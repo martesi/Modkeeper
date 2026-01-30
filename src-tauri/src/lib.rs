@@ -77,22 +77,25 @@ fn register_plugins() -> tauri::Builder<tauri::Wry> {
         .plugin(tauri_plugin_dialog::init())
 }
 
-/// Helper: Load the initial library from known libraries in a background thread
+/// Helper: Load the initial library from library_last in a background thread
 fn load_initial_library(
     config_handle: Arc<Mutex<crate::config::global::GlobalConfig>>,
     instance_handle: Arc<Mutex<Option<crate::core::library::Library>>>,
 ) {
     tauri::async_runtime::spawn_blocking(move || {
-        let first_library_path = config_handle.lock().known_libraries.first().cloned();
+        let last_library_path = config_handle.lock().library_last.clone();
 
-        if let Some(path) = first_library_path {
+        if let Some(path) = last_library_path {
             match crate::core::library::Library::load(&path) {
                 Ok(library) => {
                     *instance_handle.lock() = Some(library);
                 }
                 Err(e) => {
                     tracing::error!("Failed to load library from {}: {}", path, e);
-                    // Leave active_instance as None on failure
+                    // Clear library_last on failure to prevent repeated failures
+                    let mut config = config_handle.lock();
+                    config.library_last = None;
+                    config.save();
                 }
             }
         }

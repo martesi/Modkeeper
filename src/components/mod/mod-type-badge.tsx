@@ -5,7 +5,7 @@ import { Badge } from '@comps/badge'
 import type { Mod } from '@gen/bindings'
 
 interface ModTypeBadgeProps {
-  type: Mod['mod_type']
+  type: Mod['modType']
 }
 
 export function ModTypeBadge({ type }: ModTypeBadgeProps) {

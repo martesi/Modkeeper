@@ -1,11 +1,12 @@
 import { translateError } from './error'
 import type { LibraryCreationRequirement, SError } from '@gen/bindings'
 import { tSelectGameRootDirectory, tUnknownModName } from '@/utils/translation'
+import { msg, t } from '@lingui/core/macro'
 
 /**
  * Adds a library by prompting the user to select a game root directory, or uses the provided game root.
  * The backend automatically:
- * - Derives repo_root from game_root as game_root/.mod_keeper
+ * - Derives repoRoot from gameRoot as gameRoot/.mod_keeper
  * - If a library already exists at that location and is valid, opens it
  * - If no library exists, creates a new one
  * @param createLibrary - Function to add the library (from useLibrarySwitch hook)
@@ -23,7 +24,7 @@ export function addLibraryFromDialog(
             directory: true,
             multiple: false,
             title: tSelectGameRootDirectory(),
-          })
+          }),
         )
         .then((selected) => {
           if (!selected || typeof selected !== 'string') {
@@ -34,11 +35,11 @@ export function addLibraryFromDialog(
 
   return getGameRoot
     .then((selectedGameRoot) => {
-      const libraryName = tUnknownModName()
+      const libraryName = t(msg`Unknown library`)
       return createLibrary({
         name: libraryName,
-        game_root: selectedGameRoot,
-        repo_root: null,
+        gameRoot: selectedGameRoot,
+        repoRoot: null,
       }).then(() => undefined)
     })
     .catch((err) => {

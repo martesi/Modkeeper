@@ -130,11 +130,11 @@ export function InstanceSwitcher () {
   )
 
   const handleCloseClick = React.useCallback((lib: (typeof libraries)[0]) => {
-    if (!lib.repo_root) return
+    if (!lib.repoRoot) return
     setCloseLibraryInfo({
       id: lib.id,
       name: lib.name || 'Unnamed Library',
-      repoRoot: lib.repo_root,
+      repoRoot: lib.repoRoot,
     })
     setCloseDialogOpen(true)
   }, [])
@@ -152,11 +152,11 @@ export function InstanceSwitcher () {
   }, [closeLibraryInfo, close])
 
   const handleRemoveClick = React.useCallback((lib: (typeof libraries)[0]) => {
-    if (!lib.repo_root) return
+    if (!lib.repoRoot) return
     setRemoveLibraryInfo({
       id: lib.id,
       name: lib.name || 'Unnamed Library',
-      repoRoot: lib.repo_root,
+      repoRoot: lib.repoRoot,
     })
     setRemoveDialogOpen(true)
   }, [])
@@ -213,7 +213,7 @@ export function InstanceSwitcher () {
                 {active.name || 'Unnamed Library'}
               </span>
               <span className="truncate text-xs text-muted-foreground">
-                SPT {active.spt_version}
+                SPT {active.sptVersion}
               </span>
             </div>
             <ChevronsUpDown className="ml-auto size-4 opacity-50" />
@@ -233,21 +233,21 @@ export function InstanceSwitcher () {
               <DropdownMenuSubTrigger
                 onClick={() => {
                   // Switch library on click of the sub trigger
-                  if (lib.repo_root) {
-                    handleSwitchLibrary(lib.repo_root)
+                  if (lib.repoRoot) {
+                    handleSwitchLibrary(lib.repoRoot)
                   }
                 }}
                 className="gap-2 p-2"
               >
-                {lib.name} (SPT {lib.spt_version})
+                {lib.name} (SPT {lib.sptVersion})
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent>
                 {!(active && active.id === lib.id) && (
                   <DropdownMenuItem
                     onClick={(e) => {
                       e.stopPropagation()
-                      if (lib.repo_root) {
-                        handleSwitchLibrary(lib.repo_root)
+                      if (lib.repoRoot) {
+                        handleSwitchLibrary(lib.repoRoot)
                       }
                     }}
                     className="gap-2"

@@ -673,8 +673,8 @@ fn test_create_library_when_mod_keeper_not_exists() {
     assert!(expected_repo_root.join("staging").exists());
 
     // Verify config was updated
-    assert_eq!(config.known_libraries.first(), Some(&expected_repo_root));
-    assert!(config.known_libraries.contains(&expected_repo_root));
+    assert_eq!(config.library_last.as_ref(), Some(&expected_repo_root));
+    assert!(config.all_libraries().contains(&&expected_repo_root));
 }
 
 #[test]
@@ -708,7 +708,7 @@ fn test_create_library_when_mod_keeper_exists_valid() {
     assert_eq!(opened_lib.repo_root, expected_repo_root);
 
     // Verify config was updated
-    assert_eq!(config.known_libraries.first(), Some(&expected_repo_root));
+    assert_eq!(config.library_last.as_ref(), Some(&expected_repo_root));
 }
 
 #[test]
@@ -744,11 +744,12 @@ fn test_create_library_when_mod_keeper_exists_invalid() {
     }
 
     // Config should not be updated on error
-    assert!(config.known_libraries.is_empty());
+    assert!(config.library_recent.is_empty());
+    assert!(config.library_last.is_none());
 }
 
 #[test]
-fn test_get_active_library_manifest_uses_first_in_known_libraries() {
+fn test_get_active_library_manifest_uses_library_last() {
     let (_tmp, game_root, _repo_root) = setup_test_env();
     let mut config = GlobalConfig::default();
 
@@ -772,40 +773,33 @@ fn test_get_active_library_manifest_uses_first_in_known_libraries() {
     library_service::create_library(&mut config, requirement2)
         .expect("Failed to create second library");
 
-    // Second library should be first (most recently used)
-    assert_eq!(config.known_libraries.first(), Some(&repo_root2));
+    // Second library should be library_last (most recently opened)
+    assert_eq!(config.library_last.as_ref(), Some(&repo_root2));
+    // First library should be in library_recent (since it was closed when we opened second)
+    assert!(config.library_recent.contains(&repo_root1));
 
-    // get_active_library_manifest should return the first library
+    // get_active_library_manifest should return library_last
     let active = library_service::get_active_library_manifest(&config);
     assert!(active.is_some());
     assert_eq!(active.unwrap().name, "Second Library");
 }
 
 #[test]
-fn test_get_active_library_manifest_handles_invalid_library() {
+fn test_get_active_library_manifest_handles_invalid_library_last() {
     let (_tmp, game_root, _repo_root) = setup_test_env();
     let mut config = GlobalConfig::default();
 
-    // Create a valid library
-    let valid_repo_root = game_root.join(".mod_keeper");
-    let requirement = LibraryCreationRequirement {
-        repo_root: Some(valid_repo_root.clone()),
-        game_root: game_root.clone(),
-        name: "Valid Library".to_string(),
-    };
-    library_service::create_library(&mut config, requirement).expect("Failed to create library");
-
-    // Add an invalid path as the first library
+    // Add an invalid path as library_last
     let invalid_path = game_root.join("invalid_library");
-    config.known_libraries.insert(0, invalid_path.clone());
+    config.library_last = Some(invalid_path.clone());
 
-    // get_active_library_manifest should return None for invalid library
+    // get_active_library_manifest should return None for invalid library_last
     let active = library_service::get_active_library_manifest(&config);
     assert!(active.is_none());
 }
 
 #[test]
-fn test_to_library_switch_with_invalid_active() {
+fn test_to_library_switch_with_invalid_library_last() {
     let (_tmp, game_root, _repo_root) = setup_test_env();
     let mut config = GlobalConfig::default();
 
@@ -818,11 +812,14 @@ fn test_to_library_switch_with_invalid_active() {
     };
     library_service::create_library(&mut config, requirement).expect("Failed to create library");
 
-    // Add an invalid path as the first library
-    let invalid_path = game_root.join("invalid_library");
-    config.known_libraries.insert(0, invalid_path.clone());
+    // Close the library (moves to library_recent)
+    global_service::close_library(&mut config, &valid_repo_root).expect("close_library failed");
 
-    // to_library_switch should return None for active when first library is invalid
+    // Set an invalid path as library_last
+    let invalid_path = game_root.join("invalid_library");
+    config.library_last = Some(invalid_path.clone());
+
+    // to_library_switch should return None for active when library_last is invalid
     let switch = library_service::to_library_switch(&config, None);
     assert!(switch.active.is_none());
     // But should still list other valid libraries
@@ -866,7 +863,7 @@ fn test_close_library() {
         std::fs::remove_dir_all(&repo_root).expect("Failed to remove repo_root");
     }
 
-    // Create library and add to known_libraries
+    // Create library (opens it, sets library_last)
     let requirement = LibraryCreationRequirement {
         repo_root: Some(repo_root.clone()),
         game_root: game_root.clone(),
@@ -874,18 +871,19 @@ fn test_close_library() {
     };
     library_service::create_library(&mut config, requirement).expect("Failed to create library");
 
-    // Verify library is in known_libraries
-    assert!(config.known_libraries.contains(&repo_root));
+    // Verify library is in library_last (actively open)
+    assert_eq!(config.library_last.as_ref(), Some(&repo_root));
+    // Should NOT be in library_recent (since it's currently open)
+    assert!(!config.library_recent.contains(&repo_root));
 
     // Close library
-    let was_in_list =
-        global_service::close_library(&mut config, &repo_root).expect("Failed to close library");
+    global_service::close_library(&mut config, &repo_root).expect("Failed to close library");
 
-    // Verify return value
-    assert!(was_in_list);
+    // Verify library_last is now None
+    assert!(config.library_last.is_none());
 
-    // Verify library was removed from known_libraries
-    assert!(!config.known_libraries.contains(&repo_root));
+    // Verify library was moved to front of library_recent
+    assert_eq!(config.library_recent.first(), Some(&repo_root));
 
     // Verify library files still exist
     assert!(repo_root.exists());
@@ -897,15 +895,14 @@ fn test_close_library_not_in_list() {
     let (_tmp, _game_root, repo_root) = setup_test_env();
     let mut config = GlobalConfig::default();
 
-    // Try to close a library that's not in known_libraries
-    let was_in_list =
-        global_service::close_library(&mut config, &repo_root).expect("Failed to close library");
+    // Close a library that's not currently open (library_last is None)
+    global_service::close_library(&mut config, &repo_root).expect("close_library should succeed");
 
-    // Should return false since it wasn't in the list
-    assert!(!was_in_list);
+    // library_last should still be None
+    assert!(config.library_last.is_none());
 
-    // Config should not have changed
-    assert!(config.known_libraries.is_empty());
+    // The library should now be in library_recent (at front)
+    assert_eq!(config.library_recent.first(), Some(&repo_root));
 }
 
 #[test]
@@ -918,7 +915,7 @@ fn test_remove_library() {
         std::fs::remove_dir_all(&repo_root).expect("Failed to remove repo_root");
     }
 
-    // Create library and add to known_libraries
+    // Create library (opens it, sets library_last)
     let requirement = LibraryCreationRequirement {
         repo_root: Some(repo_root.clone()),
         game_root: game_root.clone(),
@@ -926,19 +923,16 @@ fn test_remove_library() {
     };
     library_service::create_library(&mut config, requirement).expect("Failed to create library");
 
-    // Verify library is in known_libraries
-    assert!(config.known_libraries.contains(&repo_root));
+    // Verify library is in library_last
+    assert_eq!(config.library_last.as_ref(), Some(&repo_root));
     assert!(repo_root.exists());
 
     // Remove library
-    let was_in_list =
-        global_service::remove_library(&mut config, &repo_root).expect("Failed to remove library");
+    global_service::remove_library(&mut config, &repo_root).expect("Failed to remove library");
 
-    // Verify return value
-    assert!(was_in_list);
-
-    // Verify library was removed from known_libraries
-    assert!(!config.known_libraries.contains(&repo_root));
+    // Verify library was removed from config completely
+    assert!(config.library_last.is_none());
+    assert!(!config.library_recent.contains(&repo_root));
 
     // Verify library directory was deleted
     assert!(!repo_root.exists());
@@ -996,20 +990,18 @@ fn test_remove_library_with_mods() {
     // Note: Mod links would exist if deployed, but we verify cleanup happens during remove
 
     // Remove library
-    let was_in_list =
-        global_service::remove_library(&mut config, &repo_root).expect("Failed to remove library");
+    global_service::remove_library(&mut config, &repo_root).expect("Failed to remove library");
 
-    assert!(was_in_list);
-
-    // Verify library was removed from known_libraries
-    assert!(!config.known_libraries.contains(&repo_root));
+    // Verify library was removed from config completely
+    assert!(config.library_last.is_none());
+    assert!(!config.library_recent.contains(&repo_root));
 
     // Verify library directory was deleted
     assert!(!repo_root.exists());
 }
 
 #[test]
-fn test_remove_library_not_in_list() {
+fn test_remove_library_not_in_config() {
     let (_tmp, game_root, repo_root) = setup_test_env();
     let mut config = GlobalConfig::default();
 
@@ -1018,7 +1010,7 @@ fn test_remove_library_not_in_list() {
         std::fs::remove_dir_all(&repo_root).expect("Failed to remove repo_root");
     }
 
-    // Create library but don't add to known_libraries
+    // Create library but don't add to config (use Library::create directly)
     let requirement = LibraryCreationRequirement {
         repo_root: Some(repo_root.clone()),
         game_root: game_root.clone(),
@@ -1026,15 +1018,13 @@ fn test_remove_library_not_in_list() {
     };
     Library::create(requirement).expect("Failed to create library");
 
-    // Verify library exists
+    // Verify library exists but not in config
     assert!(repo_root.exists());
+    assert!(config.library_last.is_none());
+    assert!(config.library_recent.is_empty());
 
-    // Remove library (even though not in known_libraries)
-    let was_in_list =
-        global_service::remove_library(&mut config, &repo_root).expect("Failed to remove library");
-
-    // Should return false since it wasn't in the list
-    assert!(!was_in_list);
+    // Remove library (even though not in config)
+    global_service::remove_library(&mut config, &repo_root).expect("Failed to remove library");
 
     // Verify library directory was still deleted
     assert!(!repo_root.exists());

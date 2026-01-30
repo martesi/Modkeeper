@@ -74,41 +74,39 @@ function RouteComponent () {
 
   return (
     <div className="space-y-4">
-      {library && (
-        <HeaderPortal>
-          <div className="flex items-center gap-2">
-            <ButtonGroup>
-              <InstanceSwitcher />
-            </ButtonGroup>
-            <ButtonGroup>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size={'icon'}>
-                    <Upload className="" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuItem onClick={handleAddModFiles}>
-                    <FileArchive className="size-4 mr-2" />
-                    <Trans>Add Mod Files (.zip)</Trans>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleAddModFolder}>
-                    <FolderOpen className="size-4 mr-2" />
-                    <Trans>Add Mod Folder</Trans>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <Button
-                variant={library?.is_dirty ? 'default' : 'outline'}
-                size="icon"
-                onClick={sync}
-              >
-                <RefreshCw />
-              </Button>
-            </ButtonGroup>
-          </div>
-        </HeaderPortal>
-      )}
+      <HeaderPortal>
+        <div className="flex items-center gap-2">
+          <ButtonGroup>
+            <InstanceSwitcher />
+          </ButtonGroup>
+          {library && <ButtonGroup>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size={'icon'}>
+                  <Upload className="" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={handleAddModFiles}>
+                  <FileArchive className="size-4 mr-2" />
+                  <Trans>Add Mod Files (.zip)</Trans>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleAddModFolder}>
+                  <FolderOpen className="size-4 mr-2" />
+                  <Trans>Add Mod Folder</Trans>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button
+              variant={library?.isDirty ? 'default' : 'outline'}
+              size="icon"
+              onClick={sync}
+            >
+              <RefreshCw />
+            </Button>
+          </ButtonGroup>}
+        </div>
+      </HeaderPortal>
       {library ? (
         <ModList />
       ) : (

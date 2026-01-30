@@ -60,12 +60,12 @@ pub enum Dependencies {
 }
 
 #[derive(Serialize, Deserialize, Type, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct ModManifest {
     pub id: String,
     pub name: String,
     pub author: Author,
     pub version: String,
-    #[serde(rename = "sptVersion")]
     pub spt_version: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
@@ -92,13 +92,14 @@ pub enum ModType {
 }
 
 #[derive(Serialize, Deserialize, Type, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct Mod {
     pub id: String,
     pub is_active: bool,
+    #[serde(rename = "type")]
     pub mod_type: ModType,
     pub name: String,
     pub manifest: Option<ModManifest>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub icon_data: Option<String>,
-    // files removed: only needed in cache, not for frontend display
 }

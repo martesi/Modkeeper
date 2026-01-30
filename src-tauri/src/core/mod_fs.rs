@@ -8,6 +8,7 @@ use walkdir::WalkDir;
 
 // Internal cache representation: includes files but NOT sent to frontend
 #[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct ModFS {
     pub id: String,
     pub mod_type: ModType,

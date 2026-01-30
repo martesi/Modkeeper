@@ -54,7 +54,7 @@ export const Route = createFileRoute('/library/$id')({
   },
 })
 
-function ModDetailsComponent() {
+function ModDetailsComponent () {
   const { id } = Route.useParams()
   const library = useAtomValue(ALibraryActive)
   const { toggle, remove } = useLibrary()
@@ -91,7 +91,7 @@ function ModDetailsComponent() {
   const handleToggle = async () => {
     if (!mod) return
     try {
-      await toggle(id, !mod.is_active)
+      await toggle(id, !mod.isActive)
     } catch (err) {
       console.error('Failed to toggle mod:', err)
     }
@@ -154,9 +154,9 @@ function ModDetailsComponent() {
             </Button>
           </Link>
           <div className="shrink-0">
-            {mod.icon_data ? (
+            {mod.iconData ? (
               <img
-                src={mod.icon_data}
+                src={mod.iconData}
                 alt={mod.name}
                 className="size-12 rounded"
               />
@@ -174,7 +174,7 @@ function ModDetailsComponent() {
           </div>
           <div className="flex gap-2">
             <Button onClick={handleToggle} variant="outline">
-              {mod.is_active ? (
+              {mod.isActive ? (
                 <Trans>Deactivate</Trans>
               ) : (
                 <Trans>Activate</Trans>
@@ -208,9 +208,9 @@ function ModDetailsComponent() {
           </div>
         </div>
         <div className="flex gap-2 ml-13">
-          <ModTypeBadge type={mod.mod_type} />
-          <Badge variant={mod.is_active ? 'default' : 'secondary'}>
-            {mod.is_active ? <Trans>Active</Trans> : <Trans>Inactive</Trans>}
+          <ModTypeBadge type={mod.type} />
+          <Badge variant={mod.isActive ? 'default' : 'secondary'}>
+            {mod.isActive ? <Trans>Active</Trans> : <Trans>Inactive</Trans>}
           </Badge>
         </div>
       </div>
