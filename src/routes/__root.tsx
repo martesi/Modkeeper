@@ -18,7 +18,7 @@ function RootComponent () {
       <LibraryInit />
       <SettingsInit />
       <FileDropHandler />
-      <header className="sticky top-0 z-50 flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear border-b bg-background">
+      <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear">
         <div className="flex items-center gap-2 px-4 w-full">
           <AppNavigation />
           <div className="w-full flex justify-end" ref={setContainer} />

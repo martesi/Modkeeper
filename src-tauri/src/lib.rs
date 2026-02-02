@@ -125,6 +125,15 @@ fn setup_application(
     init_called: Arc<std::sync::atomic::AtomicBool>,
 ) -> impl FnOnce(&mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     move |app| {
+        // Apply window effects
+        #[cfg(windows)]
+        {
+            use tauri::Manager;
+            use window_vibrancy::{apply_mica};
+            let window = app.get_webview_window("main").unwrap();
+            apply_mica(&window, None).unwrap();
+        }
+
         // Mount events for the command handler
         builder.mount_events(app);
 
