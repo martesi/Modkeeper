@@ -19,24 +19,19 @@ import { Link } from '@tanstack/react-router'
 import { useBoolean } from 'ahooks'
 import { FolderSearch, Package, Trash2 } from 'lucide-react'
 import { ModVersion } from './mod-version'
+import { ett } from '@/utils/error'
+import { ur } from '@/utils/result'
 
 interface ModCardProps {
   mod: Mod
 }
 
-export function ModCard ({ mod }: ModCardProps) {
+export function ModCard({ mod }: ModCardProps) {
   const { toggle, remove } = useLibrary()
   const [open, { setTrue, set }] = useBoolean()
 
-  const handleRevealMod = async () => {
-    try {
-      const result = await commands.revealMod(mod.id)
-      if (result.status === 'error') {
-        console.error('Failed to reveal mod:', result.error)
-      }
-    } catch (err) {
-      console.error('Failed to reveal mod:', err)
-    }
+  const handleRevealMod = () => {
+    commands.revealMod(mod.id).then(ur).catch(ett)
   }
 
   return (

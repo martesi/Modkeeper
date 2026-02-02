@@ -6,13 +6,14 @@ import { ALibraryActive } from '@/store/library'
 import { Button } from '@comps/button'
 import { Trans } from '@lingui/react/macro'
 import { Upload, RefreshCw, FileArchive, FolderOpen } from 'lucide-react'
+import { ett } from '@/utils/error'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@comps/dropdown-menu'
-import { msg, t } from '@lingui/core/macro'
+
 import {
   tArchive,
   tSelectModFiles,
@@ -27,49 +28,46 @@ export const Route = createFileRoute('/library/')({
   component: RouteComponent,
 })
 
-function RouteComponent () {
+function RouteComponent() {
   const library = useAtomValue(ALibraryActive)
   const { add, sync } = useLibrary()
 
-  const handleAddModFiles = async () => {
-    try {
-      const { open } = await import('@tauri-apps/plugin-dialog')
-      const selected = await open({
-        multiple: true,
-        filters: [
-          {
-            name: tArchive(),
-            extensions: ['zip'],
-          },
-        ],
-        title: tSelectModFiles(),
+  const handleAddModFiles = () => {
+    import('@tauri-apps/plugin-dialog')
+      .then(({ open }) =>
+        open({
+          multiple: true,
+          filters: [{ name: tArchive(), extensions: ['zip'] }],
+          title: tSelectModFiles(),
+        }),
+      )
+      .then((selected) => {
+        const unknownModName = tUnknownModName()
+        if (selected && Array.isArray(selected)) {
+          return add(selected, unknownModName)
+        } else if (selected && typeof selected === 'string') {
+          return add([selected], unknownModName)
+        }
       })
-      const unknownModName = tUnknownModName()
-      if (selected && Array.isArray(selected)) {
-        await add(selected, unknownModName)
-      } else if (selected && typeof selected === 'string') {
-        await add([selected], unknownModName)
-      }
-    } catch (err) {
-      console.error('Failed to add mod files:', err)
-    }
+      .catch(ett)
   }
 
-  const handleAddModFolder = async () => {
-    try {
-      const { open } = await import('@tauri-apps/plugin-dialog')
-      const selected = await open({
-        directory: true,
-        multiple: false,
-        title: tSelectModFolder(),
+  const handleAddModFolder = () => {
+    import('@tauri-apps/plugin-dialog')
+      .then(({ open }) =>
+        open({
+          directory: true,
+          multiple: false,
+          title: tSelectModFolder(),
+        }),
+      )
+      .then((selected) => {
+        const unknownModName = tUnknownModName()
+        if (selected && typeof selected === 'string') {
+          return add([selected], unknownModName)
+        }
       })
-      const unknownModName = tUnknownModName()
-      if (selected && typeof selected === 'string') {
-        await add([selected], unknownModName)
-      }
-    } catch (err) {
-      console.error('Failed to add mod folder:', err)
-    }
+      .catch(ett)
   }
 
   return (
@@ -79,32 +77,34 @@ function RouteComponent () {
           <ButtonGroup>
             <InstanceSwitcher />
           </ButtonGroup>
-          {library && <ButtonGroup>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size={'icon'}>
-                  <Upload className="" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem onClick={handleAddModFiles}>
-                  <FileArchive className="size-4 mr-2" />
-                  <Trans>Add Mod Files (.zip)</Trans>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleAddModFolder}>
-                  <FolderOpen className="size-4 mr-2" />
-                  <Trans>Add Mod Folder</Trans>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Button
-              variant={library?.isDirty ? 'default' : 'outline'}
-              size="icon"
-              onClick={sync}
-            >
-              <RefreshCw />
-            </Button>
-          </ButtonGroup>}
+          {library && (
+            <ButtonGroup>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size={'icon'}>
+                    <Upload className="" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem onClick={handleAddModFiles}>
+                    <FileArchive className="size-4 mr-2" />
+                    <Trans>Add Mod Files (.zip)</Trans>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleAddModFolder}>
+                    <FolderOpen className="size-4 mr-2" />
+                    <Trans>Add Mod Folder</Trans>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button
+                variant={library?.isDirty ? 'default' : 'outline'}
+                size="icon"
+                onClick={sync}
+              >
+                <RefreshCw />
+              </Button>
+            </ButtonGroup>
+          )}
         </div>
       </HeaderPortal>
       {library ? (

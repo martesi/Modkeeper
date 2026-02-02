@@ -1,6 +1,6 @@
 'use client'
 
-import * as React from 'react'
+import { useState } from 'react'
 import {
   ChevronsUpDown,
   FolderOpen,
@@ -24,154 +24,53 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Trans } from '@lingui/react/macro'
 import { useAtomValue } from 'jotai'
 import { ALibraryActive, ALibraryList } from '@/store/library'
 import { useLibrarySwitch } from '@/hooks/use-library-switch'
 import { addLibraryFromDialog } from '@/lib/library-actions'
+import { ett } from '@/utils/error'
+import { RenameLibraryDialog } from './dialog/rename-library-dialog'
+import { CloseLibraryDialog } from './dialog/close-library-dialog'
+import { RemoveLibraryDialog } from './dialog/remove-library-dialog'
+import type { LibraryDTO } from '@gen/bindings'
 
-export function InstanceSwitcher () {
+export function InstanceSwitcher() {
   const active = useAtomValue(ALibraryActive)
   const libraries = useAtomValue(ALibraryList)
-  const { create, open, rename, close, remove, rebuildCache } = useLibrarySwitch()
+  const { create, open, rename, close, remove, rebuildCache } =
+    useLibrarySwitch()
 
-  // State for rename dialog
-  const [renameDialogOpen, setRenameDialogOpen] = React.useState(false)
-  const [renameLibraryId, setRenameLibraryId] = React.useState<string | null>(
-    null,
-  )
-  const [renameValue, setRenameValue] = React.useState('')
+  // Dialog states - use library to indicate open
+  const [renameLibrary, setRenameLibrary] = useState<LibraryDTO>()
+  const [closeLibrary, setCloseLibrary] = useState<LibraryDTO>()
+  const [removeLibrary, setRemoveLibrary] = useState<LibraryDTO>()
 
-  // State for close confirmation
-  const [closeDialogOpen, setCloseDialogOpen] = React.useState(false)
-  const [closeLibraryInfo, setCloseLibraryInfo] = React.useState<{
-    id: string
-    name: string
-    repoRoot: string
-  } | null>(null)
+  const handleAddLibrary = () => addLibraryFromDialog(create).catch(ett)
 
-  // State for remove confirmation
-  const [removeDialogOpen, setRemoveDialogOpen] = React.useState(false)
-  const [removeLibraryInfo, setRemoveLibraryInfo] = React.useState<{
-    id: string
-    name: string
-    repoRoot: string
-  } | null>(null)
+  const handleSwitchLibrary = (libPath: string) => open(libPath).catch(ett)
 
-  const handleAddLibrary = React.useCallback(async () => {
-    try {
-      await addLibraryFromDialog(create)
-    } catch {
-      // Error is already logged in the function
-      // You might want to show a toast notification here
-    }
-  }, [create])
+  const handleRenameConfirm = (newName: string) => {
+    if (!renameLibrary) return
+    rename(newName, renameLibrary.id)
+      .then(() => setRenameLibrary(undefined))
+      .catch(ett)
+  }
 
-  const handleSwitchLibrary = React.useCallback(
-    async (libPath: string) => {
-      try {
-        await open(libPath)
-      } catch (err) {
-        console.error('Failed to switch library:', err)
-        // You might want to show a toast notification here
-      }
-    },
-    [open],
-  )
+  const handleCloseConfirm = () => {
+    if (!closeLibrary) return
+    close(closeLibrary.repoRoot)
+      .then(() => setCloseLibrary(undefined))
+      .catch(ett)
+  }
 
-  const handleRenameClick = React.useCallback((lib: (typeof libraries)[0]) => {
-    setRenameLibraryId(lib.id)
-    setRenameValue(lib.name || '')
-    setRenameDialogOpen(true)
-  }, [])
-
-  const handleRenameConfirm = React.useCallback(async () => {
-    if (!renameLibraryId || !renameValue.trim()) return
-
-    try {
-      await rename(renameValue.trim(), renameLibraryId)
-      setRenameDialogOpen(false)
-      setRenameLibraryId(null)
-      setRenameValue('')
-    } catch (err) {
-      console.error('Failed to rename library:', err)
-    }
-  }, [renameLibraryId, renameValue, rename])
-
-  const handleRebuildCache = React.useCallback(
-    async (libId: string) => {
-      try {
-        await rebuildCache(libId)
-      } catch (err) {
-        console.error('Failed to rebuild library cache:', err)
-      }
-    },
-    [rebuildCache],
-  )
-
-  const handleCloseClick = React.useCallback((lib: (typeof libraries)[0]) => {
-    if (!lib.repoRoot) return
-    setCloseLibraryInfo({
-      id: lib.id,
-      name: lib.name || 'Unnamed Library',
-      repoRoot: lib.repoRoot,
-    })
-    setCloseDialogOpen(true)
-  }, [])
-
-  const handleCloseConfirm = React.useCallback(async () => {
-    if (!closeLibraryInfo) return
-
-    try {
-      await close(closeLibraryInfo.repoRoot)
-      setCloseDialogOpen(false)
-      setCloseLibraryInfo(null)
-    } catch (err) {
-      console.error('Failed to close library:', err)
-    }
-  }, [closeLibraryInfo, close])
-
-  const handleRemoveClick = React.useCallback((lib: (typeof libraries)[0]) => {
-    if (!lib.repoRoot) return
-    setRemoveLibraryInfo({
-      id: lib.id,
-      name: lib.name || 'Unnamed Library',
-      repoRoot: lib.repoRoot,
-    })
-    setRemoveDialogOpen(true)
-  }, [])
-
-  const handleRemoveConfirm = React.useCallback(async () => {
-    if (!removeLibraryInfo) return
-
-    try {
-      await remove(removeLibraryInfo.repoRoot)
-      setRemoveDialogOpen(false)
-      setRemoveLibraryInfo(null)
-    } catch (err) {
-      console.error('Failed to remove library:', err)
-    }
-  }, [removeLibraryInfo, remove])
+  const handleRemoveConfirm = () => {
+    if (!removeLibrary) return
+    remove(removeLibrary.repoRoot)
+      .then(() => setRemoveLibrary(undefined))
+      .catch(ett)
+  }
 
   if (!active) {
     return (
@@ -231,12 +130,9 @@ export function InstanceSwitcher () {
           {libraries.map((lib) => (
             <DropdownMenuSub key={lib.id}>
               <DropdownMenuSubTrigger
-                onClick={() => {
-                  // Switch library on click of the sub trigger
-                  if (lib.repoRoot) {
-                    handleSwitchLibrary(lib.repoRoot)
-                  }
-                }}
+                onClick={() =>
+                  lib.repoRoot && handleSwitchLibrary(lib.repoRoot)
+                }
                 className="gap-2 p-2"
               >
                 {lib.name} (SPT {lib.sptVersion})
@@ -246,9 +142,7 @@ export function InstanceSwitcher () {
                   <DropdownMenuItem
                     onClick={(e) => {
                       e.stopPropagation()
-                      if (lib.repoRoot) {
-                        handleSwitchLibrary(lib.repoRoot)
-                      }
+                      if (lib.repoRoot) handleSwitchLibrary(lib.repoRoot)
                     }}
                     className="gap-2"
                   >
@@ -259,7 +153,7 @@ export function InstanceSwitcher () {
                 <DropdownMenuItem
                   onClick={(e) => {
                     e.stopPropagation()
-                    handleRenameClick(lib)
+                    setRenameLibrary(lib)
                   }}
                   className="gap-2"
                 >
@@ -269,7 +163,7 @@ export function InstanceSwitcher () {
                 <DropdownMenuItem
                   onClick={(e) => {
                     e.stopPropagation()
-                    handleRebuildCache(lib.id)
+                    rebuildCache(lib.id).catch(ett)
                   }}
                   className="gap-2"
                 >
@@ -281,7 +175,7 @@ export function InstanceSwitcher () {
                   <DropdownMenuItem
                     onClick={(e) => {
                       e.stopPropagation()
-                      handleCloseClick(lib)
+                      setCloseLibrary(lib)
                     }}
                     className="gap-2"
                   >
@@ -292,7 +186,7 @@ export function InstanceSwitcher () {
                 <DropdownMenuItem
                   onClick={(e) => {
                     e.stopPropagation()
-                    handleRemoveClick(lib)
+                    setRemoveLibrary(lib)
                   }}
                   variant="destructive"
                   className="gap-2"
@@ -315,118 +209,28 @@ export function InstanceSwitcher () {
         </DropdownMenuContent>
       </DropdownMenu>
 
-      {/* Rename Dialog */}
-      <Dialog open={renameDialogOpen} onOpenChange={setRenameDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              <Trans>Rename Library</Trans>
-            </DialogTitle>
-            <DialogDescription>
-              <Trans>Enter a new name for this library.</Trans>
-            </DialogDescription>
-          </DialogHeader>
-          <Input
-            value={renameValue}
-            onChange={(e) => setRenameValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                handleRenameConfirm()
-              }
-            }}
-            placeholder={active?.name || 'Library Name'}
-            autoFocus
-          />
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setRenameDialogOpen(false)
-                setRenameLibraryId(null)
-                setRenameValue('')
-              }}
-            >
-              <Trans>Cancel</Trans>
-            </Button>
-            <Button
-              onClick={handleRenameConfirm}
-              disabled={!renameValue.trim()}
-            >
-              <Trans>Rename</Trans>
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <RenameLibraryDialog
+        open={!!renameLibrary}
+        onOpenChange={(open) => !open && setRenameLibrary(undefined)}
+        currentName={renameLibrary?.name || ''}
+        onConfirm={handleRenameConfirm}
+      />
 
-      {/* Close Confirmation Dialog */}
-      <AlertDialog open={closeDialogOpen} onOpenChange={setCloseDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              <Trans>Close Library</Trans>
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {closeLibraryInfo && (
-                <Trans>
-                  Are you sure you want to close &quot;{closeLibraryInfo.name}
-                  &quot;? It will be removed from your library list but files
-                  will remain on disk.
-                </Trans>
-              )}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel
-              onClick={() => {
-                setCloseDialogOpen(false)
-                setCloseLibraryInfo(null)
-              }}
-            >
-              <Trans>Cancel</Trans>
-            </AlertDialogCancel>
-            <AlertDialogAction onClick={handleCloseConfirm}>
-              <Trans>Close</Trans>
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <CloseLibraryDialog
+        open={!!closeLibrary}
+        onOpenChange={(open) => !open && setCloseLibrary(undefined)}
+        libraryName={closeLibrary?.name || ''}
+        onConfirm={handleCloseConfirm}
+        onCancel={() => setCloseLibrary(undefined)}
+      />
 
-      {/* Remove Confirmation Dialog */}
-      <AlertDialog open={removeDialogOpen} onOpenChange={setRemoveDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              <Trans>Remove Library</Trans>
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {removeLibraryInfo && (
-                <Trans>
-                  Are you sure you want to remove &quot;{removeLibraryInfo.name}
-                  &quot;? This will unlink all mods, remove it from your library
-                  list, and delete the library directory. This action cannot be
-                  undone.
-                </Trans>
-              )}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel
-              onClick={() => {
-                setRemoveDialogOpen(false)
-                setRemoveLibraryInfo(null)
-              }}
-            >
-              <Trans>Cancel</Trans>
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleRemoveConfirm}
-              variant="destructive"
-            >
-              <Trans>Remove</Trans>
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <RemoveLibraryDialog
+        open={!!removeLibrary}
+        onOpenChange={(open) => !open && setRemoveLibrary(undefined)}
+        libraryName={removeLibrary?.name || ''}
+        onConfirm={handleRemoveConfirm}
+        onCancel={() => setRemoveLibrary(undefined)}
+      />
     </>
   )
 }

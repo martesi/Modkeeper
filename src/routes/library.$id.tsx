@@ -61,7 +61,6 @@ function ModDetailsComponent() {
     showRemoveDialog,
     { setTrue: setShowRemoveDialogTrue, set: setShowRemoveDialog },
   ] = useBoolean()
-  const [showRestoreDialog, setShowRestoreDialog] = useState(false)
   const [restoreTimestamp, setRestoreTimestamp] = useState<string | null>(null)
   const router = useRouter()
 
@@ -70,43 +69,31 @@ function ModDetailsComponent() {
     return library.mods[id] || null
   }, [library, id])
 
-  const handleToggle = async () => {
+  const handleToggle = () => {
     if (!mod) return
-    try {
-      await toggle(id, !mod.isActive)
-    } catch (err) {
-      console.error('Failed to toggle mod:', err)
-    }
+    toggle(id, !mod.isActive).catch(ett)
   }
 
-  const handleRemoveConfirm = async () => {
+  const handleRemoveConfirm = () => {
     if (!id) return
     if (!mod) return
-    try {
-      await remove([id])
-      window.history.back()
-    } catch (err) {
-      console.error('Failed to remove mod:', err)
-    }
+    remove([id])
+      .then(() => router.navigate({ to: '/library', replace: true }))
+      .catch(ett)
   }
 
   const handleRestoreBackupClick = (timestamp: string) => {
     if (!id) return
     setRestoreTimestamp(timestamp)
-    setShowRestoreDialog(true)
   }
 
-  const handleRestoreBackupConfirm = async () => {
+  const handleRestoreBackupConfirm = () => {
     if (!id || !restoreTimestamp) return
-    setShowRestoreDialog(false)
-    try {
-      await ur(commands.restoreBackup(id, restoreTimestamp))
-      router.invalidate()
-      setRestoreTimestamp(null)
-    } catch (err) {
-      console.error('Failed to restore backup:', err)
-      setRestoreTimestamp(null)
-    }
+    const timestamp = restoreTimestamp
+    setRestoreTimestamp(null)
+    ur(commands.restoreBackup(id, timestamp))
+      .then(() => router.invalidate())
+      .catch(ett)
   }
 
   if (!mod) {
@@ -185,9 +172,8 @@ function ModDetailsComponent() {
       </div>
 
       <AlertDialog
-        open={showRestoreDialog}
+        open={!!restoreTimestamp}
         onOpenChange={(open) => {
-          setShowRestoreDialog(open)
           if (!open) {
             setRestoreTimestamp(null)
           }
