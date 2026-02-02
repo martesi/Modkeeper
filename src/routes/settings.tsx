@@ -1,6 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { Trans } from '@lingui/react/macro'
-import { msg, t } from '@lingui/core/macro'
 import { HeaderPortal } from '@/components/header-portal'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ThemeSettings } from '@/components/settings/theme-settings'
@@ -11,9 +10,6 @@ import { Separator } from '@/components/ui/separator'
 
 export const Route = createFileRoute('/settings')({
   component: RouteComponent,
-  staticData: {
-    breadcrumb: () => t(msg`Settings`),
-  },
 })
 
 function RouteComponent() {

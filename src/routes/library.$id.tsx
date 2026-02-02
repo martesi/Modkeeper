@@ -3,16 +3,16 @@ import { useAtomValue } from 'jotai'
 import { ALibraryActive } from '@/store/library'
 import { useLibrary } from '@/hooks/use-library'
 import { Button } from '@comps/button'
-import { Badge } from '@comps/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@comps/tabs'
 import { Trans } from '@lingui/react/macro'
 import { ArrowLeft, Package, Trash2 } from 'lucide-react'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { useBoolean } from 'ahooks'
-import { commands, ModBackup } from '@gen/bindings'
+import { commands } from '@gen/bindings'
 import { ur } from '@/utils/result'
-import { msg, t } from '@lingui/core/macro'
 import { ConfirmPopover } from '@comps/confirm-popover'
+import { Switch } from '@comps/switch'
+import { HeaderPortal } from '@/components/header-portal'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,7 +23,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@comps/alert-dialog'
-import { ModTypeBadge } from '@/components/mod/mod-type-badge'
 import { OverviewTab } from '@/components/mod/mod-details/overview-tab'
 import { DependenciesTab } from '@/components/mod/mod-details/dependencies-tab'
 import { DocumentationTab } from '@/components/mod/mod-details/documentation-tab'
@@ -31,62 +30,45 @@ import { BackupsTab } from '@/components/mod/mod-details/backups-tab'
 import { LinksTab } from '@/components/mod/mod-details/links-tab'
 import { formatTimestamp } from '@/utils/mod'
 import { ett } from '@/utils/error'
-import { ModVersion } from '@/components/mod/mod-version'
 
 export const Route = createFileRoute('/library/$id')({
   component: ModDetailsComponent,
-  staticData: {
-    breadcrumb: (ctx: any) => {
-      const mod = ctx.library?.mods?.[ctx.params?.id]
-      return mod ? mod.name : t(msg`Mod Details`)
-    },
-  },
   loader: async ({ params: { id } }) => {
-    const backups = await commands
-      .getBackups(id)
-      .then(ur)
-      .catch((v) => {
-        ett(v)
-        return []
-      })
+    const [backups, documentation] = await Promise.all([
+      commands
+        .getBackups(id)
+        .then(ur)
+        .catch((v) => {
+          ett(v)
+          return []
+        }),
+      commands
+        .getModDocumentation(id)
+        .then(ur)
+        .catch(() => null),
+    ])
 
-    return { backups }
+    return { backups, documentation }
   },
 })
 
-function ModDetailsComponent () {
+function ModDetailsComponent() {
   const { id } = Route.useParams()
   const library = useAtomValue(ALibraryActive)
   const { toggle, remove } = useLibrary()
-  const [documentation, setDocumentation] = useState<string | null>(null)
-  const [loadingDocs, setLoadingDocs] = useState(false)
-  const [showRemoveDialog, { setTrue: setShowRemoveDialogTrue, set: setShowRemoveDialog }] = useBoolean()
+  const { backups, documentation } = Route.useLoaderData()
+  const [
+    showRemoveDialog,
+    { setTrue: setShowRemoveDialogTrue, set: setShowRemoveDialog },
+  ] = useBoolean()
   const [showRestoreDialog, setShowRestoreDialog] = useState(false)
   const [restoreTimestamp, setRestoreTimestamp] = useState<string | null>(null)
-  const { backups } = Route.useLoaderData()
   const router = useRouter()
 
   const mod = useMemo(() => {
     if (!library?.mods) return null
     return library.mods[id] || null
   }, [library, id])
-
-  useEffect(() => {
-    if (mod?.manifest?.documentation && id) {
-      setLoadingDocs(true)
-      ur(commands.getModDocumentation(id))
-        .then((docs) => {
-          setDocumentation(docs)
-        })
-        .catch((err) => {
-          console.error('Failed to load documentation:', err)
-          setDocumentation(null)
-        })
-        .finally(() => {
-          setLoadingDocs(false)
-        })
-    }
-  }, [id, mod?.manifest?.documentation])
 
   const handleToggle = async () => {
     if (!mod) return
@@ -145,76 +127,62 @@ function ModDetailsComponent () {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="">
-        <div className="flex items-center gap-4 mb-2 w-full">
-          <Link to="..">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="size-4" />
-            </Button>
-          </Link>
-          <div className="shrink-0">
-            {mod.iconData ? (
-              <img
-                src={mod.iconData}
-                alt={mod.name}
-                className="size-12 rounded"
-              />
-            ) : (
-              <Package className="size-12 text-muted-foreground" />
-            )}
-          </div>
-          <div className="flex-1">
-            <div className="flex items-center gap-2 w-full relative">
-              <div className="absolute w-full">
-                <h1 className="text-3xl font-bold truncate">{mod.name}</h1>
-                <ModVersion mod={mod} />
-              </div>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <Button onClick={handleToggle} variant="outline">
-              {mod.isActive ? (
-                <Trans>Deactivate</Trans>
+      <HeaderPortal>
+        <div className="flex items-center gap-2">
+          <ConfirmPopover
+            open={showRemoveDialog}
+            onOpenChange={setShowRemoveDialog}
+            title={<Trans>Remove Mod</Trans>}
+            description={
+              mod ? (
+                <Trans>
+                  Are you sure you want to remove &quot;{mod.name}&quot;? This
+                  action cannot be undone.
+                </Trans>
               ) : (
-                <Trans>Activate</Trans>
-              )}
-            </Button>
-            <ConfirmPopover
-              open={showRemoveDialog}
-              onOpenChange={setShowRemoveDialog}
-              title={<Trans>Remove Mod</Trans>}
-              description={
-                mod ? (
-                  <Trans>
-                    Are you sure you want to remove &quot;{mod.name}&quot;? This
-                    action cannot be undone.
-                  </Trans>
-                ) : (
-                  ''
-                )
-              }
-              confirmLabel={<Trans>Remove</Trans>}
-              variant="destructive"
-              onConfirm={handleRemoveConfirm}
-              trigger={
-                <Button variant="destructive" onClick={setShowRemoveDialogTrue}>
-                  <Trash2 className="size-4 mr-2" />
-                  <Trans>Remove</Trans>
-                </Button>
-              }
-              side="top"
-            />
-          </div>
+                ''
+              )
+            }
+            confirmLabel={<Trans>Remove</Trans>}
+            variant="destructive"
+            onConfirm={handleRemoveConfirm}
+            trigger={
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={setShowRemoveDialogTrue}
+              >
+                <Trash2 className="size-4" />
+              </Button>
+            }
+            side="top"
+          />
+          <Switch checked={mod.isActive} onCheckedChange={handleToggle} />
         </div>
-        <div className="flex gap-2 ml-13">
-          <ModTypeBadge type={mod.type} />
-          <Badge variant={mod.isActive ? 'default' : 'secondary'}>
-            {mod.isActive ? <Trans>Active</Trans> : <Trans>Inactive</Trans>}
-          </Badge>
+      </HeaderPortal>
+
+      {/* Header */}
+      <div className="flex items-center gap-4 mb-2 w-full">
+        <Link to="..">
+          <Button variant="ghost" size="icon">
+            <ArrowLeft className="size-4" />
+          </Button>
+        </Link>
+        <div className="shrink-0">
+          {mod.iconData ? (
+            <img
+              src={mod.iconData}
+              alt={mod.name}
+              className="size-12 rounded"
+            />
+          ) : (
+            <Package className="size-12 text-muted-foreground" />
+          )}
+        </div>
+        <div className="flex-1">
+          <h1 className="text-3xl font-bold truncate">{mod.name}</h1>
         </div>
       </div>
-
 
       <AlertDialog
         open={showRestoreDialog}
@@ -289,10 +257,7 @@ function ModDetailsComponent () {
 
         {mod.manifest?.documentation && (
           <TabsContent value="documentation" className="space-y-4">
-            <DocumentationTab
-              documentation={documentation}
-              loading={loadingDocs}
-            />
+            <DocumentationTab documentation={documentation} loading={false} />
           </TabsContent>
         )}
 

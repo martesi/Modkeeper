@@ -34,9 +34,17 @@ export function OverviewTab({ mod }: OverviewTabProps) {
             <h4 className="text-sm font-semibold mb-1">
               <Trans>SPT Version</Trans>
             </h4>
-            <p className="text-sm text-muted-foreground">{manifest.sptVersion}</p>
+            <p className="text-sm text-muted-foreground">
+              {manifest.sptVersion}
+            </p>
           </div>
         )}
+        <div>
+          <h4 className="text-sm font-semibold mb-1">
+            <Trans>Mod Type</Trans>
+          </h4>
+          <p className="text-sm text-muted-foreground">{mod.type}</p>
+        </div>
       </div>
 
       {manifest?.effects && manifest.effects.length > 0 && (
