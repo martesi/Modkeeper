@@ -8,7 +8,6 @@ import { ArrowLeft } from 'lucide-react'
 import { useState, useMemo } from 'react'
 import { commands } from '@gen/bindings'
 import { ur } from '@/utils/result'
-import { HeaderPortal } from '@/components/header-portal'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,11 +24,19 @@ import { ModDetailHeader } from '@/components/mod/mod-details/mod-detail-header'
 import { ModDetailSidebar } from '@/components/mod/mod-details/mod-detail-sidebar'
 import { MarkdownContent } from '@/components/mod/markdown-content'
 import { Badge } from '@comps/badge'
-import { msg, t } from '@lingui/core/macro'
 import { Card, CardContent, CardHeader, CardTitle } from '@comps/card'
 import { Empty, EmptyDescription } from '@comps/empty'
 import { Checkbox } from '@comps/checkbox'
 import { Label } from '@comps/label'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@comps/dialog'
+import { Input } from '@comps/input'
+import { msg, t } from '@lingui/core/macro'
 
 export const Route = createFileRoute('/library/$id')({
   component: ModDetailsComponent,
@@ -59,6 +66,8 @@ function ModDetailsComponent() {
   const { backups, documentation } = Route.useLoaderData()
   const [restoreTimestamp, setRestoreTimestamp] = useState<string | null>(null)
   const [restoreConfig, setRestoreConfig] = useState(false)
+  const [createDialogOpen, setCreateDialogOpen] = useState(false)
+  const [backupName, setBackupName] = useState('')
   const router = useRouter()
 
   const mod = useMemo(() => {
@@ -79,9 +88,23 @@ function ModDetailsComponent() {
       .catch(ett)
   }
 
-  const handleCreateBackup = () => {
+  const handleCreateBackupClick = () => {
+    if (!id || !mod) return
+    setBackupName(t(msg`Manual Backup`))
+    setCreateDialogOpen(true)
+  }
+
+  const handleCreateBackupConfirm = () => {
+    if (!id || !backupName.trim()) return
+    setCreateDialogOpen(false)
+    ur(commands.createBackup(id, backupName.trim()))
+      .then(() => router.invalidate())
+      .catch(ett)
+  }
+
+  const handleRemoveBackup = (timestamp: string) => {
     if (!id) return
-    ur(commands.createBackup(id, t(msg`Manual backup`)))
+    ur(commands.removeBackup(id, timestamp))
       .then(() => router.invalidate())
       .catch(ett)
   }
@@ -122,10 +145,6 @@ function ModDetailsComponent() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-10">
-      <HeaderPortal>
-        {/* Portal Is Empty - Header actions moved to page header */}
-      </HeaderPortal>
-
       {/* Back Link */}
       <div>
         <Link
@@ -231,8 +250,9 @@ function ModDetailsComponent() {
             mod={mod}
             allMods={library?.mods || {}}
             backups={backups}
-            onCreateBackup={handleCreateBackup}
+            onCreateBackup={handleCreateBackupClick}
             onRestoreBackup={handleRestoreBackupClick}
+            onRemoveBackup={handleRemoveBackup}
           />
         </div>
       </div>
@@ -284,6 +304,43 @@ function ModDetailsComponent() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              <Trans>Create Backup</Trans>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="backup-name">
+                <Trans>Backup Name</Trans>
+              </Label>
+              <Input
+                id="backup-name"
+                value={backupName}
+                onChange={(e) => setBackupName(e.target.value)}
+                placeholder="Enter backup name"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleCreateBackupConfirm()
+                }}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setCreateDialogOpen(false)}
+            >
+              <Trans>Cancel</Trans>
+            </Button>
+            <Button onClick={handleCreateBackupConfirm}>
+              <Trans>Create</Trans>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

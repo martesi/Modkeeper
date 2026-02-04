@@ -8,6 +8,7 @@ import {
   Plus,
   AlertTriangle,
   AlertCircle,
+  Trash2,
 } from 'lucide-react'
 import { Trans } from '@lingui/react/macro'
 import { Button } from '@comps/button'
@@ -17,6 +18,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@comps/card'
 import { Empty, EmptyDescription, EmptyMedia } from '@comps/empty'
 import { checkDependencies, DependencyStatus } from '@/utils/dependency-check'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@comps/tooltip'
+import { ConfirmPopover } from '@comps/confirm-popover'
+import { useBoolean } from 'ahooks'
 
 interface ModDetailSidebarProps {
   mod: Mod
@@ -24,6 +27,7 @@ interface ModDetailSidebarProps {
   backups: ModBackup[]
   onCreateBackup: () => void
   onRestoreBackup: (timestamp: string) => void
+  onRemoveBackup: (timestamp: string) => void
 }
 
 export function ModDetailSidebar({
@@ -32,6 +36,7 @@ export function ModDetailSidebar({
   backups,
   onCreateBackup,
   onRestoreBackup,
+  onRemoveBackup,
 }: ModDetailSidebarProps) {
   const links = mod.manifest?.links || []
 
@@ -189,23 +194,12 @@ export function ModDetailSidebar({
         <CardContent className="space-y-4">
           <div className="space-y-2">
             {backups.slice(0, 5).map((backup) => (
-              <div
+              <BackupItem
                 key={backup.timestamp}
-                className="flex items-center gap-3 p-3 border rounded-lg bg-background hover:bg-muted transition-colors cursor-pointer group"
-                onClick={() => onRestoreBackup(backup.timestamp)}
-              >
-                <div className="bg-blue-500/10 p-2 rounded-lg text-blue-500">
-                  <History className="size-4" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-sm truncate">
-                    {backup.name || <Trans>Backup</Trans>}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatTimestamp(backup.timestamp)}
-                  </p>
-                </div>
-              </div>
+                backup={backup}
+                onRestore={() => onRestoreBackup(backup.timestamp)}
+                onRemove={() => onRemoveBackup(backup.timestamp)}
+              />
             ))}
             {backups.length === 0 && (
               <Empty className="border-none h-32 p-0">
@@ -245,4 +239,82 @@ function getLinkIcon(type?: string | null) {
     default:
       return <LinkIcon className="size-4" />
   }
+}
+
+function BackupItem({
+  backup,
+  onRestore,
+  onRemove,
+}: {
+  backup: ModBackup
+  onRestore: () => void
+  onRemove: () => void
+}) {
+  const [confirmOpen, { setTrue: openConfirm, set: setConfirmOpen }] =
+    useBoolean()
+
+  return (
+    <div className="flex items-center gap-3 p-3 border rounded-lg bg-background hover:bg-accent transition-colors group relative">
+      <div className="bg-blue-500/10 p-2 rounded-lg text-blue-500">
+        <History className="size-4" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="font-medium text-sm truncate">
+          {backup.name || <Trans>Backup</Trans>}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {formatTimestamp(backup.timestamp)}
+        </p>
+      </div>
+
+      <div className="absolute right-2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 bg-background/80 backdrop-blur-sm pl-2 rounded-l">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8"
+              onClick={(e) => {
+                e.stopPropagation()
+                onRestore()
+              }}
+            >
+              <History className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <Trans>Restore</Trans>
+          </TooltipContent>
+        </Tooltip>
+
+        <ConfirmPopover
+          open={confirmOpen}
+          onOpenChange={setConfirmOpen}
+          title={<Trans>Remove Backup</Trans>}
+          description={
+            <Trans>
+              Are you sure you want to remove this backup? This action cannot be
+              undone.
+            </Trans>
+          }
+          confirmLabel={<Trans>Remove</Trans>}
+          variant="destructive"
+          onConfirm={onRemove}
+          trigger={
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8 text-destructive hover:text-destructive"
+              onClick={(e) => {
+                e.stopPropagation()
+                openConfirm()
+              }}
+            >
+              <Trash2 className="size-4" />
+            </Button>
+          }
+        />
+      </div>
+    </div>
+  )
 }

@@ -104,6 +104,20 @@ export const commands = {
       else return { status: 'error', error: e as any }
     }
   },
+  async removeBackup(
+    modId: string,
+    timestamp: string,
+  ): Promise<Result<null, SError>> {
+    try {
+      return {
+        status: 'ok',
+        data: await TAURI_INVOKE('remove_backup', { modId, timestamp }),
+      }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e as any }
+    }
+  },
   async getModDocumentation(modId: string): Promise<Result<string, SError>> {
     try {
       return {
