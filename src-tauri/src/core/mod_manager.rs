@@ -9,13 +9,19 @@ use crate::utils::file::FileUtils;
 
 /// Adds or updates a mod in the library.
 /// Creates a backup if the mod already exists.
-pub fn add_mod(library: &mut Library, staged: StagedMod) -> Result<(), SError> {
+pub fn add_mod(library: &mut Library, staged: StagedMod, backup_name: &str) -> Result<(), SError> {
     let mod_id = staged.fs.id.clone();
     let dst = library.lib_paths.mods.join(&mod_id);
 
     // Create backup if mod already exists
     if dst.exists() {
-        mod_backup::create_backup(&library.lib_paths, &mod_id)?;
+        mod_backup::create_backup(
+            &library.lib_paths,
+            &library.spt_rules,
+            &library.game_root,
+            &mod_id,
+            backup_name,
+        )?;
     }
 
     std::fs::create_dir_all(&dst)?;

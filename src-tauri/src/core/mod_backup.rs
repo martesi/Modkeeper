@@ -1,16 +1,25 @@
-use camino::Utf8PathBuf;
+use camino::{Utf8Path, Utf8PathBuf};
 
 use crate::core::library::Library;
 use crate::core::mod_fs::ModFS;
 use crate::models::error::SError;
-use crate::models::mod_backup::ModBackup;
-use crate::models::paths::LibPathRules;
+use crate::models::mod_backup::{BackupManifest, ModBackup};
+use crate::models::paths::{BackupPathRules, LibPathRules, SPTPathRules};
 use crate::utils::file::FileUtils;
 use crate::utils::time::get_unix_timestamp;
 
 /// Creates a backup of a mod at the current timestamp.
-/// Backup is stored at: `backups/{mod_id}/{timestamp}/`
-pub fn create_backup(lib_paths: &LibPathRules, mod_id: &str) -> Result<(), SError> {
+/// Backup is stored at: `backups/{mod_id}/{timestamp}/` with structure:
+/// - manifest.toml: Contains name and timestamp
+/// - content/: Mod files from mods/{mod_id}
+/// - config/: BepInEx config file (if exists)
+pub fn create_backup(
+    lib_paths: &LibPathRules,
+    spt_rules: &SPTPathRules,
+    game_root: &Utf8Path,
+    mod_id: &str,
+    name: &str,
+) -> Result<(), SError> {
     let mod_dir = lib_paths.mods.join(mod_id);
 
     if !mod_dir.exists() {
@@ -19,14 +28,38 @@ pub fn create_backup(lib_paths: &LibPathRules, mod_id: &str) -> Result<(), SErro
 
     let timestamp = get_unix_timestamp().to_string();
     let backup_dir = lib_paths.backups.join(mod_id).join(&timestamp);
+    let backup_rules = BackupPathRules::new(&backup_dir);
 
-    std::fs::create_dir_all(&backup_dir)?;
-    FileUtils::copy_recursive(&mod_dir, &backup_dir)?;
+    // Create backup directory and content folder
+    std::fs::create_dir_all(&backup_rules.content)?;
+
+    // Write manifest.toml
+    let manifest = BackupManifest {
+        timestamp: timestamp.clone(),
+        name: name.to_string(),
+    };
+    let manifest_content =
+        toml::to_string_pretty(&manifest).map_err(|e| SError::ParseError(e.to_string()))?;
+    std::fs::write(&backup_rules.manifest, manifest_content)?;
+
+    // Copy mod content
+    FileUtils::copy_recursive(&mod_dir, &backup_rules.content)?;
+
+    // Copy config file if exists
+    let game_config_path = game_root
+        .join(&spt_rules.client_config)
+        .join(format!("{}.cfg", mod_id));
+    if game_config_path.exists() {
+        std::fs::create_dir_all(&backup_rules.config)?;
+        let backup_config_path = backup_rules.mod_config_file(mod_id);
+        std::fs::copy(&game_config_path, &backup_config_path)?;
+    }
+
     Ok(())
 }
 
 /// Lists all available backups for a given mod.
-/// Returns timestamps in descending order (newest first).
+/// Returns backups in descending order (newest first).
 pub fn list_backups(lib_paths: &LibPathRules, mod_id: &str) -> Result<Vec<ModBackup>, SError> {
     let backup_dir = lib_paths.backups.join(mod_id);
 
@@ -37,11 +70,25 @@ pub fn list_backups(lib_paths: &LibPathRules, mod_id: &str) -> Result<Vec<ModBac
     let entries = std::fs::read_dir(&backup_dir)?;
     let mut backups: Vec<ModBackup> = entries
         .filter_map(|entry| {
-            entry.ok().and_then(|e| {
-                Some(ModBackup {
-                    timestamp: e.file_name().into_string().ok()?,
-                    path: Utf8PathBuf::from_path_buf(e.path()).ok()?,
-                })
+            let entry = entry.ok()?;
+            let path = Utf8PathBuf::from_path_buf(entry.path()).ok()?;
+
+            // Read manifest.toml
+            let backup_rules = BackupPathRules::new(&path);
+            let manifest = read_manifest(&backup_rules.manifest).ok()?;
+
+            // Check if config folder exists with files
+            let has_config = backup_rules.config.exists()
+                && std::fs::read_dir(&backup_rules.config)
+                    .ok()?
+                    .next()
+                    .is_some();
+
+            Some(ModBackup {
+                timestamp: manifest.timestamp,
+                name: manifest.name,
+                has_config,
+                path,
             })
         })
         .collect();
@@ -52,9 +99,20 @@ pub fn list_backups(lib_paths: &LibPathRules, mod_id: &str) -> Result<Vec<ModBac
     Ok(backups)
 }
 
+/// Reads a backup manifest from a manifest.toml file
+fn read_manifest(manifest_path: &Utf8Path) -> Result<BackupManifest, SError> {
+    let content = std::fs::read_to_string(manifest_path)?;
+    toml::from_str(&content).map_err(|e| SError::ParseError(e.to_string()))
+}
+
 /// Restores a mod from a backup.
-/// Creates a backup of the current state before restoring.
-pub fn restore_backup(library: &mut Library, mod_id: &str, timestamp: &str) -> Result<(), SError> {
+/// If `restore_config` is true and the backup has a config file, it will be restored too.
+pub fn restore_backup(
+    library: &mut Library,
+    mod_id: &str,
+    timestamp: &str,
+    restore_config: bool,
+) -> Result<(), SError> {
     // Verify mod exists
     if !library.mods.contains_key(mod_id) {
         return Err(SError::ModNotFound(mod_id.to_string()));
@@ -66,6 +124,7 @@ pub fn restore_backup(library: &mut Library, mod_id: &str, timestamp: &str) -> R
         return Err(SError::Unexpected);
     }
 
+    let backup_rules = BackupPathRules::new(&backup_dir);
     let mod_dir = library.lib_paths.mods.join(mod_id);
 
     // Remove current mod directory
@@ -73,9 +132,20 @@ pub fn restore_backup(library: &mut Library, mod_id: &str, timestamp: &str) -> R
         std::fs::remove_dir_all(&mod_dir)?;
     }
 
-    // Restore from backup
+    // Restore mod content from backup
     std::fs::create_dir_all(&mod_dir)?;
-    FileUtils::copy_recursive(&backup_dir, &mod_dir)?;
+    FileUtils::copy_recursive(&backup_rules.content, &mod_dir)?;
+
+    // Restore config if requested and exists
+    if restore_config {
+        let backup_config_path = backup_rules.mod_config_file(mod_id);
+        if backup_config_path.exists() {
+            let game_config_dir = library.game_root.join(&library.spt_rules.client_config);
+            let game_config_path = game_config_dir.join(format!("{}.cfg", mod_id));
+            std::fs::create_dir_all(&game_config_dir)?;
+            std::fs::copy(&backup_config_path, &game_config_path)?;
+        }
+    }
 
     // Rebuild the ModFS for the restored mod
     let restored_fs = ModFS::new(&mod_dir, &library.spt_rules)?;

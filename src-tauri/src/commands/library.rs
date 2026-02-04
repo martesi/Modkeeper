@@ -20,6 +20,7 @@ pub async fn add_mods(
     state: State<'_, AppRegistry>,
     paths: Vec<String>,
     unknown_mod_name: String,
+    backup_name: String,
 ) -> Result<LibraryDTO, SError> {
     let inputs = paths
         .into_iter()
@@ -51,7 +52,7 @@ pub async fn add_mods(
                     // Extract cleanup data before moving staged into add_mod
                     let is_staging = staged.is_staging;
                     let source_path = staged.source_path.clone();
-                    mod_manager::add_mod(inst, staged)
+                    mod_manager::add_mod(inst, staged, &backup_name)
                         .and_then(|_| mod_stager::clean_up(is_staging, &source_path))
                 })
                 .map(|_| dto_builder::build_frontend_dto(inst))
@@ -178,11 +179,12 @@ pub async fn restore_backup(
     state: State<'_, AppRegistry>,
     mod_id: String,
     timestamp: String,
+    restore_config: bool,
 ) -> Result<LibraryDTO, SError> {
     let instance_handle = state.active_instance.clone();
     tauri::async_runtime::spawn_blocking(move || {
         with_lib_arc_mut(instance_handle, |inst| {
-            mod_backup::restore_backup(inst, &mod_id, &timestamp)
+            mod_backup::restore_backup(inst, &mod_id, &timestamp, restore_config)
                 .map(|_| dto_builder::build_frontend_dto(inst))
         })
     })
