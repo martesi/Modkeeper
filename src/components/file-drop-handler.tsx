@@ -16,32 +16,26 @@ export function FileDropHandler() {
   const { add } = useLibrary()
 
   useEffect(() => {
-    let unlistenPromise: Promise<() => void> | undefined
+    const currentWindow = getCurrentWindow()
+    const unlistenPromise = currentWindow.onDragDropEvent((event) => {
+      if (event.payload.type === 'drop') {
+        const paths = event.payload.paths
 
-    try {
-      const currentWindow = getCurrentWindow()
-      unlistenPromise = currentWindow.onDragDropEvent((event) => {
-        if (event.payload.type === 'drop') {
-          const paths = event.payload.paths
-
-          // Only process drops when a library is active
-          if (!library) {
-            console.warn('No active library, ignoring file drop')
-            return
-          }
-
-          // Process the dropped files
-          add(paths, tUnknownModName()).catch((err) => {
-            console.error('Failed to add mods from file drop:', err)
-          })
+        // Only process drops when a library is active
+        if (!library) {
+          console.warn('No active library, ignoring file drop')
+          return
         }
-      })
-    } catch (err) {
-      console.error('Failed to setup file drop listener:', err)
-    }
+
+        // Process the dropped files
+        add(paths, tUnknownModName(), '').catch((err) => {
+          console.error('Failed to add mods from file drop:', err)
+        })
+      }
+    })
 
     return () => {
-      unlistenPromise?.then((unlisten) => unlisten())
+      unlistenPromise.then((unlisten) => unlisten())
     }
   }, [library, add])
 

@@ -13,7 +13,6 @@ import {
 import { Trans } from '@lingui/react/macro'
 import { Button } from '@comps/button'
 import { formatTimestamp } from '@/utils/mod'
-import { useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@comps/card'
 import { Empty, EmptyDescription, EmptyMedia } from '@comps/empty'
 import { checkDependencies, DependencyStatus } from '@/utils/dependency-check'

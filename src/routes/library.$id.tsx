@@ -5,7 +5,7 @@ import { useLibrary } from '@/hooks/use-library'
 import { Button } from '@comps/button'
 import { Trans } from '@lingui/react/macro'
 import { ArrowLeft } from 'lucide-react'
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import { commands } from '@gen/bindings'
 import { ur } from '@/utils/result'
 import {
@@ -64,15 +64,15 @@ function ModDetailsComponent() {
   const library = useAtomValue(ALibraryActive)
   const { toggle, remove } = useLibrary()
   const { backups, documentation } = Route.useLoaderData()
-  const [restoreTimestamp, setRestoreTimestamp] = useState<string | null>(null)
+  const [restoreTimestamp, setRestoreTimestamp] = useState<string>()
   const [restoreConfig, setRestoreConfig] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [backupName, setBackupName] = useState('')
   const router = useRouter()
 
   const mod = useMemo(() => {
-    if (!library?.mods) return null
-    return library.mods[id] || null
+    if (!library?.mods) return undefined
+    return library.mods[id] || undefined
   }, [library, id])
 
   const handleToggle = () => {
@@ -118,7 +118,7 @@ function ModDetailsComponent() {
   const handleRestoreBackupConfirm = () => {
     if (!id || !restoreTimestamp) return
     const timestamp = restoreTimestamp
-    setRestoreTimestamp(null)
+    setRestoreTimestamp(undefined)
     ur(commands.restoreBackup(id, timestamp, restoreConfig))
       .then(() => router.invalidate())
       .catch(ett)
@@ -261,7 +261,7 @@ function ModDetailsComponent() {
         open={!!restoreTimestamp}
         onOpenChange={(open) => {
           if (!open) {
-            setRestoreTimestamp(null)
+            setRestoreTimestamp(undefined)
           }
         }}
       >

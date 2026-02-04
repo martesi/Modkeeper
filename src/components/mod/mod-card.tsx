@@ -25,7 +25,6 @@ import {
   AlertTriangle,
   AlertCircle,
 } from 'lucide-react'
-import { useMemo } from 'react'
 import { ett } from '@/utils/error'
 import { ur } from '@/utils/result'
 import { ModVersion } from './mod-version'

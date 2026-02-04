@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Trans } from '@lingui/react/macro'
 import {
   Select,
@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { changeLocale } from '@/utils/i18n'
-import { loadSettings, saveSettings, type Settings } from '@/lib/settings-storage'
+import { loadSettings, saveSettings } from '@/lib/settings-storage'
 
 const AVAILABLE_LOCALES = [
   { value: 'en-US', label: 'English (US)' },
@@ -17,28 +17,16 @@ const AVAILABLE_LOCALES = [
 ]
 
 export function LanguageSettings() {
-  const [language, setLanguage] = useState<string>('en-US')
-  const [mounted, setMounted] = useState(false)
+  const [language, setLanguage] = useState(() => loadSettings().language)
 
-  useEffect(() => {
-    setMounted(true)
-    const settings = loadSettings()
-    setLanguage(settings.language)
-  }, [])
-
-  const handleLanguageChange = async (value: string) => {
+  const handleLanguageChange = (value: string) => {
     setLanguage(value)
-    try {
-      await changeLocale(value)
-      const settings = loadSettings()
-      saveSettings({ ...settings, language: value })
-    } catch (err) {
-      console.error('Failed to change language:', err)
-    }
-  }
-
-  if (!mounted) {
-    return null
+    changeLocale(value)
+      .then(() => {
+        const settings = loadSettings()
+        saveSettings({ ...settings, language: value })
+      })
+      .catch((err) => console.error('Failed to change language:', err))
   }
 
   return (

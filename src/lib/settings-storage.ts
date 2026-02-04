@@ -26,18 +26,23 @@ export function loadSettings(): Settings {
     return DEFAULT_SETTINGS
   }
 
-  try {
-    const parsed: unknown = JSON.parse(stored)
-    const result = SettingsSchema.safeParse(parsed)
-    if (result.success) {
-      return result.data
+  const parsed = (() => {
+    try {
+      return JSON.parse(stored) as unknown
+    } catch {
+      return undefined
     }
-    console.warn('Invalid settings format, using defaults:', result.error)
-    return DEFAULT_SETTINGS
-  } catch {
+  })()
+  if (parsed === undefined) {
     console.error('Failed to parse settings, using defaults')
     return DEFAULT_SETTINGS
   }
+  const result = SettingsSchema.safeParse(parsed)
+  if (!result.success) {
+    console.warn('Invalid settings format, using defaults:', result.error)
+    return DEFAULT_SETTINGS
+  }
+  return result.data
 }
 
 export function saveSettings(settings: Settings): void {

@@ -1,7 +1,6 @@
 'use client'
 
 import { Trans } from '@lingui/react/macro'
-import { useMemo } from 'react'
 import type { Mod } from '@gen/bindings'
 import { ModCard } from './mod-card'
 import { useAtomValue } from 'jotai'

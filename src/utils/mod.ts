@@ -4,13 +4,9 @@
  * @returns Formatted date string or the original timestamp if parsing fails
  */
 export function formatTimestamp(timestamp: string): string {
-  try {
-    // Unix timestamps are in seconds, JavaScript Date expects milliseconds
-    const date = new Date(Number(timestamp) * 1000)
-    return date.toLocaleString()
-  } catch {
-    return timestamp
-  }
+  const num = Number(timestamp)
+  if (Number.isNaN(num)) return timestamp
+  return new Date(num * 1000).toLocaleString()
 }
 
 /**

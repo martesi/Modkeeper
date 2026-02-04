@@ -12,8 +12,7 @@ Avoid using try-catch, always use Promise, Promise.try if not present.
 Avoid using setState in useEffect.
 Avoid loading/error state if not specified.
 Avoid ignore modules that can be auto-imported via unplugin-auto-import.
-Avoid explicitly using useMemo, useCallback if not passed in dependency array,
-we're using react-compiler.
+Avoid explicitly using useMemo, useCallback if not passed in dependency array.
 Avoid import React namespace, instead import modules that are used.
 Prefer inline callback if function is shorter than three lines.
 Avoid using open status if there is a synced state present,
