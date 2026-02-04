@@ -71,6 +71,20 @@ export const commands = {
       else return { status: 'error', error: e as any }
     }
   },
+  async createBackup(
+    modId: string,
+    backupName: string,
+  ): Promise<Result<null, SError>> {
+    try {
+      return {
+        status: 'ok',
+        data: await TAURI_INVOKE('create_backup', { modId, backupName }),
+      }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e as any }
+    }
+  },
   async restoreBackup(
     modId: string,
     timestamp: string,

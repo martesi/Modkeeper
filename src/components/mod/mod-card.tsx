@@ -17,18 +17,37 @@ import { commands } from '@gen/bindings'
 import { Trans } from '@lingui/react/macro'
 import { Link } from '@tanstack/react-router'
 import { useBoolean } from 'ahooks'
-import { FolderSearch, Package, Trash2 } from 'lucide-react'
-import { ModVersion } from './mod-version'
+import { checkDependencies, DependencyStatus } from '@/utils/dependency-check'
+import {
+  FolderSearch,
+  Package,
+  Trash2,
+  AlertTriangle,
+  AlertCircle,
+} from 'lucide-react'
+import { useMemo } from 'react'
 import { ett } from '@/utils/error'
 import { ur } from '@/utils/result'
+import { ModVersion } from './mod-version'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@comps/tooltip'
 
 interface ModCardProps {
   mod: Mod
+  allMods: Record<string, Mod | undefined>
 }
 
-export function ModCard({ mod }: ModCardProps) {
+export function ModCard({ mod, allMods }: ModCardProps) {
   const { toggle, remove } = useLibrary()
   const [open, { setTrue, set }] = useBoolean()
+
+  const dependencies = useMemo(() => {
+    return checkDependencies(mod, allMods)
+  }, [mod, allMods])
+
+  const hasIssues = dependencies.length > 0
+  const hasMissing = dependencies.some(
+    (d) => d.status === DependencyStatus.Missing,
+  )
 
   const handleRevealMod = () => {
     commands.revealMod(mod.id).then(ur).catch(ett)
@@ -56,13 +75,53 @@ export function ModCard({ mod }: ModCardProps) {
       </ItemMedia>
       <ItemContent>
         <ItemTitle>
-          <Link
-            to="/library/$id"
-            params={{ id: mod.id }}
-            className="hover:opacity-70 transition-opacity"
-          >
-            {mod.name}
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              to="/library/$id"
+              params={{ id: mod.id }}
+              className="hover:opacity-70 transition-opacity truncate"
+            >
+              {mod.name}
+            </Link>
+            {hasIssues && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="cursor-help">
+                    {hasMissing ? (
+                      <AlertCircle className="size-4 text-destructive" />
+                    ) : (
+                      <AlertTriangle className="size-4 text-yellow-500" />
+                    )}
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <div className="space-y-1">
+                    <p className="font-semibold">
+                      <Trans>Dependency Issues:</Trans>
+                    </p>
+                    {dependencies.map((dep) => {
+                      if (dep.status === DependencyStatus.Satisfied) return null
+                      return (
+                        <p key={dep.id} className="text-xs">
+                          <span className="font-mono">{dep.id}</span>:{' '}
+                          {dep.status === DependencyStatus.Missing ? (
+                            <Trans>
+                              Missing (requires {dep.requiredVersion})
+                            </Trans>
+                          ) : (
+                            <Trans>
+                              Mismatch (requires {dep.requiredVersion}, found{' '}
+                              {dep.foundVersion})
+                            </Trans>
+                          )}
+                        </p>
+                      )
+                    })}
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </div>
         </ItemTitle>
         <ItemDescription>
           <ModVersion mod={mod} />

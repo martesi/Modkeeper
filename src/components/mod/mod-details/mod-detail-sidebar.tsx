@@ -6,6 +6,8 @@ import {
   CheckCircle2,
   History,
   Plus,
+  AlertTriangle,
+  AlertCircle,
 } from 'lucide-react'
 import { Trans } from '@lingui/react/macro'
 import { Button } from '@comps/button'
@@ -13,9 +15,12 @@ import { formatTimestamp } from '@/utils/mod'
 import { useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@comps/card'
 import { Empty, EmptyDescription, EmptyMedia } from '@comps/empty'
+import { checkDependencies, DependencyStatus } from '@/utils/dependency-check'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@comps/tooltip'
 
 interface ModDetailSidebarProps {
   mod: Mod
+  allMods: Record<string, Mod | undefined>
   backups: ModBackup[]
   onCreateBackup: () => void
   onRestoreBackup: (timestamp: string) => void
@@ -23,6 +28,7 @@ interface ModDetailSidebarProps {
 
 export function ModDetailSidebar({
   mod,
+  allMods,
   backups,
   onCreateBackup,
   onRestoreBackup,
@@ -30,11 +36,8 @@ export function ModDetailSidebar({
   const links = mod.manifest?.links || []
 
   const dependencies = useMemo(() => {
-    const { dependencies: deps } = mod.manifest || {}
-    if (!deps) return []
-    if (Array.isArray(deps)) return deps
-    return Object.entries(deps).map(([id, version]) => ({ id, version }))
-  }, [mod])
+    return checkDependencies(mod, allMods)
+  }, [mod, allMods])
 
   return (
     <div className="space-y-6">
@@ -108,20 +111,70 @@ export function ModDetailSidebar({
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 max-h-60 overflow-y-auto">
-            {dependencies.map((dep) => (
-              <div
-                key={dep.id}
-                className="flex items-center gap-2 text-sm p-2 bg-muted/30 rounded border"
-              >
+            {dependencies.map((dep) => {
+              const isMissing = dep.status === DependencyStatus.Missing
+              const isMismatch = dep.status === DependencyStatus.Mismatch
+              const isSatisfied = dep.status === DependencyStatus.Satisfied
+
+              let icon = (
                 <CheckCircle2 className="size-4 text-green-500 shrink-0" />
-                <span className="truncate flex-1" title={dep.id}>
-                  {dep.id}
-                </span>
-                <span className="text-xs text-muted-foreground shrink-0">
-                  {dep.version}
-                </span>
-              </div>
-            ))}
+              )
+              let bgClass = 'bg-muted/30'
+
+              if (isMissing) {
+                icon = (
+                  <AlertCircle className="size-4 text-destructive shrink-0" />
+                )
+                bgClass = 'bg-destructive/10 border-destructive/20'
+              } else if (isMismatch) {
+                icon = (
+                  <AlertTriangle className="size-4 text-yellow-500 shrink-0" />
+                )
+                bgClass = 'bg-yellow-500/10 border-yellow-500/20'
+              }
+
+              const content = (
+                <div
+                  className={`flex items-center gap-2 text-sm p-2 rounded border ${bgClass}`}
+                >
+                  {icon}
+                  <span className="truncate flex-1" title={dep.id}>
+                    {dep.id}
+                  </span>
+                  <span className="text-xs text-muted-foreground shrink-0">
+                    {dep.requiredVersion}
+                    {!isMissing && dep.foundVersion && ` / ${dep.foundVersion}`}
+                  </span>
+                </div>
+              )
+
+              if (isSatisfied) {
+                return <div key={dep.id}>{content}</div>
+              }
+
+              return (
+                <Tooltip key={dep.id}>
+                  <TooltipTrigger asChild>
+                    <div>{content}</div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>
+                      <Trans>Required: {dep.requiredVersion}</Trans>
+                    </p>
+                    {!isMissing && (
+                      <p>
+                        <Trans>Found: {dep.foundVersion}</Trans>
+                      </p>
+                    )}
+                    {isMissing && (
+                      <p>
+                        <Trans>Dependency not found</Trans>
+                      </p>
+                    )}
+                  </TooltipContent>
+                </Tooltip>
+              )
+            })}
           </CardContent>
         </Card>
       )}

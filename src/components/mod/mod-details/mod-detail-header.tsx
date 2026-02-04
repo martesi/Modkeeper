@@ -44,7 +44,7 @@ export function ModDetailHeader({
       {/* Info */}
       <div className="flex-1 min-w-0">
         <h1 className="text-2xl font-bold truncate mb-1">{mod.name}</h1>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
           {mod.manifest?.author && (
             <span>
               <Trans>by</Trans>{' '}

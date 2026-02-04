@@ -229,6 +229,7 @@ function ModDetailsComponent() {
         <div className="lg:col-span-1">
           <ModDetailSidebar
             mod={mod}
+            allMods={library?.mods || {}}
             backups={backups}
             onCreateBackup={handleCreateBackup}
             onRestoreBackup={handleRestoreBackupClick}

@@ -41,7 +41,7 @@ export function ModList() {
       {/* Mod Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {mods.map((mod) => (
-          <ModCard key={mod.id} mod={mod} />
+          <ModCard key={mod.id} mod={mod} allMods={library?.mods || {}} />
         ))}
       </div>
     </div>
