@@ -25,7 +25,6 @@ import { ModDetailHeader } from '@/components/mod/mod-details/mod-detail-header'
 import { ModDetailSidebar } from '@/components/mod/mod-details/mod-detail-sidebar'
 import { MarkdownContent } from '@/components/mod/markdown-content'
 import { Badge } from '@comps/badge'
-import { tUnknownModName } from '@/utils/translation'
 import { msg, t } from '@lingui/core/macro'
 import { Card, CardContent, CardHeader, CardTitle } from '@comps/card'
 import { Empty, EmptyDescription } from '@comps/empty'
@@ -82,12 +81,9 @@ function ModDetailsComponent() {
 
   const handleCreateBackup = () => {
     if (!id) return
-    ur(commands.addMods([id], tUnknownModName(), t(msg`Pre-update backup`)))
+    ur(commands.createBackup(id, t(msg`Manual backup`)))
       .then(() => router.invalidate())
       .catch(ett)
-    console.warn(
-      'Create backup command not implemented in backend yet specific for manual trigger without file input',
-    )
   }
 
   const handleRestoreBackupClick = (timestamp: string) => {

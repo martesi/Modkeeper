@@ -6,8 +6,9 @@ pub mod utils;
 
 use crate::commands::global::{close_library, create_library, init, open_library, remove_library};
 use crate::commands::library::{
-    add_mods, get_backups, get_library, get_mod_documentation, rebuild_library_cache, remove_mods,
-    rename_library, reveal_mod, restore_backup, sync_mods, toggle_mod,
+    add_mods, create_backup, get_backups, get_library, get_mod_documentation,
+    rebuild_library_cache, remove_mods, rename_library, restore_backup, reveal_mod, sync_mods,
+    toggle_mod,
 };
 use crate::core::registry::AppRegistry;
 use parking_lot::Mutex;
@@ -26,6 +27,7 @@ fn setup_command_handler() -> Builder<tauri::Wry> {
         get_library,
         toggle_mod,
         get_backups,
+        create_backup,
         restore_backup,
         get_mod_documentation,
         rename_library,
@@ -129,7 +131,7 @@ fn setup_application(
         #[cfg(windows)]
         {
             use tauri::Manager;
-            use window_vibrancy::{apply_mica};
+            use window_vibrancy::apply_mica;
             let window = app.get_webview_window("main").unwrap();
             apply_mica(&window, None).unwrap();
         }

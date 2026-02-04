@@ -194,6 +194,30 @@ pub async fn restore_backup(
 
 #[tauri::command]
 #[specta::specta]
+pub async fn create_backup(
+    state: State<'_, AppRegistry>,
+    mod_id: String,
+    backup_name: String,
+) -> Result<(), SError> {
+    let instance_handle = state.active_instance.clone();
+    tauri::async_runtime::spawn_blocking(move || -> Result<(), SError> {
+        let (lib_paths, spt_rules, game_root) = {
+            let lock = instance_handle.lock();
+            let inst = lock.as_ref().ok_or(SError::NoActiveLibrary)?;
+            (
+                inst.lib_paths.clone(),
+                inst.spt_rules.clone(),
+                inst.game_root.clone(),
+            )
+        };
+        mod_backup::create_backup(&lib_paths, &spt_rules, &game_root, &mod_id, &backup_name)
+    })
+    .await
+    .map_err(|e| SError::AsyncRuntimeError(e.to_string()))?
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn get_mod_documentation(
     state: State<'_, AppRegistry>,
     mod_id: String,
