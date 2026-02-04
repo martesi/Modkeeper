@@ -20,3 +20,5 @@ Avoid using open status if there is a synced state present,
 e.g., open and id are always set at the same time, use id to indicate open.
 Prefer undefined over null if not provided from backend.
 Use "ur" to unwrap Result provided by backend, prefer to use like ".then(ur)".
+Use i18n solution when displaying text on ui, like t/msg macro or Trans component.
+Prefer to use shadcn/ui component to display content if availible.

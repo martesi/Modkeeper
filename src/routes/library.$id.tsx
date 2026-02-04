@@ -3,15 +3,11 @@ import { useAtomValue } from 'jotai'
 import { ALibraryActive } from '@/store/library'
 import { useLibrary } from '@/hooks/use-library'
 import { Button } from '@comps/button'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@comps/tabs'
 import { Trans } from '@lingui/react/macro'
-import { ArrowLeft, Package, Trash2 } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import { useState, useMemo } from 'react'
-import { useBoolean } from 'ahooks'
 import { commands } from '@gen/bindings'
 import { ur } from '@/utils/result'
-import { ConfirmPopover } from '@comps/confirm-popover'
-import { Switch } from '@comps/switch'
 import { HeaderPortal } from '@/components/header-portal'
 import {
   AlertDialog,
@@ -23,13 +19,18 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@comps/alert-dialog'
-import { OverviewTab } from '@/components/mod/mod-details/overview-tab'
-import { DependenciesTab } from '@/components/mod/mod-details/dependencies-tab'
-import { DocumentationTab } from '@/components/mod/mod-details/documentation-tab'
-import { BackupsTab } from '@/components/mod/mod-details/backups-tab'
-import { LinksTab } from '@/components/mod/mod-details/links-tab'
 import { formatTimestamp } from '@/utils/mod'
 import { ett } from '@/utils/error'
+import { ModDetailHeader } from '@/components/mod/mod-details/mod-detail-header'
+import { ModDetailSidebar } from '@/components/mod/mod-details/mod-detail-sidebar'
+import { MarkdownContent } from '@/components/mod/markdown-content'
+import { Badge } from '@comps/badge'
+import { tUnknownModName } from '@/utils/translation'
+import { msg, t } from '@lingui/core/macro'
+import { Card, CardContent, CardHeader, CardTitle } from '@comps/card'
+import { Empty, EmptyDescription } from '@comps/empty'
+import { Checkbox } from '@comps/checkbox'
+import { Label } from '@comps/label'
 
 export const Route = createFileRoute('/library/$id')({
   component: ModDetailsComponent,
@@ -57,11 +58,8 @@ function ModDetailsComponent() {
   const library = useAtomValue(ALibraryActive)
   const { toggle, remove } = useLibrary()
   const { backups, documentation } = Route.useLoaderData()
-  const [
-    showRemoveDialog,
-    { setTrue: setShowRemoveDialogTrue, set: setShowRemoveDialog },
-  ] = useBoolean()
   const [restoreTimestamp, setRestoreTimestamp] = useState<string | null>(null)
+  const [restoreConfig, setRestoreConfig] = useState(false)
   const router = useRouter()
 
   const mod = useMemo(() => {
@@ -82,92 +80,163 @@ function ModDetailsComponent() {
       .catch(ett)
   }
 
+  const handleCreateBackup = () => {
+    if (!id) return
+    ur(commands.addMods([id], tUnknownModName(), t(msg`Pre-update backup`)))
+      .then(() => router.invalidate())
+      .catch(ett)
+    console.warn(
+      'Create backup command not implemented in backend yet specific for manual trigger without file input',
+    )
+  }
+
   const handleRestoreBackupClick = (timestamp: string) => {
     if (!id) return
     setRestoreTimestamp(timestamp)
+    setRestoreConfig(false) // Default to false
   }
 
   const handleRestoreBackupConfirm = () => {
     if (!id || !restoreTimestamp) return
     const timestamp = restoreTimestamp
     setRestoreTimestamp(null)
-    ur(commands.restoreBackup(id, timestamp))
+    ur(commands.restoreBackup(id, timestamp, restoreConfig))
       .then(() => router.invalidate())
       .catch(ett)
   }
 
   if (!mod) {
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-4">
-        <p className="text-destructive">
-          <Trans>Mod not found</Trans>
-        </p>
+      <Empty
+        title={<Trans>Mod not found</Trans>}
+        description={<Trans>The mod you are looking for does not exist.</Trans>}
+        className="h-full"
+      >
         <Link to="/library">
-          <Button variant="outline">
+          <Button variant="outline" className="mt-4">
             <ArrowLeft className="size-4 mr-2" />
             <Trans>Back to Library</Trans>
           </Button>
         </Link>
-      </div>
+      </Empty>
     )
   }
 
+  const manifest = mod.manifest
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-7xl mx-auto pb-10">
       <HeaderPortal>
-        <div className="flex items-center gap-2">
-          <ConfirmPopover
-            open={showRemoveDialog}
-            onOpenChange={setShowRemoveDialog}
-            title={<Trans>Remove Mod</Trans>}
-            description={
-              mod ? (
-                <Trans>
-                  Are you sure you want to remove &quot;{mod.name}&quot;? This
-                  action cannot be undone.
-                </Trans>
-              ) : (
-                ''
-              )
-            }
-            confirmLabel={<Trans>Remove</Trans>}
-            variant="destructive"
-            onConfirm={handleRemoveConfirm}
-            trigger={
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={setShowRemoveDialogTrue}
-              >
-                <Trash2 className="size-4" />
-              </Button>
-            }
-            side="top"
-          />
-          <Switch checked={mod.isActive} onCheckedChange={handleToggle} />
-        </div>
+        {/* Portal Is Empty - Header actions moved to page header */}
       </HeaderPortal>
 
-      {/* Header */}
-      <div className="flex items-center gap-4 mb-2 w-full">
-        <Link to="..">
-          <Button variant="ghost" size="icon">
-            <ArrowLeft className="size-4" />
-          </Button>
+      {/* Back Link */}
+      <div>
+        <Link
+          to=".."
+          className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 w-fit"
+        >
+          <ArrowLeft className="size-4" />
+          <Trans>Back to Library</Trans>
         </Link>
-        <div className="shrink-0">
-          {mod.iconData ? (
-            <img
-              src={mod.iconData}
-              alt={mod.name}
-              className="size-12 rounded"
-            />
-          ) : (
-            <Package className="size-12 text-muted-foreground" />
-          )}
+      </div>
+
+      {/* Header */}
+      <ModDetailHeader
+        mod={mod}
+        onToggle={handleToggle}
+        onRemove={handleRemoveConfirm}
+      />
+
+      {/* Main Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Column: Content */}
+        <div className="lg:col-span-2 space-y-6">
+          <Card className="min-h-[400px]">
+            <CardHeader>
+              <CardTitle>
+                <Trans>Overview</Trans>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {documentation ? (
+                <MarkdownContent content={documentation} />
+              ) : manifest?.description ? (
+                <p className="whitespace-pre-wrap text-muted-foreground leading-relaxed">
+                  {manifest.description}
+                </p>
+              ) : (
+                <Empty className="border-none h-40">
+                  <EmptyDescription>
+                    <Trans>No overview available</Trans>
+                  </EmptyDescription>
+                </Empty>
+              )}
+
+              {/* Effects */}
+              {manifest?.effects && manifest.effects.length > 0 && (
+                <div className="pt-6 border-t">
+                  <h3 className="text-sm font-semibold mb-3">
+                    <Trans>Effects</Trans>
+                  </h3>
+                  <div className="flex gap-2 flex-wrap">
+                    {manifest.effects.map((effect, idx) => (
+                      <Badge key={idx} variant="outline">
+                        {effect}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Compatibility */}
+              {manifest?.compatibility && (
+                <div className="pt-6 border-t space-y-4">
+                  <h3 className="text-sm font-semibold">
+                    <Trans>Compatibility</Trans>
+                  </h3>
+                  {manifest.compatibility.include && (
+                    <div>
+                      <span className="text-xs text-muted-foreground block mb-2">
+                        <Trans>Includes</Trans>
+                      </span>
+                      <div className="flex gap-2 flex-wrap">
+                        {manifest.compatibility.include.map((item, idx) => (
+                          <Badge key={idx} variant="secondary">
+                            {item}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {manifest.compatibility.exclude && (
+                    <div>
+                      <span className="text-xs text-muted-foreground block mb-2">
+                        <Trans>Excludes</Trans>
+                      </span>
+                      <div className="flex gap-2 flex-wrap">
+                        {manifest.compatibility.exclude.map((item, idx) => (
+                          <Badge key={idx} variant="destructive">
+                            {item}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
-        <div className="flex-1">
-          <h1 className="text-3xl font-bold truncate">{mod.name}</h1>
+
+        {/* Right Column: Sidebar */}
+        <div className="lg:col-span-1">
+          <ModDetailSidebar
+            mod={mod}
+            backups={backups}
+            onCreateBackup={handleCreateBackup}
+            onRestoreBackup={handleRestoreBackupClick}
+          />
         </div>
       </div>
 
@@ -186,11 +255,25 @@ function ModDetailsComponent() {
             </AlertDialogTitle>
             <AlertDialogDescription>
               {restoreTimestamp && (
-                <Trans>
-                  Are you sure you want to restore backup from{' '}
-                  {formatTimestamp(restoreTimestamp)}? This will replace the
-                  current mod state.
-                </Trans>
+                <div className="space-y-4">
+                  <p>
+                    <Trans>
+                      Are you sure you want to restore backup from{' '}
+                      {formatTimestamp(restoreTimestamp)}? This will replace the
+                      current mod state.
+                    </Trans>
+                  </p>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="restore-config"
+                      checked={restoreConfig}
+                      onCheckedChange={(c) => setRestoreConfig(!!c)}
+                    />
+                    <Label htmlFor="restore-config">
+                      <Trans>Restore client configuration</Trans>
+                    </Label>
+                  </div>
+                </div>
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -204,59 +287,6 @@ function ModDetailsComponent() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* Tabs */}
-      <Tabs defaultValue="overview" className="w-full">
-        <TabsList>
-          <TabsTrigger value="overview">
-            <Trans>Overview</Trans>
-          </TabsTrigger>
-          {mod.manifest?.dependencies && (
-            <TabsTrigger value="dependencies">
-              <Trans>Dependencies</Trans>
-            </TabsTrigger>
-          )}
-          {mod.manifest?.documentation && (
-            <TabsTrigger value="documentation">
-              <Trans>Documentation</Trans>
-            </TabsTrigger>
-          )}
-          <TabsTrigger value="backups">
-            <Trans>Backups</Trans>
-          </TabsTrigger>
-          {mod.manifest?.links && mod.manifest.links.length > 0 && (
-            <TabsTrigger value="links">
-              <Trans>Links</Trans>
-            </TabsTrigger>
-          )}
-        </TabsList>
-
-        <TabsContent value="overview" className="space-y-4">
-          <OverviewTab mod={mod} />
-        </TabsContent>
-
-        {mod.manifest?.dependencies && (
-          <TabsContent value="dependencies" className="space-y-4">
-            <DependenciesTab dependencies={mod.manifest.dependencies} />
-          </TabsContent>
-        )}
-
-        {mod.manifest?.documentation && (
-          <TabsContent value="documentation" className="space-y-4">
-            <DocumentationTab documentation={documentation} loading={false} />
-          </TabsContent>
-        )}
-
-        <TabsContent value="backups" className="space-y-4">
-          <BackupsTab backups={backups} onRestore={handleRestoreBackupClick} />
-        </TabsContent>
-
-        {mod.manifest?.links && mod.manifest.links.length > 0 && (
-          <TabsContent value="links" className="space-y-4">
-            <LinksTab links={mod.manifest.links} />
-          </TabsContent>
-        )}
-      </Tabs>
     </div>
   )
 }
