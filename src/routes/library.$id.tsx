@@ -25,7 +25,13 @@ import { ModDetailSidebar } from '@/components/mod/mod-details/mod-detail-sideba
 import { MarkdownContent } from '@/components/mod/markdown-content'
 import { Badge } from '@comps/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@comps/card'
-import { Empty, EmptyDescription } from '@comps/empty'
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from '@comps/empty'
 import { Checkbox } from '@comps/checkbox'
 import { Label } from '@comps/label'
 import {
@@ -126,17 +132,23 @@ function ModDetailsComponent() {
 
   if (!mod) {
     return (
-      <Empty
-        title={<Trans>Mod not found</Trans>}
-        description={<Trans>The mod you are looking for does not exist.</Trans>}
-        className="h-full"
-      >
-        <Link to="/library">
-          <Button variant="outline" className="mt-4">
-            <ArrowLeft className="size-4 mr-2" />
-            <Trans>Back to Library</Trans>
-          </Button>
-        </Link>
+      <Empty className="h-full">
+        <EmptyHeader>
+          <EmptyTitle>
+            <Trans>Mod not found</Trans>
+          </EmptyTitle>
+          <EmptyDescription>
+            <Trans>The mod you are looking for does not exist.</Trans>
+          </EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+          <Link to="/library">
+            <Button variant="outline" className="mt-4">
+              <ArrowLeft className="size-4 mr-2" />
+              <Trans>Back to Library</Trans>
+            </Button>
+          </Link>
+        </EmptyContent>
       </Empty>
     )
   }
