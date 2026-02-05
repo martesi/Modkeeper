@@ -7,6 +7,7 @@ import { Button } from '@comps/button'
 import { Trans } from '@lingui/react/macro'
 import { Upload, RefreshCw, FileArchive, FolderOpen } from 'lucide-react'
 import { ett } from '@/utils/error'
+import { isString } from 'remeda'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,6 +20,7 @@ import {
   tSelectModFiles,
   tSelectModFolder,
   tUnknownModName,
+  tBackup,
 } from '@/utils/translation'
 import { HeaderPortal } from '@/components/header-portal'
 import { ButtonGroup } from '@/components/ui/button-group'
@@ -41,14 +43,7 @@ function RouteComponent() {
           title: tSelectModFiles(),
         }),
       )
-      .then((selected) => {
-        const unknownModName = tUnknownModName()
-        if (selected && Array.isArray(selected)) {
-          return add(selected, unknownModName)
-        } else if (selected && typeof selected === 'string') {
-          return add([selected], unknownModName)
-        }
-      })
+      .then(handleImportMod)
       .catch(ett)
   }
 
@@ -61,13 +56,14 @@ function RouteComponent() {
           title: tSelectModFolder(),
         }),
       )
-      .then((selected) => {
-        const unknownModName = tUnknownModName()
-        if (selected && typeof selected === 'string') {
-          return add([selected], unknownModName)
-        }
-      })
+      .then(handleImportMod)
       .catch(ett)
+  }
+
+  function handleImportMod(select?: string | string[] | null) {
+    if (!select) return Promise.resolve()
+    if (isString(select)) select = [select]
+    return add(select, tUnknownModName(), tBackup())
   }
 
   return (

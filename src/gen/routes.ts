@@ -39,7 +39,9 @@ const LibraryIdRoute = LibraryIdRouteImport.update({
   id: '/$id',
   path: '/$id',
   getParentRoute: () => LibraryRoute,
-} as any)
+} as any).lazy(() =>
+  import('./../routes/library.$id.lazy').then((d) => d.Route),
+)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute

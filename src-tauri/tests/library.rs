@@ -6,7 +6,9 @@ use mod_keeper_lib::config::global::GlobalConfig;
 use mod_keeper_lib::core::library::Library;
 use mod_keeper_lib::core::mod_fs::ModFS;
 use mod_keeper_lib::core::mod_stager::StagedMod;
-use mod_keeper_lib::core::{cleanup, deployment, dto_builder, global_service, library_service, mod_manager};
+use mod_keeper_lib::core::{
+    cleanup, deployment, dto_builder, global_service, library_service, mod_manager,
+};
 use mod_keeper_lib::models::error::SError;
 use mod_keeper_lib::models::library::LibraryCreationRequirement;
 use mod_keeper_lib::models::paths::{ModPaths, SPTPathRules};
@@ -48,7 +50,7 @@ fn test_library_init_and_add_mod() {
     // 3. Add mod to library
     let mod_fs = ModFS::new(mod_src_utf8, &SPTPathRules::default()).expect("Failed to parse mod");
     let staged = create_staged_mod_for_test(mod_src_utf8, mod_fs);
-    mod_manager::add_mod(&mut lib, staged).expect("Failed to add mod");
+    mod_manager::add_mod(&mut lib, staged, "Test Backup").expect("Failed to add mod");
 
     // 4. Verify persistence
     assert!(lib.mods.contains_key("MyMod"));
@@ -88,7 +90,7 @@ fn test_collision_detection() {
         // 3. Add to library and activate
         let fs = ModFS::new(&p, &rules).expect("Failed to parse mod");
         let staged = create_staged_mod_for_test(&p, fs);
-        mod_manager::add_mod(&mut lib, staged).expect("Failed to add mod");
+        mod_manager::add_mod(&mut lib, staged, "Test Backup").expect("Failed to add mod");
         lib.mods.get_mut(mod_id).unwrap().is_active = true;
     };
 
@@ -163,7 +165,7 @@ fn test_recursive_linking_logic() {
         // 3. New ModFS will now resolve ID to mod_id ("ModA" or "ModB")
         let fs = ModFS::new(&p, &rules).unwrap();
         let staged = create_staged_mod_for_test(&p, fs);
-        mod_manager::add_mod(lib, staged).unwrap();
+        mod_manager::add_mod(lib, staged, "Test Backup").unwrap();
 
         // 4. This will no longer panic
         lib.mods.get_mut(mod_id).unwrap().is_active = true;
@@ -213,7 +215,7 @@ fn test_purge_removes_deactivated_mods() {
     create_test_mod(&repo_root.join("src"), "DeleteMe", true);
     let fs = ModFS::new(&repo_root.join("src"), &rules).unwrap();
     let staged = create_staged_mod_for_test(&repo_root.join("src"), fs);
-    mod_manager::add_mod(&mut lib, staged).unwrap();
+    mod_manager::add_mod(&mut lib, staged, "Test Backup").unwrap();
     lib.mods.get_mut("DeleteMe").unwrap().is_active = true;
 
     // Sync
@@ -302,7 +304,7 @@ fn test_to_frontend_dto_enrichment() {
     // 3. Add mod to library
     let fs = ModFS::new(mod_src_utf8, &rules).unwrap();
     let staged = create_staged_mod_for_test(mod_src_utf8, fs);
-    mod_manager::add_mod(&mut lib, staged).expect("Add mod failed");
+    mod_manager::add_mod(&mut lib, staged, "Test Backup").expect("Add mod failed");
 
     // 4. Check Frontend DTO
     let dto = dto_builder::build_frontend_dto(&lib);
@@ -333,10 +335,19 @@ fn test_mod_backup_on_overwrite() {
     )
     .unwrap();
 
+    // Create Manifest for src
+    let manifest_dir = src.join("manifest");
+    fs::create_dir_all(&manifest_dir).unwrap();
+    let manifest_json = format!(
+        r#"{{"id": "{}", "name": "Backup Test Mod", "version": "1.0", "author": "test", "sptVersion": "3.9.0"}}"#,
+        mod_id
+    );
+    fs::write(manifest_dir.join("manifest.json"), &manifest_json).unwrap();
+
     // 1. Initial Add
     let fs1 = ModFS::new(&src, &rules).unwrap();
     let staged1 = create_staged_mod_for_test(&src, fs1);
-    mod_manager::add_mod(&mut lib, staged1).unwrap();
+    mod_manager::add_mod(&mut lib, staged1, "Test Backup").unwrap();
 
     // Wait to ensure timestamp differs
     std::thread::sleep(std::time::Duration::from_secs(1));
@@ -350,9 +361,14 @@ fn test_mod_backup_on_overwrite() {
     )
     .unwrap();
 
+    // Create Manifest for src2
+    let manifest_dir2 = src2.join("manifest");
+    fs::create_dir_all(&manifest_dir2).unwrap();
+    fs::write(manifest_dir2.join("manifest.json"), &manifest_json).unwrap();
+
     let fs2 = ModFS::new(&src2, &rules).unwrap();
     let staged2 = create_staged_mod_for_test(&src2, fs2);
-    mod_manager::add_mod(&mut lib, staged2).unwrap();
+    mod_manager::add_mod(&mut lib, staged2, "Test Backup").unwrap();
 
     // 3. Check backups
     let backup_dir = lib.lib_paths.backups.join(mod_id);
@@ -365,6 +381,7 @@ fn test_mod_backup_on_overwrite() {
 
     let backup_path = Utf8PathBuf::from_path_buf(entries[0].as_ref().unwrap().path()).unwrap();
     assert!(backup_path
+        .join("content")
         .join(&rules.server_mods)
         .join(mod_id)
         .join("v1.txt")
@@ -403,7 +420,7 @@ fn test_untracked_file_safety_in_shared_folder() {
         let mod_id = fs.id.clone();
         let staged = create_staged_mod_for_test(&p, fs);
 
-        mod_manager::add_mod(lib, staged).unwrap();
+        mod_manager::add_mod(lib, staged, "Test Backup").unwrap();
 
         // Access the mod using the actual ID generated by ModFS
         lib.mods.get_mut(&mod_id).unwrap().is_active = true;
@@ -502,9 +519,16 @@ fn test_persistence_cycle() {
     )
     .unwrap();
 
+    let manifest_dir = src.join("manifest");
+    fs::create_dir_all(&manifest_dir).unwrap();
+    let manifest_json = format!(
+        r#"{{"id": "persistmod", "name": "Persist Mod", "version": "1.0", "author": "test", "sptVersion": "3.9.0"}}"#
+    );
+    fs::write(manifest_dir.join("manifest.json"), &manifest_json).unwrap();
+
     let mod_fs = ModFS::new(&src, &rules).unwrap();
     let staged = create_staged_mod_for_test(&src, mod_fs);
-    mod_manager::add_mod(&mut lib, staged).unwrap();
+    mod_manager::add_mod(&mut lib, staged, "Test Backup").unwrap();
 
     // FIX: Use lowercase "persistmod"
     lib.mods.get_mut("persistmod").unwrap().is_active = true;
@@ -964,7 +988,7 @@ fn test_remove_library_with_mods() {
 
     let mod_fs = ModFS::new(mod_src_utf8, &SPTPathRules::default()).expect("Failed to parse mod");
     let staged = create_staged_mod_for_test(mod_src_utf8, mod_fs);
-    mod_manager::add_mod(&mut lib, staged).expect("Failed to add mod");
+    mod_manager::add_mod(&mut lib, staged, "Test Backup").expect("Failed to add mod");
 
     // Activate mod and sync (deploy links)
     lib.mods.get_mut("TestMod").unwrap().is_active = true;
