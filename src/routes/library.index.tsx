@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { ModList } from '@/components/mod/mod-list'
+import { ModList } from '@/modules/mod-list/mod-list'
 import { useLibrary } from '@/hooks/use-library'
 import { useAtomValue } from 'jotai'
 import { ALibraryActive } from '@/store/library'
@@ -22,7 +22,7 @@ import {
 } from '@/utils/translation'
 import { HeaderPortal } from '@/components/header-portal'
 import { ButtonGroup } from '@/components/ui/button-group'
-import { InstanceSwitcher } from '@/components/instance-switcher'
+import { InstanceSwitcher } from '@/modules/mod-list/instance-switcher'
 
 export const Route = createFileRoute('/library/')({
   component: RouteComponent,

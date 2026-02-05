@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 'use client'
 
 import ReactMarkdown from 'react-markdown'
@@ -9,8 +10,12 @@ interface MarkdownContentProps {
   className?: string
 }
 
-export function MarkdownContent({ content, className = '' }: MarkdownContentProps) {
+export function MarkdownContent({
+  content,
+  className = '',
+}: MarkdownContentProps) {
   const components: Components = {
+    //
     h1: ({ node, ...props }) => (
       <h1 className="text-3xl font-bold mb-4 mt-6 first:mt-0" {...props} />
     ),
@@ -64,16 +69,17 @@ export function MarkdownContent({ content, className = '' }: MarkdownContentProp
         />
       ),
     pre: ({ node, ...props }) => (
-      <pre className="bg-muted p-4 rounded-lg overflow-x-auto my-4" {...props} />
+      <pre
+        className="bg-muted p-4 rounded-lg overflow-x-auto my-4"
+        {...props}
+      />
     ),
     table: ({ node, ...props }) => (
       <div className="overflow-x-auto my-4">
         <table className="min-w-full divide-y divide-border" {...props} />
       </div>
     ),
-    thead: ({ node, ...props }) => (
-      <thead className="bg-muted/50" {...props} />
-    ),
+    thead: ({ node, ...props }) => <thead className="bg-muted/50" {...props} />,
     tbody: ({ node, ...props }) => (
       <tbody className="divide-y divide-border" {...props} />
     ),
@@ -81,17 +87,19 @@ export function MarkdownContent({ content, className = '' }: MarkdownContentProp
     th: ({ node, ...props }) => (
       <th className="px-4 py-2 text-left text-sm font-semibold" {...props} />
     ),
-    td: ({ node, ...props }) => (
-      <td className="px-4 py-2 text-sm" {...props} />
+    td: ({ node, ...props }) => <td className="px-4 py-2 text-sm" {...props} />,
+    hr: ({ node, ...props }) => (
+      <hr className="my-6 border-border" {...props} />
     ),
-    hr: ({ node, ...props }) => <hr className="my-6 border-border" {...props} />,
     img: ({ node, ...props }) => (
       <img className="max-w-full h-auto rounded-lg my-4" {...props} />
     ),
   }
 
   return (
-    <div className={`prose prose-stone dark:prose-invert max-w-none ${className}`}>
+    <div
+      className={`prose prose-stone dark:prose-invert max-w-none ${className}`}
+    >
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
         {content}
       </ReactMarkdown>

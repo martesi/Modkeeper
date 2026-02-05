@@ -43,7 +43,7 @@ export function SettingsImportExport() {
         if (settings.primaryColor !== '#default') {
           document.documentElement.style.setProperty(
             '--primary',
-            settings.primaryColor
+            settings.primaryColor,
           )
         } else {
           document.documentElement.style.removeProperty('--primary')
@@ -53,7 +53,7 @@ export function SettingsImportExport() {
       .catch((err) => {
         console.error('Failed to import settings:', err)
         toast.error(
-          err instanceof Error ? err.message : 'Failed to import settings'
+          err instanceof Error ? err.message : 'Failed to import settings',
         )
       })
       .finally(() => {
@@ -80,11 +80,7 @@ export function SettingsImportExport() {
       </div>
 
       <div className="flex gap-3">
-        <Button
-          onClick={handleExport}
-          variant="outline"
-          className="flex-1"
-        >
+        <Button onClick={handleExport} variant="outline" className="flex-1">
           <Download className="size-4 mr-2" />
           <Trans>Export Settings</Trans>
         </Button>

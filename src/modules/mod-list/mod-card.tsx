@@ -27,7 +27,7 @@ import {
 } from 'lucide-react'
 import { ett } from '@/utils/error'
 import { ur } from '@/utils/result'
-import { ModVersion } from './mod-version'
+import { ModVersion } from '../../components/mod-version'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@comps/tooltip'
 
 interface ModCardProps {

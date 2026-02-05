@@ -20,9 +20,9 @@ import {
 } from '@comps/alert-dialog'
 import { formatTimestamp } from '@/utils/mod'
 import { ett } from '@/utils/error'
-import { ModDetailHeader } from '@/components/mod/mod-details/mod-detail-header'
-import { ModDetailSidebar } from '@/components/mod/mod-details/mod-detail-sidebar'
-import { MarkdownContent } from '@/components/mod/markdown-content'
+import { ModDetailHeader } from '@/modules/mod-details/mod-detail-header'
+import { ModDetailSidebar } from '@/modules/mod-details/mod-detail-sidebar'
+import { MarkdownContent } from '@/modules/mod-details/markdown-content'
 import { Badge } from '@comps/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@comps/card'
 import {

@@ -4,7 +4,11 @@
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
     "target": "ESNext",
     "useDefineForClassFields": true,
-    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ESNext",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "module": "ESNext",
     "skipLibCheck": true,
     /* Bundler mode */
@@ -22,11 +26,26 @@
     "noFallthroughCasesInSwitch": true,
     "baseUrl": ".",
     "paths": {
-      "@gen/*": ["src/gen/*"],
-      "@/*": ["src/*"],
-      "@utils/*": ["src/utils/*"],
-      "@comps/*": ["src/components/*", "src/components/ui/*"]
+      "@gen/*": [
+        "src/gen/*"
+      ],
+      "@/*": [
+        "src/*"
+      ],
+      "@utils/*": [
+        "src/utils/*"
+      ],
+      "@comps/*": [
+        "src/components/*",
+        "src/components/ui/*"
+      ],
+      "@mod/*": [
+        "src/modules/*"
+      ]
     }
   },
-  "include": ["src", "src/gen"]
+  "include": [
+    "src",
+    "src/gen"
+  ]
 }

@@ -22,7 +22,10 @@ export function SettingsInit() {
 
     // Apply primary color
     if (settings.primaryColor && settings.primaryColor !== '#default') {
-      document.documentElement.style.setProperty('--primary', settings.primaryColor)
+      document.documentElement.style.setProperty(
+        '--primary',
+        settings.primaryColor,
+      )
     }
 
     // Apply language

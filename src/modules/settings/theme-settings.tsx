@@ -9,7 +9,11 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
-import { loadSettings, saveSettings, type Settings } from '@/lib/settings-storage'
+import {
+  loadSettings,
+  saveSettings,
+  type Settings,
+} from '@/lib/settings-storage'
 import { Palette } from 'lucide-react'
 
 const PRESET_COLORS = [
@@ -40,7 +44,10 @@ export function ThemeSettings() {
 
     // Apply primary color if not default
     if (settings.primaryColor !== '#default') {
-      document.documentElement.style.setProperty('--primary', settings.primaryColor)
+      document.documentElement.style.setProperty(
+        '--primary',
+        settings.primaryColor,
+      )
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -82,10 +89,7 @@ export function ThemeSettings() {
             <Label htmlFor="theme-select">
               <Trans>Appearance</Trans>
             </Label>
-            <Select
-              value={theme || 'system'}
-              onValueChange={handleThemeChange}
-            >
+            <Select value={theme || 'system'} onValueChange={handleThemeChange}>
               <SelectTrigger id="theme-select" className="w-[180px]">
                 <SelectValue />
               </SelectTrigger>

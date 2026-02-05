@@ -31,9 +31,9 @@ import { ALibraryActive, ALibraryList } from '@/store/library'
 import { useLibrarySwitch } from '@/hooks/use-library-switch'
 import { addLibraryFromDialog } from '@/lib/library-actions'
 import { ett } from '@/utils/error'
-import { RenameLibraryDialog } from './dialog/rename-library-dialog'
-import { CloseLibraryDialog } from './dialog/close-library-dialog'
-import { RemoveLibraryDialog } from './dialog/remove-library-dialog'
+import { RenameLibraryDialog } from './rename-library-dialog'
+import { CloseLibraryDialog } from './close-library-dialog'
+import { RemoveLibraryDialog } from './remove-library-dialog'
 import type { LibraryDTO } from '@gen/bindings'
 
 export function InstanceSwitcher() {

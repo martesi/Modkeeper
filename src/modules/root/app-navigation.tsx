@@ -1,8 +1,8 @@
 import { Link, useMatches } from '@tanstack/react-router'
 import { Home, Settings } from 'lucide-react'
-import { Button } from './ui/button'
+import { Button } from '@comps/button'
 
-export function AppNavigation () {
+export function AppNavigation() {
   const matches = useMatches()
   const currentPath = matches[matches.length - 1]?.pathname ?? '/'
   const isLibraryActive = matches.some((match) =>

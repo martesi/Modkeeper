@@ -20,7 +20,7 @@ export function DeveloperSettings() {
           directory: true,
           multiple: false,
           title: 'Select Base Path (optional)',
-        })
+        }),
       )
       .then((selected) => {
         const basePath =
