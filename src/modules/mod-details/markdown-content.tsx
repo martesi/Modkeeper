@@ -15,7 +15,6 @@ export function MarkdownContent({
   className = '',
 }: MarkdownContentProps) {
   const components: Components = {
-    //
     h1: ({ node, ...props }) => (
       <h1 className="text-3xl font-bold mb-4 mt-6 first:mt-0" {...props} />
     ),
