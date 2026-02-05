@@ -24,23 +24,25 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "baseUrl": ".",
     "paths": {
+      "*": [
+        "./*"
+      ],
       "@gen/*": [
-        "src/gen/*"
+        "./src/gen/*"
       ],
       "@/*": [
-        "src/*"
+        "./src/*"
       ],
       "@utils/*": [
-        "src/utils/*"
+        "./src/utils/*"
       ],
       "@comps/*": [
-        "src/components/*",
-        "src/components/ui/*"
+        "./src/components/*",
+        "./src/components/ui/*"
       ],
       "@mod/*": [
-        "src/modules/*"
+        "./src/modules/*"
       ]
     }
   },
