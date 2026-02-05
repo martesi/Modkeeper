@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createLazyFileRoute } from '@tanstack/react-router'
 import { Trans } from '@lingui/react/macro'
 import { HeaderPortal } from '@/components/header-portal'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -8,7 +8,7 @@ import { DeveloperSettings } from '@/modules/settings/developer-settings'
 import { SettingsImportExport } from '@/modules/settings/settings-import-export'
 import { Separator } from '@/components/ui/separator'
 
-export const Route = createFileRoute('/settings')({
+export const Route = createLazyFileRoute('/settings')({
   component: RouteComponent,
 })
 

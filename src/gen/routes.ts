@@ -8,18 +8,21 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
+import { createFileRoute } from '@tanstack/react-router'
+
 import { Route as rootRouteImport } from './../routes/__root'
-import { Route as SettingsRouteImport } from './../routes/settings'
 import { Route as LibraryRouteImport } from './../routes/library'
 import { Route as IndexRouteImport } from './../routes/index'
 import { Route as LibraryIndexRouteImport } from './../routes/library.index'
 import { Route as LibraryIdRouteImport } from './../routes/library.$id'
 
-const SettingsRoute = SettingsRouteImport.update({
+const SettingsLazyRouteImport = createFileRoute('/settings')()
+
+const SettingsLazyRoute = SettingsLazyRouteImport.update({
   id: '/settings',
   path: '/settings',
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any).lazy(() => import('./../routes/settings.lazy').then((d) => d.Route))
 const LibraryRoute = LibraryRouteImport.update({
   id: '/library',
   path: '/library',
@@ -46,13 +49,13 @@ const LibraryIdRoute = LibraryIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/library': typeof LibraryRouteWithChildren
-  '/settings': typeof SettingsRoute
+  '/settings': typeof SettingsLazyRoute
   '/library/$id': typeof LibraryIdRoute
   '/library/': typeof LibraryIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/settings': typeof SettingsRoute
+  '/settings': typeof SettingsLazyRoute
   '/library/$id': typeof LibraryIdRoute
   '/library': typeof LibraryIndexRoute
 }
@@ -60,7 +63,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/library': typeof LibraryRouteWithChildren
-  '/settings': typeof SettingsRoute
+  '/settings': typeof SettingsLazyRoute
   '/library/$id': typeof LibraryIdRoute
   '/library/': typeof LibraryIndexRoute
 }
@@ -75,7 +78,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LibraryRoute: typeof LibraryRouteWithChildren
-  SettingsRoute: typeof SettingsRoute
+  SettingsLazyRoute: typeof SettingsLazyRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -84,7 +87,7 @@ declare module '@tanstack/react-router' {
       id: '/settings'
       path: '/settings'
       fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
+      preLoaderRoute: typeof SettingsLazyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/library': {
@@ -134,7 +137,7 @@ const LibraryRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LibraryRoute: LibraryRouteWithChildren,
-  SettingsRoute: SettingsRoute,
+  SettingsLazyRoute: SettingsLazyRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
