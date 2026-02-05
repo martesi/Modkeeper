@@ -13,7 +13,7 @@
     "windows": [
       {
         "title": "Modkeeper",
-        "width": 800,
+        "width": 520,
         "height": 600,
         "visible": false,
         "transparent": true

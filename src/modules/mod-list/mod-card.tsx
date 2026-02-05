@@ -53,7 +53,7 @@ export function ModCard({ mod, allMods }: ModCardProps) {
   }
 
   return (
-    <Item variant="outline" className="mb-3">
+    <Item className="mb-3 bg-card">
       <ItemMedia variant={mod.iconData ? 'image' : 'icon'}>
         {mod.iconData ? (
           <img
