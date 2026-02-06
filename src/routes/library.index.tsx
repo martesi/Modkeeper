@@ -74,7 +74,7 @@ function RouteComponent() {
             <InstanceSwitcher />
           </ButtonGroup>
           {library && (
-            <ButtonGroup>
+            <>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size={'icon'}>
@@ -99,7 +99,7 @@ function RouteComponent() {
               >
                 <RefreshCw />
               </Button>
-            </ButtonGroup>
+            </>
           )}
         </div>
       </HeaderPortal>

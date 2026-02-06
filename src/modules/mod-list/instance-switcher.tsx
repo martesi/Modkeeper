@@ -75,8 +75,8 @@ export function InstanceSwitcher() {
   if (!active) {
     return (
       <Button
-        variant="ghost"
         size="lg"
+        variant={'outline'}
         onClick={handleAddLibrary}
         className="w-full justify-start px-2"
       >
@@ -100,11 +100,11 @@ export function InstanceSwitcher() {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
-            variant="ghost"
+            variant={'outline'}
             size="lg"
-            className="w-full justify-start px-2 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+            className="w-full justify-start px-2"
           >
-            <div className="bg-primary/10 text-primary flex aspect-square size-8 items-center justify-center rounded-lg">
+            <div className="flex aspect-square size-8 items-center justify-center rounded-lg">
               <Server className="size-4" />
             </div>
             <div className="grid flex-1 text-left text-sm leading-tight ml-2">
