@@ -77,7 +77,7 @@ async removeBackup(modId: string, timestamp: string) : Promise<Result<null, SErr
     else return { status: "error", error: e  as any };
 }
 },
-async getModDocumentation(modId: string) : Promise<Result<string, SError>> {
+async getModDocumentation(modId: string) : Promise<Result<string | null, SError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_mod_documentation", { modId }) };
 } catch (e) {

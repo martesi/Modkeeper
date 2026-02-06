@@ -241,7 +241,7 @@ pub async fn remove_backup(
 pub async fn get_mod_documentation(
     state: State<'_, AppRegistry>,
     mod_id: String,
-) -> Result<String, SError> {
+) -> Result<Option<String>, SError> {
     let instance_handle = state.active_instance.clone();
     tauri::async_runtime::spawn_blocking(move || {
         with_lib_arc(instance_handle, |inst| {
