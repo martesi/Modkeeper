@@ -53,7 +53,10 @@ fn export_typescript_bindings(builder: &Builder<tauri::Wry>) {
     #[cfg(debug_assertions)]
     {
         builder
-            .export(Typescript::default(), "../src/gen/bindings.ts")
+            .export(
+                Typescript::default().formatter(specta_typescript::formatter::prettier),
+                "../src/gen/bindings.ts",
+            )
             .expect("Failed to export typescript bindings");
     }
 }
