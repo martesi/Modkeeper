@@ -1,8 +1,14 @@
 pre-commit:
   commands:
     eslint:
-      glob: '*.{js,ts,jsx,tsx}'
+      glob: '**/*.{js,ts,jsx,tsx}'
       run: bun eslint {staged_files} --fix && git add {staged_files}
     prettier:
-      glob: '*.{js,ts,jsx,tsx,css}'
+      glob: '**/*.{js,ts,jsx,tsx,css}'
       run: bun prettier {staged_files} --write && git add {staged_files}
+    rustfmt:
+      glob: 'src-tauri/**/*.rs'
+      run: cargo fmt --all --manifest-path src-tauri/Cargo.toml && git add {staged_files}
+    lingui-extract:
+      glob: 'src/**/*.{ts,tsx}'
+      run: bun run extract && git add locales/*.po

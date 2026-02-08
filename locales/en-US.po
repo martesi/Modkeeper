@@ -18,259 +18,394 @@ msgid ", "
 msgstr ", "
 
 #: src/routes/index.tsx:135
-msgid "(Needs Sync)"
-msgstr "(Needs Sync)"
+#~ msgid "(Needs Sync)"
+#~ msgstr "(Needs Sync)"
 
 #: src/components/instance-switcher.tsx:69
 #~ msgid "{0} ({1})"
 #~ msgstr "{0} ({1})"
 
-#: src/lib/error.ts:49
+#: src/lib/error.ts:44
 msgid "A file system error occurred. Please check your file permissions or if something is opened and try again."
 msgstr "A file system error occurred. Please check your file permissions or if something is opened and try again."
 
-#: src/lib/error.ts:43
+#: src/lib/error.ts:38
 msgid "A parsing error occurred. The file may be corrupted or in an invalid format."
 msgstr "A parsing error occurred. The file may be corrupted or in an invalid format."
 
 #: src/routes/$id.tsx:201
-msgid "Activate"
-msgstr "Activate"
+#~ msgid "Activate"
+#~ msgstr "Activate"
 
 #: src/components/mod/mod-card.tsx:143
 #: src/routes/$id.tsx:188
-msgid "Active"
-msgstr "Active"
+#~ msgid "Active"
+#~ msgstr "Active"
 
 #: src/components/instance-switcher.tsx:78
 #~ msgid "Add instance"
 #~ msgstr "Add instance"
 
-#: src/components/instance-switcher.tsx:310
+#: src/modules/mod-list/instance-switcher.tsx:206
 msgid "Add Library"
 msgstr "Add Library"
 
-#: src/routes/index.tsx:154
+#: src/routes/library.index.tsx:87
 msgid "Add Mod Files (.zip)"
 msgstr "Add Mod Files (.zip)"
 
-#: src/routes/index.tsx:158
+#: src/routes/library.index.tsx:91
 msgid "Add Mod Folder"
 msgstr "Add Mod Folder"
 
 #: src/routes/index.tsx:148
-msgid "Add Mods"
-msgstr "Add Mods"
+#~ msgid "Add Mods"
+#~ msgstr "Add Mods"
 
-#: src/components/mod/mod-list.tsx:36
-#: src/components/mod/mod-list.tsx:51
+#: src/modules/mod-list/mod-list.tsx:32
 msgid "Add mods to get started"
 msgstr "Add mods to get started"
 
-#: src/lib/error.ts:27
+#: src/lib/error.ts:26
 msgid "An error occurred. Please try again."
 msgstr "An error occurred. Please try again."
 
-#: src/lib/error.ts:73
+#: src/lib/error.ts:68
 msgid "An internal error occurred. Please try again."
 msgstr "An internal error occurred. Please try again."
 
-#: src/lib/error.ts:31
+#: src/lib/error.ts:24
 msgid "An unexpected error occurred. Please try again."
 msgstr "An unexpected error occurred. Please try again."
 
-#: src/lib/error.ts:88
+#: src/lib/error.ts:79
 msgid "An unknown error occurred. Please try again."
 msgstr "An unknown error occurred. Please try again."
 
-#: src/routes/settings.tsx:73
-msgid "Application settings and test utilities"
-msgstr "Application settings and test utilities"
+#. placeholder {0}: backups.length - 5
+#: src/modules/mod-details/mod-detail-sidebar.tsx:215
+msgid "and {0} more..."
+msgstr "and {0} more..."
 
-#. placeholder {0}: closeLibraryInfo.name
+#: src/modules/settings/theme-settings.tsx:94
+msgid "Appearance"
+msgstr "Appearance"
+
+#: src/routes/settings.lazy.tsx:23
+msgid "Application settings and preferences"
+msgstr "Application settings and preferences"
+
+#: src/routes/settings.tsx:73
+#~ msgid "Application settings and test utilities"
+#~ msgstr "Application settings and test utilities"
+
+#: src/utils/translation.ts:9
+msgid "Archive"
+msgstr "Archive"
+
 #: src/components/instance-switcher.tsx:370
-msgid "Are you sure you want to close \"{0}\"? It will be removed from your library list but files will remain on disk."
-msgstr "Are you sure you want to close \"{0}\"? It will be removed from your library list but files will remain on disk."
+#~ msgid "Are you sure you want to close \"{0}\"? It will be removed from your library list but files will remain on disk."
+#~ msgstr "Are you sure you want to close \"{0}\"? It will be removed from your library list but files will remain on disk."
+
+#: src/modules/mod-list/close-library-dialog.tsx:38
+msgid "Are you sure you want to close \"{libraryName}\"? It will be removed from your library list but files will remain on disk."
+msgstr "Are you sure you want to close \"{libraryName}\"? It will be removed from your library list but files will remain on disk."
 
 #. placeholder {0}: mod.name
-#: src/components/mod/mod-card.tsx:102
-#: src/routes/$id.tsx:219
+#: src/modules/mod-details/mod-detail-header.tsx:66
+#: src/modules/mod-list/mod-card.tsx:136
 msgid "Are you sure you want to remove \"{0}\"? This action cannot be undone."
 msgstr "Are you sure you want to remove \"{0}\"? This action cannot be undone."
 
-#. placeholder {0}: removeLibraryInfo.name
 #: src/components/instance-switcher.tsx:403
-msgid "Are you sure you want to remove \"{0}\"? This will unlink all mods, remove it from your library list, and delete the library directory. This action cannot be undone."
-msgstr "Are you sure you want to remove \"{0}\"? This will unlink all mods, remove it from your library list, and delete the library directory. This action cannot be undone."
+#~ msgid "Are you sure you want to remove \"{0}\"? This will unlink all mods, remove it from your library list, and delete the library directory. This action cannot be undone."
+#~ msgstr "Are you sure you want to remove \"{0}\"? This will unlink all mods, remove it from your library list, and delete the library directory. This action cannot be undone."
+
+#: src/modules/mod-list/remove-library-dialog.tsx:38
+msgid "Are you sure you want to remove \"{libraryName}\"? This will unlink all mods, remove it from your library list, and delete the library directory. This action cannot be undone."
+msgstr "Are you sure you want to remove \"{libraryName}\"? This will unlink all mods, remove it from your library list, and delete the library directory. This action cannot be undone."
+
+#: src/modules/mod-details/mod-detail-sidebar.tsx:294
+msgid "Are you sure you want to remove this backup? This action cannot be undone."
+msgstr "Are you sure you want to remove this backup? This action cannot be undone."
 
 #. placeholder {0}: formatTimestamp(restoreTimestamp)
-#: src/routes/$id.tsx:256
+#: src/routes/library.$id.lazy.tsx:272
 msgid "Are you sure you want to restore backup from {0}? This will replace the current mod state."
 msgstr "Are you sure you want to restore backup from {0}? This will replace the current mod state."
 
-#: src/components/mod/mod-details/backups-tab.tsx:37
-msgid "Available Backups"
-msgstr "Available Backups"
+#: src/utils/translation.ts:10
+msgid "Auto backup"
+msgstr "Auto backup"
 
-#: src/routes/$id.tsx:144
+#: src/components/mod/mod-details/backups-tab.tsx:37
+#~ msgid "Available Backups"
+#~ msgstr "Available Backups"
+
+#: src/routes/library.$id.lazy.tsx:131
+#: src/routes/library.$id.lazy.tsx:150
 msgid "Back to Library"
 msgstr "Back to Library"
 
-#: src/routes/$id.tsx:292
+#: src/modules/mod-details/mod-detail-sidebar.tsx:262
+msgid "Backup"
+msgstr "Backup"
+
+#: src/modules/settings/settings-import-export.tsx:72
+msgid "Backup & Restore"
+msgstr "Backup & Restore"
+
+#: src/routes/library.$id.lazy.tsx:313
+msgid "Backup Name"
+msgstr "Backup Name"
+
+#: src/modules/mod-details/mod-detail-sidebar.tsx:190
 msgid "Backups"
 msgstr "Backups"
 
-#: src/components/instance-switcher.tsx:349
-#: src/components/instance-switcher.tsx:385
-#: src/components/instance-switcher.tsx:419
-#: src/components/mod/mod-card.tsx:110
-#: src/routes/$id.tsx:228
-#: src/routes/$id.tsx:266
+#: src/components/ui/confirm-popover.tsx:53
+#: src/modules/mod-list/close-library-dialog.tsx:46
+#: src/modules/mod-list/remove-library-dialog.tsx:47
+#: src/modules/mod-list/rename-library-dialog.tsx:73
+#: src/routes/library.$id.lazy.tsx:294
+#: src/routes/library.$id.lazy.tsx:331
 msgid "Cancel"
 msgstr "Cancel"
 
-#: src/components/instance-switcher.tsx:208
+#: src/modules/settings/theme-settings.tsx:113
+msgid "Choose how the app looks. System follows your OS preference."
+msgstr "Choose how the app looks. System follows your OS preference."
+
+#: src/modules/settings/language-settings.tsx:56
+msgid "Choose your preferred language for the interface."
+msgstr "Choose your preferred language for the interface."
+
+#: src/modules/mod-list/instance-switcher.tsx:91
 msgid "Click to add library"
 msgstr "Click to add library"
 
 #: src/components/mod/mod-type-badge.tsx:25
 #: src/components/mod/mod-type-badge.tsx:40
-msgid "Client"
-msgstr "Client"
+#~ msgid "Client"
+#~ msgstr "Client"
 
-#: src/components/instance-switcher.tsx:284
-#: src/components/instance-switcher.tsx:388
+#: src/modules/mod-list/close-library-dialog.tsx:49
+#: src/modules/mod-list/instance-switcher.tsx:183
 msgid "Close"
 msgstr "Close"
 
-#: src/components/instance-switcher.tsx:366
+#: src/modules/mod-list/close-library-dialog.tsx:35
 msgid "Close Library"
 msgstr "Close Library"
 
-#: src/components/mod/mod-details/overview-tab.tsx:60
+#: src/routes/library.$id.lazy.tsx:206
 msgid "Compatibility"
 msgstr "Compatibility"
 
-#: src/routes/settings.tsx:84
+#: src/components/ui/confirm-popover.tsx:60
+msgid "Confirm"
+msgstr "Confirm"
+
+#: src/routes/library.$id.lazy.tsx:334
+msgid "Create"
+msgstr "Create"
+
+#: src/modules/settings/developer-settings.tsx:76
 msgid "Create a simulation game root structure for testing purposes"
 msgstr "Create a simulation game root structure for testing purposes"
 
-#: src/routes/settings.tsx:101
+#: src/modules/mod-details/mod-detail-sidebar.tsx:222
+#: src/routes/library.$id.lazy.tsx:307
+msgid "Create Backup"
+msgstr "Create Backup"
+
+#: src/modules/settings/developer-settings.tsx:117
+msgid "Create Library from Game Root"
+msgstr "Create Library from Game Root"
+
+#: src/modules/settings/developer-settings.tsx:83
 msgid "Create Simulation Game Root"
 msgstr "Create Simulation Game Root"
 
 #: src/routes/settings.tsx:98
-msgid "Creating..."
-msgstr "Creating..."
+#~ msgid "Creating..."
+#~ msgstr "Creating..."
+
+#: src/modules/settings/theme-settings.tsx:108
+msgid "Dark"
+msgstr "Dark"
 
 #: src/routes/$id.tsx:199
-msgid "Deactivate"
-msgstr "Deactivate"
+#~ msgid "Deactivate"
+#~ msgstr "Deactivate"
 
-#: src/components/mod/mod-details/dependencies-tab.tsx:27
-#: src/routes/$id.tsx:283
+#: src/modules/mod-details/mod-detail-sidebar.tsx:114
 msgid "Dependencies"
 msgstr "Dependencies"
 
+#: src/modules/mod-list/mod-card.tsx:99
+msgid "Dependency Issues:"
+msgstr "Dependency Issues:"
+
+#: src/modules/mod-details/mod-detail-sidebar.tsx:175
+msgid "Dependency not found"
+msgstr "Dependency not found"
+
 #: src/components/mod/mod-details/overview-tab.tsx:19
-msgid "Description"
-msgstr "Description"
+#~ msgid "Description"
+#~ msgstr "Description"
+
+#: src/routes/settings.lazy.tsx:34
+msgid "Developer"
+msgstr "Developer"
 
 #: src/routes/$id.tsx:288
-msgid "Documentation"
-msgstr "Documentation"
+#~ msgid "Documentation"
+#~ msgstr "Documentation"
 
-#: src/components/mod/mod-details/overview-tab.tsx:45
+#: src/routes/library.$id.lazy.tsx:190
 msgid "Effects"
 msgstr "Effects"
 
-#: src/components/instance-switcher.tsx:326
+#: src/modules/mod-list/rename-library-dialog.tsx:57
 msgid "Enter a new name for this library."
 msgstr "Enter a new name for this library."
 
 #: src/routes/settings.tsx:108
-msgid "Error"
-msgstr "Error"
+#~ msgid "Error"
+#~ msgstr "Error"
 
 #: src/lib/error.ts:24
-msgid "Error happended while linking files to the game direcory. Please try again."
-msgstr "Error happended while linking files to the game direcory. Please try again."
+#~ msgid "Error happended while linking files to the game direcory. Please try again."
+#~ msgstr "Error happended while linking files to the game direcory. Please try again."
 
-#: src/components/mod/mod-details/overview-tab.tsx:79
+#: src/routes/library.$id.lazy.tsx:225
 msgid "Excludes"
 msgstr "Excludes"
 
+#: src/modules/settings/settings-import-export.tsx:85
+msgid "Export Settings"
+msgstr "Export Settings"
+
+#: src/modules/settings/settings-import-export.tsx:75
+msgid "Export your settings to a file or import previously exported settings."
+msgstr "Export your settings to a file or import previously exported settings."
+
 #: src/components/mod/mod-details/links-tab.tsx:24
-msgid "External Links"
-msgstr "External Links"
+#~ msgid "External Links"
+#~ msgstr "External Links"
 
 #: src/lib/error.ts:77
-msgid "Failed to update task status. Please try again."
-msgstr "Failed to update task status. Please try again."
+#~ msgid "Failed to update task status. Please try again."
+#~ msgstr "Failed to update task status. Please try again."
 
-#: src/lib/error.ts:62
+#: src/lib/error.ts:57
 msgid "File conflicts detected. Some mods may have conflicting files."
 msgstr "File conflicts detected. Some mods may have conflicting files."
 
-#: src/routes/settings.tsx:119
+#. placeholder {0}: dep.foundVersion
+#: src/modules/mod-details/mod-detail-sidebar.tsx:170
+msgid "Found: {0}"
+msgstr "Found: {0}"
+
+#: src/modules/settings/developer-settings.tsx:91
 msgid "Game Root"
 msgstr "Game Root"
 
+#: src/routes/settings.lazy.tsx:31
+msgid "General"
+msgstr "General"
+
+#: src/modules/settings/settings-import-export.tsx:97
+msgid "Import Settings"
+msgstr "Import Settings"
+
+#: src/modules/settings/settings-import-export.tsx:95
+msgid "Importing..."
+msgstr "Importing..."
+
 #: src/components/mod/mod-card.tsx:143
 #: src/routes/$id.tsx:190
-msgid "Inactive"
-msgstr "Inactive"
+#~ msgid "Inactive"
+#~ msgstr "Inactive"
 
-#: src/components/mod/mod-details/overview-tab.tsx:65
+#: src/routes/library.$id.lazy.tsx:211
 msgid "Includes"
 msgstr "Includes"
 
-#: src/lib/error.ts:84
+#: src/modules/settings/language-settings.tsx:41
+msgid "Interface Language"
+msgstr "Interface Language"
+
+#: src/lib/error.ts:75
 msgid "Invalid library found at {path}: {reason}. Please repair, recreate, or delete the library."
 msgstr "Invalid library found at {path}: {reason}. Please repair, recreate, or delete the library."
 
-#: src/components/instance-switcher.tsx:248
+#: src/modules/settings/language-settings.tsx:36
+msgid "Language"
+msgstr "Language"
+
+#: src/modules/mod-list/instance-switcher.tsx:128
 msgid "Libraries"
 msgstr "Libraries"
 
 #: src/components/app-sidebar.tsx:42
 #: src/routes/index.tsx:21
-msgid "Library"
-msgstr "Library"
+#~ msgid "Library"
+#~ msgstr "Library"
 
-#: src/routes/$id.tsx:296
+#: src/modules/settings/theme-settings.tsx:105
+msgid "Light"
+msgstr "Light"
+
+#: src/modules/mod-details/mod-detail-sidebar.tsx:87
 msgid "Links"
 msgstr "Links"
 
 #: src/components/mod/mod-details/backups-tab.tsx:21
-msgid "Loading backups..."
-msgstr "Loading backups..."
+#~ msgid "Loading backups..."
+#~ msgstr "Loading backups..."
 
 #: src/components/mod/mod-details/documentation-tab.tsx:18
-msgid "Loading documentation..."
-msgstr "Loading documentation..."
+#~ msgid "Loading documentation..."
+#~ msgstr "Loading documentation..."
 
 #: src/routes/index.tsx:107
-msgid "Loading library..."
-msgstr "Loading library..."
+#~ msgid "Loading library..."
+#~ msgstr "Loading library..."
 
 #: src/components/instance-switcher.tsx:182
-msgid "Loading..."
-msgstr "Loading..."
+#~ msgid "Loading..."
+#~ msgstr "Loading..."
 
-#: src/routes/$id.tsx:34
+#: src/routes/library.$id.lazy.tsx:82
+msgid "Manual Backup"
+msgstr "Manual Backup"
+
+#. placeholder {0}: dep.requiredVersion
+#. placeholder {1}: dep.foundVersion
+#: src/modules/mod-list/mod-card.tsx:111
+msgid "Mismatch (requires {0}, found {1})"
+msgstr "Mismatch (requires {0}, found {1})"
+
+#. placeholder {0}: dep.requiredVersion
+#: src/modules/mod-list/mod-card.tsx:107
+msgid "Missing (requires {0})"
+msgstr "Missing (requires {0})"
+
+#: src/modules/mod-details/mod-detail-sidebar.tsx:52
 msgid "Mod Details"
 msgstr "Mod Details"
 
-#: src/components/mod/mod-details/overview-tab.tsx:28
+#: src/modules/mod-details/mod-detail-sidebar.tsx:58
 msgid "Mod ID"
 msgstr "Mod ID"
 
 #: src/routes/index.tsx:128
-msgid "Mod Library"
-msgstr "Mod Library"
+#~ msgid "Mod Library"
+#~ msgstr "Mod Library"
 
-#: src/routes/$id.tsx:139
+#: src/routes/library.$id.lazy.tsx:121
 msgid "Mod not found"
 msgstr "Mod not found"
 
@@ -279,123 +414,164 @@ msgid "Mod related process is currently running. Please close it and try again."
 msgstr "Mod related process is currently running. Please close it and try again."
 
 #: src/components/mod/mod-details/backups-tab.tsx:29
-msgid "No backups available"
-msgstr "No backups available"
+#~ msgid "No backups available"
+#~ msgstr "No backups available"
+
+#: src/modules/mod-details/mod-detail-sidebar.tsx:209
+msgid "No backups yet"
+msgstr "No backups yet"
 
 #: src/components/mod/mod-details/dependencies-tab.tsx:31
-msgid "No dependencies"
-msgstr "No dependencies"
+#~ msgid "No dependencies"
+#~ msgstr "No dependencies"
 
 #: src/components/mod/mod-details/documentation-tab.tsx:26
-msgid "No documentation available"
-msgstr "No documentation available"
+#~ msgid "No documentation available"
+#~ msgstr "No documentation available"
 
-#: src/components/instance-switcher.tsx:205
+#: src/modules/mod-list/instance-switcher.tsx:88
 msgid "No Library"
 msgstr "No Library"
 
-#: src/components/mod/mod-list.tsx:24
-#: src/routes/index.tsx:186
+#: src/modules/mod-list/mod-list.tsx:20
+#: src/routes/library.index.tsx:111
 msgid "No library loaded"
 msgstr "No library loaded"
 
 #: src/components/mod/mod-details/links-tab.tsx:16
-msgid "No links available"
-msgstr "No links available"
+#~ msgid "No links available"
+#~ msgstr "No links available"
 
-#: src/components/mod/mod-list.tsx:33
-#: src/components/mod/mod-list.tsx:48
+#: src/modules/mod-list/mod-list.tsx:29
 msgid "No mods installed"
 msgstr "No mods installed"
 
-#: src/routes/index.tsx:189
+#: src/routes/library.$id.lazy.tsx:181
+msgid "No overview available"
+msgstr "No overview available"
+
+#: src/modules/mod-list/instance-switcher.tsx:150
+msgid "Open"
+msgstr "Open"
+
+#: src/routes/library.index.tsx:114
 msgid "Open or create a library from the sidebar"
 msgstr "Open or create a library from the sidebar"
 
 #: src/components/mod/mod-details/dependencies-tab.tsx:46
-msgid "Optional"
-msgstr "Optional"
+#~ msgid "Optional"
+#~ msgstr "Optional"
 
-#: src/routes/$id.tsx:279
+#: src/routes/library.$id.lazy.tsx:168
 msgid "Overview"
 msgstr "Overview"
 
-#: src/components/instance-switcher.tsx:296
-#: src/components/instance-switcher.tsx:425
-#: src/components/mod/mod-card.tsx:116
-#: src/routes/$id.tsx:206
-#: src/routes/$id.tsx:234
+#: src/modules/settings/theme-settings.tsx:121
+msgid "Primary Color"
+msgstr "Primary Color"
+
+#: src/modules/mod-list/instance-switcher.tsx:171
+msgid "Rebuild Cache"
+msgstr "Rebuild Cache"
+
+#: src/modules/mod-details/mod-detail-header.tsx:71
+#: src/modules/mod-details/mod-detail-sidebar.tsx:299
+#: src/modules/mod-list/instance-switcher.tsx:195
+#: src/modules/mod-list/mod-card.tsx:141
+#: src/modules/mod-list/remove-library-dialog.tsx:50
 msgid "Remove"
 msgstr "Remove"
 
-#: src/components/instance-switcher.tsx:399
+#: src/modules/mod-details/mod-detail-sidebar.tsx:292
+msgid "Remove Backup"
+msgstr "Remove Backup"
+
+#: src/modules/mod-list/remove-library-dialog.tsx:35
 msgid "Remove Library"
 msgstr "Remove Library"
 
-#: src/components/mod/mod-card.tsx:99
-#: src/routes/$id.tsx:215
+#: src/modules/mod-details/mod-detail-header.tsx:64
+#: src/modules/mod-list/mod-card.tsx:134
 msgid "Remove Mod"
 msgstr "Remove Mod"
 
-#: src/components/instance-switcher.tsx:273
-#: src/components/instance-switcher.tsx:355
+#: src/modules/mod-list/instance-switcher.tsx:161
+#: src/modules/mod-list/rename-library-dialog.tsx:76
 msgid "Rename"
 msgstr "Rename"
 
-#: src/components/instance-switcher.tsx:323
+#: src/modules/mod-list/rename-library-dialog.tsx:54
 msgid "Rename Library"
 msgstr "Rename Library"
 
-#: src/components/mod/mod-details/backups-tab.tsx:56
-#: src/routes/$id.tsx:269
+#. placeholder {0}: dep.requiredVersion
+#: src/modules/mod-details/mod-detail-sidebar.tsx:166
+msgid "Required: {0}"
+msgstr "Required: {0}"
+
+#: src/modules/mod-details/mod-detail-sidebar.tsx:285
+#: src/routes/library.$id.lazy.tsx:297
 msgid "Restore"
 msgstr "Restore"
 
-#: src/routes/$id.tsx:252
+#: src/routes/library.$id.lazy.tsx:266
 msgid "Restore Backup"
 msgstr "Restore Backup"
 
-#: src/routes/index.tsx:117
-msgid "Retry"
-msgstr "Retry"
+#: src/routes/library.$id.lazy.tsx:285
+msgid "Restore client configuration"
+msgstr "Restore client configuration"
 
-#: src/lib/library-actions.ts:21
+#: src/routes/index.tsx:117
+#~ msgid "Retry"
+#~ msgstr "Retry"
+
+#: src/utils/translation.ts:8
 msgid "Select Game Root Directory"
 msgstr "Select Game Root Directory"
 
+#: src/utils/translation.ts:6
+msgid "Select Mod Files"
+msgstr "Select Mod Files"
+
+#: src/utils/translation.ts:7
+msgid "Select Mod Folder"
+msgstr "Select Mod Folder"
+
 #: src/components/mod/mod-type-badge.tsx:19
 #: src/components/mod/mod-type-badge.tsx:41
-msgid "Server"
-msgstr "Server"
+#~ msgid "Server"
+#~ msgstr "Server"
 
-#: src/components/app-sidebar.tsx:56
-#: src/routes/settings.tsx:13
-#: src/routes/settings.tsx:70
+#: src/routes/settings.lazy.tsx:20
 msgid "Settings"
 msgstr "Settings"
 
-#. placeholder {0}: library.spt_version
 #: src/routes/index.tsx:132
-msgid "SPT {0}"
-msgstr "SPT {0}"
+#~ msgid "SPT {0}"
+#~ msgstr "SPT {0}"
 
 #: src/components/instance-switcher.tsx:60
 #~ msgid "SPT Instance"
 #~ msgstr "SPT Instance"
 
-#: src/components/mod/mod-details/overview-tab.tsx:35
+#: src/modules/mod-details/mod-detail-sidebar.tsx:75
 msgid "SPT Version"
 msgstr "SPT Version"
 
 #: src/routes/index.tsx:170
-msgid "Sync Mods"
-msgstr "Sync Mods"
+#~ msgid "Sync Mods"
+#~ msgstr "Sync Mods"
 
-#: src/routes/settings.tsx:81
+#: src/modules/settings/theme-settings.tsx:102
+msgid "System"
+msgstr "System"
+
+#: src/modules/settings/developer-settings.tsx:73
 msgid "Test Game Root"
 msgstr "Test Game Root"
 
-#: src/lib/error.ts:68
+#: src/lib/error.ts:63
 msgid "The archive format is not supported. Please extract them to a folder manually."
 msgstr "The archive format is not supported. Please extract them to a folder manually."
 
@@ -403,26 +579,42 @@ msgstr "The archive format is not supported. Please extract them to a folder man
 msgid "The game or server is currently running. Please close it before performing this operation."
 msgstr "The game or server is currently running. Please close it before performing this operation."
 
-#: src/lib/error.ts:55
+#: src/routes/library.$id.lazy.tsx:124
+msgid "The mod you are looking for does not exist."
+msgstr "The mod you are looking for does not exist."
+
+#: src/lib/error.ts:50
 msgid "The requested file or directory was not found. Please check the path and try again."
 msgstr "The requested file or directory was not found. Please check the path and try again."
+
+#: src/modules/settings/theme-settings.tsx:88
+msgid "Theme"
+msgstr "Theme"
 
 #: src/lib/error.ts:20
 msgid "Unable to determine the mod ID. Please check the mod files and try again."
 msgstr "Unable to determine the mod ID. Please check the mod files and try again."
 
 #: src/components/mod/mod-type-badge.tsx:42
-msgid "Unknown"
-msgstr "Unknown"
+#~ msgid "Unknown"
+#~ msgstr "Unknown"
 
-#: src/utils/translation.ts:6
+#: src/lib/library-actions.ts:38
+msgid "Unknown library"
+msgstr "Unknown library"
+
+#: src/utils/translation.ts:5
 msgid "Unknown mod"
 msgstr "Unknown mod"
 
 #: src/lib/library-actions.ts:31
-msgid "Unnamed Library"
-msgstr "Unnamed Library"
+#~ msgid "Unnamed Library"
+#~ msgstr "Unnamed Library"
 
-#: src/lib/error.ts:37
+#: src/lib/error.ts:32
 msgid "Unsupported SPT version. Please check the supported version of this Mod Manager. If you think this is an error, please report the issue to the developer."
 msgstr "Unsupported SPT version. Please check the supported version of this Mod Manager. If you think this is an error, please report the issue to the developer."
+
+#: src/modules/mod-details/mod-detail-sidebar.tsx:69
+msgid "Version"
+msgstr "Version"
