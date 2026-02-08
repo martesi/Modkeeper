@@ -180,3 +180,9 @@ pub fn run() {
         .run(tauri::generate_context!("tauri.conf.json"))
         .expect("error while running tauri application");
 }
+
+/// Export TypeScript bindings. Called by the export_types binary.
+pub fn export_bindings() {
+    let builder = setup_command_handler();
+    export_typescript_bindings(&builder);
+}
