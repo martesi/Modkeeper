@@ -26,7 +26,7 @@ export function ModDetailHeader({
   }
 
   return (
-    <div className="bg-card rounded-xl p-6 shadow-sm border flex items-center gap-6">
+    <div className="bg-card rounded-xl p-6 shadow-sm border grid grid-cols-[auto_1fr] items-center gap-6">
       {/* Icon */}
       <div className="shrink-0">
         {mod.iconData ? (
@@ -43,18 +43,15 @@ export function ModDetailHeader({
       </div>
 
       {/* Info */}
-      <div className="flex-1 min-w-0 flex flex-col gap-2">
-        <div>
-          <h1
-            className="text-2xl font-bold truncate mb-1 max-w-80 lg:max-w-160"
-            title={mod.name}
-          >
+      <div className="min-w-0 flex flex-col gap-2">
+        <div className="min-w-0 w-full">
+          <h1 className="text-2xl font-bold truncate mb-1" title={mod.name}>
             {mod.name}
           </h1>
           <ModVersion mod={mod} />
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Switch checked={mod.isActive} onCheckedChange={onToggle} />
 
           <Button variant="ghost" size="icon" onClick={handleReveal}>

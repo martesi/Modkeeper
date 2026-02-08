@@ -72,9 +72,9 @@ export function ModCard({ mod, allMods }: ModCardProps) {
           style={{ display: mod.iconData ? 'none' : 'block' }}
         />
       </ItemMedia>
-      <ItemContent>
-        <ItemTitle>
-          <div className="flex items-center gap-2">
+      <ItemContent className="min-w-0">
+        <ItemTitle className="w-full min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
             <Link
               to="/library/$id"
               params={{ id: mod.id }}
