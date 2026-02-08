@@ -43,6 +43,9 @@
       ],
       "@mod/*": [
         "./src/modules/*"
+      ],
+      "@typings/*": [
+        "./src/types/*"
       ]
     }
   },
