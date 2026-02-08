@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "A mod manager for SPT."
 authors = ["martes"]
 edition = "2021"
+default-run = "mod_keeper"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
