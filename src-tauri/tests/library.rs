@@ -1053,3 +1053,134 @@ fn test_remove_library_not_in_config() {
     // Verify library directory was still deleted
     assert!(!repo_root.exists());
 }
+
+#[test]
+fn test_cache_rebuild_renames_mismatched_folder() {
+    let (_tmp, game_root, repo_root) = setup_test_env();
+    let requirement = LibraryCreationRequirement {
+        repo_root: Some(repo_root.clone()),
+        game_root: game_root.clone(),
+        name: "Test Library".to_string(),
+    };
+    let mut lib = Library::create(requirement).expect("Failed to create library");
+    let rules = SPTPathRules::default();
+
+    // 1. Create mod folder - folder name will be treated as old ID
+    let old_folder_name = "hash_abc123";
+    let mod_dir = lib.lib_paths.mods.join(old_folder_name);
+    let server_mod_dir = mod_dir.join(&rules.server_mods).join("TestMod");
+    fs::create_dir_all(&server_mod_dir).unwrap();
+    fs::write(server_mod_dir.join("mod.js"), "// test").unwrap();
+
+    // 2. Register mod in library.mods with folder name as key and set enabled
+    // This simulates a mod that was registered before the ID resolution changed
+    lib.mods.insert(
+        old_folder_name.to_string(),
+        mod_keeper_lib::models::mod_dto::Mod {
+            id: old_folder_name.to_string(),
+            is_active: true,
+            mod_type: mod_keeper_lib::models::mod_dto::ModType::Server,
+            name: "Test Mod".to_string(),
+            manifest: None,
+            icon_data: None,
+        },
+    );
+
+    // 3. Add manifest with different ID - this will trigger rename on rebuild
+    let new_manifest_id = "com.test.mymod";
+    let manifest_dir = mod_dir.join("manifest");
+    fs::create_dir_all(&manifest_dir).unwrap();
+    let manifest_json = format!(
+        r#"{{"id": "{}", "name": "My Mod", "version": "1.0", "author": "test", "sptVersion": "3.9.0"}}"#,
+        new_manifest_id
+    );
+    fs::write(manifest_dir.join("manifest.json"), &manifest_json).unwrap();
+
+    // 4. Create backup for old folder name (to verify cleanup)
+    let old_backup_dir = lib.lib_paths.backups.join(old_folder_name);
+    fs::create_dir_all(&old_backup_dir).unwrap();
+    fs::write(old_backup_dir.join("dummy.txt"), "backup data").unwrap();
+    lib.persist().unwrap();
+
+    // 5. Rebuild cache - should rename folder and clean up
+    library_service::rebuild_library_cache(&mut lib).expect("Cache rebuild failed");
+
+    // 6. Verify folder was renamed
+    assert!(
+        !lib.lib_paths.mods.join(old_folder_name).exists(),
+        "Old folder should be renamed"
+    );
+    assert!(
+        lib.lib_paths.mods.join(new_manifest_id).exists(),
+        "New folder should exist"
+    );
+
+    // 7. Verify enabled state preserved
+    assert!(
+        lib.mods
+            .get(new_manifest_id)
+            .map(|m| m.is_active)
+            .unwrap_or(false),
+        "Enabled state should be preserved"
+    );
+
+    // 8. Verify old mod entry removed
+    assert!(
+        !lib.mods.contains_key(old_folder_name),
+        "Old mod entry should be removed"
+    );
+
+    // 9. Verify old backup removed
+    assert!(
+        !old_backup_dir.exists(),
+        "Old backup directory should be removed"
+    );
+}
+
+#[test]
+fn test_cache_rebuild_conflict_error() {
+    let (_tmp, game_root, repo_root) = setup_test_env();
+    let requirement = LibraryCreationRequirement {
+        repo_root: Some(repo_root.clone()),
+        game_root: game_root.clone(),
+        name: "Test Library".to_string(),
+    };
+    let mut lib = Library::create(requirement).expect("Failed to create library");
+    let rules = SPTPathRules::default();
+
+    // 1. Create first mod folder that will want to rename to "target-id"
+    let source_folder = "source-mod";
+    let source_dir = lib.lib_paths.mods.join(source_folder);
+    let source_server = source_dir.join(&rules.server_mods).join("SourceMod");
+    fs::create_dir_all(&source_server).unwrap();
+    fs::write(source_server.join("mod.js"), "// source").unwrap();
+
+    // Add manifest to source that wants ID "target-id"
+    let manifest_dir = source_dir.join("manifest");
+    fs::create_dir_all(&manifest_dir).unwrap();
+    let manifest_json = r#"{"id": "target-id", "name": "Source Mod", "version": "1.0", "author": "test", "sptVersion": "3.9.0"}"#;
+    fs::write(manifest_dir.join("manifest.json"), manifest_json).unwrap();
+
+    // 2. Create second mod folder already named "target-id"
+    let target_dir = lib.lib_paths.mods.join("target-id");
+    let target_server = target_dir.join(&rules.server_mods).join("TargetMod");
+    fs::create_dir_all(&target_server).unwrap();
+    fs::write(target_server.join("mod.js"), "// target").unwrap();
+
+    // Add manifest to target with same ID
+    let target_manifest_dir = target_dir.join("manifest");
+    fs::create_dir_all(&target_manifest_dir).unwrap();
+    fs::write(target_manifest_dir.join("manifest.json"), manifest_json).unwrap();
+
+    // 3. Attempt cache rebuild - should fail with conflict error
+    let result = library_service::rebuild_library_cache(&mut lib);
+
+    assert!(result.is_err(), "Should fail due to ID conflict");
+    match result {
+        Err(SError::ModIdConflict(from, to)) => {
+            assert_eq!(from, source_folder);
+            assert_eq!(to, "target-id");
+        }
+        other => panic!("Expected ModIdConflict error, got: {:?}", other),
+    }
+}

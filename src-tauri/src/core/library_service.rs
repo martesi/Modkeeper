@@ -1,5 +1,5 @@
 use crate::config::global::GlobalConfig;
-use crate::core::cache::LibraryCache;
+use crate::core::cache::{normalize_mod_folders, LibraryCache};
 use crate::core::dto_builder;
 use crate::core::library::Library;
 use crate::models::error::SError;
@@ -179,7 +179,48 @@ pub fn rename_library(library: &mut Library, name: String) -> Result<(), SError>
 }
 
 pub fn rebuild_library_cache(library: &mut Library) -> Result<(), SError> {
+    use crate::core::mod_backup;
+    use crate::models::mod_dto::Mod;
+
+    // 1. Normalize folder names to match resolved IDs
+    let result = normalize_mod_folders(&library.lib_paths.mods, &library.spt_rules, &library.mods)?;
+
+    // 2. Clean up orphaned data for renamed mods
+    for renamed in &result.renamed {
+        // Remove old mod entry
+        library.mods.remove(&renamed.old_name);
+        // Remove old backups
+        mod_backup::remove_all_backups(&library.lib_paths, &renamed.old_name)?;
+    }
+
+    // 3. Rebuild cache from normalized folders
     library.cache = LibraryCache::build(&library.lib_paths.mods, &library.spt_rules)?;
+
+    // 4. Create new mod entries for renamed mods and restore enabled state
+    for renamed in &result.renamed {
+        if let Some(cached_fs) = library.cache.mods.get(&renamed.new_name) {
+            // Get display name from manifest or use folder name
+            let name = library
+                .cache
+                .manifests
+                .get(&renamed.new_name)
+                .map(|m| m.name.clone())
+                .unwrap_or_else(|| renamed.new_name.clone());
+
+            library.mods.insert(
+                renamed.new_name.clone(),
+                Mod {
+                    id: renamed.new_name.clone(),
+                    is_active: renamed.was_active,
+                    mod_type: cached_fs.mod_type.clone(),
+                    name,
+                    manifest: None, // Will be filled by dto_builder
+                    icon_data: None,
+                },
+            );
+        }
+    }
+
     library.persist()?;
     Ok(())
 }

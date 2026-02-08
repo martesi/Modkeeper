@@ -12,6 +12,73 @@ pub struct LibraryCache {
     pub manifests: BTreeMap<String, ModManifest>,
 }
 
+/// Represents a mod folder that was renamed to match its resolved ID.
+pub struct RenamedMod {
+    pub old_name: String,
+    pub new_name: String,
+    pub was_active: bool,
+}
+
+/// Result of normalizing mod folder names.
+pub struct NormalizationResult {
+    pub renamed: Vec<RenamedMod>,
+}
+
+/// Detects folder name vs resolved ID mismatches and renames folders.
+/// Returns list of renames performed for caller to clean up orphaned data.
+pub fn normalize_mod_folders(
+    mods_base: &Utf8PathBuf,
+    spt_paths: &SPTPathRules,
+    mods_state: &BTreeMap<String, crate::models::mod_dto::Mod>,
+) -> Result<NormalizationResult, SError> {
+    let mut renamed = Vec::new();
+
+    let entries: Vec<_> = std::fs::read_dir(mods_base)?
+        .flatten()
+        .filter_map(|e| {
+            Utf8PathBuf::from_path_buf(e.path())
+                .ok()
+                .filter(|p| p.is_dir())
+        })
+        .collect();
+
+    for path in entries {
+        let folder_name = path.file_name().ok_or(SError::Unexpected)?.to_string();
+
+        let mod_fs = ModFS::new(&path, spt_paths)?;
+        let resolved_id = &mod_fs.id;
+
+        if folder_name != *resolved_id {
+            let new_path = mods_base.join(resolved_id);
+
+            // Check for conflict
+            if new_path.exists() {
+                return Err(SError::ModIdConflict(
+                    folder_name.clone(),
+                    resolved_id.clone(),
+                ));
+            }
+
+            // Get enabled state before rename
+            let was_active = mods_state
+                .get(&folder_name)
+                .map(|m| m.is_active)
+                .unwrap_or(false);
+
+            // Rename folder
+            std::fs::rename(&path, &new_path)?;
+
+            renamed.push(RenamedMod {
+                old_name: folder_name,
+                new_name: resolved_id.clone(),
+                was_active,
+            });
+        }
+    }
+
+    Ok(NormalizationResult { renamed })
+}
+
 impl LibraryCache {
     pub fn build(mods_base: &Utf8PathBuf, spt_paths: &SPTPathRules) -> Result<Self, SError> {
         let mut cache = Self::default();

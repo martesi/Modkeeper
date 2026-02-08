@@ -21,6 +21,12 @@ pub enum SError {
     NoActiveLibrary,
     #[display("Invalid library at {}: {}", _0, _1)]
     InvalidLibrary(String, String),
+    #[display(
+        "Mod ID conflict: folder '{}' should be '{}' but target exists",
+        _0,
+        _1
+    )]
+    ModIdConflict(String, String),
 }
 
 macro_rules! impl_from {
