@@ -380,12 +380,14 @@ fn test_mod_backup_on_overwrite() {
     );
 
     let backup_path = Utf8PathBuf::from_path_buf(entries[0].as_ref().unwrap().path()).unwrap();
-    assert!(backup_path
-        .join("content")
-        .join(&rules.server_mods)
-        .join(mod_id)
-        .join("v1.txt")
-        .exists());
+    assert!(
+        backup_path
+            .join("content")
+            .join(&rules.server_mods)
+            .join(mod_id)
+            .join("v1.txt")
+            .exists()
+    );
 }
 
 #[test]

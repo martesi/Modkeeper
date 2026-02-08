@@ -1,5 +1,5 @@
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 
 /// Hashes a string using Blake3 (16 bytes) and encodes it with base64url (no padding).
 /// Returns a stable, compact identifier (~22 characters).

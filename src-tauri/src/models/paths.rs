@@ -4,7 +4,7 @@ use dunce::canonicalize;
 use std::path::PathBuf;
 
 macro_rules! define_paths {
-    ($name:ident { $($field:ident : $default:expr),* $(,)? }) => {
+    ($name:ident { $($field:ident : $default:expr_2021),* $(,)? }) => {
         #[derive(Clone, Debug)]
         pub struct $name {
             $(pub $field: Utf8PathBuf,)*

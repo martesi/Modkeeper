@@ -67,7 +67,7 @@ pub fn apply_window_effect(app_handle: AppHandle, is_dark: Option<bool>) {
 
     #[cfg(target_os = "macos")]
     {
-        use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
+        use window_vibrancy::{NSVisualEffectMaterial, apply_vibrancy};
 
         let Some(window) = app_handle.get_webview_window("main") else {
             tracing::warn!("Failed to get main window for window effect");

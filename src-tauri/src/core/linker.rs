@@ -1,5 +1,5 @@
 use camino::{Utf8Path, Utf8PathBuf};
-use file_id::{get_file_id, FileId};
+use file_id::{FileId, get_file_id};
 use std::fs;
 use std::io;
 

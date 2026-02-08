@@ -139,14 +139,18 @@ fn test_executables_detection() {
     let mod_fs = ModFS::new(&root, &rules).unwrap();
 
     assert_eq!(mod_fs.executables.len(), 2);
-    assert!(mod_fs
-        .executables
-        .iter()
-        .any(|e| e.ends_with("root_tool.exe")));
-    assert!(mod_fs
-        .executables
-        .iter()
-        .any(|e| e.ends_with("nested_tool.exe")));
+    assert!(
+        mod_fs
+            .executables
+            .iter()
+            .any(|e| e.ends_with("root_tool.exe"))
+    );
+    assert!(
+        mod_fs
+            .executables
+            .iter()
+            .any(|e| e.ends_with("nested_tool.exe"))
+    );
 }
 
 #[test]

@@ -1,5 +1,5 @@
 use crate::config::global::GlobalConfig;
-use crate::core::cache::{normalize_mod_folders, LibraryCache};
+use crate::core::cache::{LibraryCache, normalize_mod_folders};
 use crate::core::dto_builder;
 use crate::core::library::Library;
 use crate::models::error::SError;

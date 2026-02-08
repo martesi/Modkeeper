@@ -5,8 +5,8 @@ use crate::models::error::SError;
 use crate::utils::process::ProcessChecker;
 use parking_lot::Mutex;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 use sysinfo::System;
 
 pub struct AppRegistry {
