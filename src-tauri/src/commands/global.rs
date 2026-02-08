@@ -6,6 +6,90 @@ use crate::models::library::LibraryCreationRequirement;
 use camino::Utf8PathBuf;
 use tauri::{AppHandle, Manager, State};
 
+/// Detect if running on Windows 11 (build >= 22000)
+#[cfg(target_os = "windows")]
+fn is_windows_11() -> bool {
+    use std::process::Command;
+    Command::new("cmd")
+        .args(["/C", "ver"])
+        .output()
+        .map(|o| {
+            let output = String::from_utf8_lossy(&o.stdout);
+            // Windows 11 has build number >= 22000
+            // Format is like "Microsoft Windows [Version 10.0.22631.4602]"
+            output
+                .split('.')
+                .nth(2)
+                .and_then(|s| {
+                    s.chars()
+                        .take_while(|c| c.is_ascii_digit())
+                        .collect::<String>()
+                        .parse::<u32>()
+                        .ok()
+                })
+                .map(|build| build >= 22000)
+                .unwrap_or(false)
+        })
+        .unwrap_or(false)
+}
+
+/// Apply window vibrancy effect based on OS and theme
+/// - Windows 11: Mica effect with dark mode support
+/// - Windows 10: Acrylic effect with tint color
+/// - macOS: Vibrancy effect (follows system appearance)
+#[tauri::command]
+#[specta::specta]
+pub fn apply_window_effect(app_handle: AppHandle, is_dark: Option<bool>) {
+    #[cfg(target_os = "windows")]
+    {
+        use window_vibrancy::{apply_acrylic, apply_mica};
+
+        let Some(window) = app_handle.get_webview_window("main") else {
+            tracing::warn!("Failed to get main window for window effect");
+            return;
+        };
+
+        if is_windows_11() {
+            if let Err(e) = apply_mica(&window, is_dark) {
+                tracing::warn!("Failed to apply Mica effect: {}", e);
+            }
+        } else {
+            // Windows 10: use acrylic with tint color based on theme
+            let color = match is_dark {
+                Some(true) | None => Some((18, 18, 18, 125)),
+                Some(false) => Some((255, 255, 255, 125)),
+            };
+            if let Err(e) = apply_acrylic(&window, color) {
+                tracing::warn!("Failed to apply Acrylic effect: {}", e);
+            }
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
+
+        let Some(window) = app_handle.get_webview_window("main") else {
+            tracing::warn!("Failed to get main window for window effect");
+            return;
+        };
+
+        // AppearanceBased follows system dark/light mode automatically
+        if let Err(e) = apply_vibrancy(&window, NSVisualEffectMaterial::AppearanceBased, None, None)
+        {
+            tracing::warn!("Failed to apply vibrancy effect: {}", e);
+        }
+    }
+
+    // Suppress unused variable warning on platforms where we don't use these
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        let _ = app_handle;
+        let _ = is_dark;
+        tracing::debug!("Window effects are not supported on this platform");
+    }
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn open_library(

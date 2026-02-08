@@ -109,6 +109,15 @@ async revealMod(modId: string) : Promise<Result<null, SError>> {
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Apply window vibrancy effect based on OS and theme
+ * - Windows 11: Mica effect with dark mode support
+ * - Windows 10: Acrylic effect with tint color
+ * - macOS: Vibrancy effect (follows system appearance)
+ */
+async applyWindowEffect(isDark: boolean | null) : Promise<void> {
+    await TAURI_INVOKE("apply_window_effect", { isDark });
+},
 async openLibrary(path: string) : Promise<Result<LibrarySwitch, SError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("open_library", { path }) };
@@ -195,7 +204,7 @@ export type Mod = { id: string; isActive: boolean; type: ModType; name: string; 
 export type ModBackup = { timestamp: string; name: string; hasConfig: boolean; path: string }
 export type ModManifest = { id: string; name: string; author: Author; version: string; sptVersion: string; description?: string | null; icon?: string | null; documentation?: string | null; compatibility?: Compatibility | null; dependencies?: Dependencies | null; effects?: Effect[] | null; links?: Link[] | null }
 export type ModType = "Client" | "Server" | "Both" | "Unknown"
-export type SError = { UnsupportedSPTVersion: string } | { ParseError: string } | { IOError: string } | "GameOrServerRunning" | "ProcessRunning" | "UnableToDetermineModId" | { ModNotFound: string } | { FileOrDirectoryNotFound: string } | { FileCollision: string[] } | "Unexpected" | { UnhandledCompression: string } | { AsyncRuntimeError: string } | "NoActiveLibrary" | { InvalidLibrary: [string, string] }
+export type SError = { UnsupportedSPTVersion: string } | { ParseError: string } | { IOError: string } | "GameOrServerRunning" | "ProcessRunning" | "UnableToDetermineModId" | { ModNotFound: string } | { FileOrDirectoryNotFound: string } | { FileCollision: string[] } | "Unexpected" | { UnhandledCompression: string } | { AsyncRuntimeError: string } | "NoActiveLibrary" | { InvalidLibrary: [string, string] } | { ModIdConflict: [string, string] }
 
 /** tauri-specta globals **/
 

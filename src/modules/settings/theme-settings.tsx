@@ -14,6 +14,8 @@ import {
   saveSettings,
   type Settings,
 } from '@/lib/settings-storage'
+import { themeToIsDark } from '@/utils/theme'
+import { commands } from '@gen/bindings'
 import { Palette } from 'lucide-react'
 
 const PRESET_COLORS = [
@@ -56,6 +58,8 @@ export function ThemeSettings() {
     setTheme(value)
     const settings = loadSettings()
     saveSettings({ ...settings, theme: value })
+    // Apply window effect with new theme
+    commands.applyWindowEffect(themeToIsDark(value) ?? null)
   }
 
   const handlePrimaryColorChange = (color: string) => {

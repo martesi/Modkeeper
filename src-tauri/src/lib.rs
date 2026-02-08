@@ -4,7 +4,9 @@ pub mod core;
 pub mod models;
 pub mod utils;
 
-use crate::commands::global::{close_library, create_library, init, open_library, remove_library};
+use crate::commands::global::{
+    apply_window_effect, close_library, create_library, init, open_library, remove_library,
+};
 use crate::commands::library::{
     add_mods, create_backup, get_backups, get_library, get_mod_documentation,
     rebuild_library_cache, remove_backup, remove_mods, rename_library, restore_backup, reveal_mod,
@@ -35,6 +37,7 @@ fn setup_command_handler() -> Builder<tauri::Wry> {
         rebuild_library_cache,
         reveal_mod,
         // global
+        apply_window_effect,
         open_library,
         create_library,
         close_library,
@@ -128,15 +131,6 @@ fn setup_application(
     init_called: Arc<std::sync::atomic::AtomicBool>,
 ) -> impl FnOnce(&mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     move |app| {
-        // Apply window effects
-        #[cfg(windows)]
-        {
-            use tauri::Manager;
-            use window_vibrancy::apply_mica;
-            let window = app.get_webview_window("main").unwrap();
-            apply_mica(&window, None).unwrap();
-        }
-
         // Mount events for the command handler
         builder.mount_events(app);
 
