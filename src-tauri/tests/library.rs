@@ -6,9 +6,7 @@ use mod_keeper_lib::config::global::GlobalConfig;
 use mod_keeper_lib::core::library::Library;
 use mod_keeper_lib::core::mod_fs::ModFS;
 use mod_keeper_lib::core::mod_stager::StagedMod;
-use mod_keeper_lib::core::{
-    cleanup, deployment, dto_builder, global_service, library_service, mod_manager,
-};
+use mod_keeper_lib::core::{dto_builder, global_service, library_service, mod_manager};
 use mod_keeper_lib::models::error::SError;
 use mod_keeper_lib::models::library::LibraryCreationRequirement;
 use mod_keeper_lib::models::paths::{ModPaths, SPTPathRules};
@@ -99,23 +97,8 @@ fn test_collision_detection() {
     add_named_mod("Mod_A", conflict_path);
     add_named_mod("Mod_B", conflict_path);
 
-    // Act - sync using standalone functions
-    let result = cleanup::purge(
-        &lib.game_root,
-        &lib.repo_root,
-        &lib.spt_rules,
-        &lib.lib_paths,
-        &lib.cache,
-    )
-    .and_then(|_| {
-        deployment::deploy(
-            &lib.game_root,
-            &lib.lib_paths,
-            &lib.spt_rules,
-            &lib.mods,
-            &lib.cache,
-        )
-    });
+    // Act — lib.sync() runs deploy which detects the collision
+    let result = lib.sync();
 
     // Assert
     assert!(
@@ -174,25 +157,8 @@ fn test_recursive_linking_logic() {
     setup_mod(&mut lib, "ModA", "A.txt");
     setup_mod(&mut lib, "ModB", "B.txt");
 
-    // Sync using standalone functions
-    cleanup::purge(
-        &lib.game_root,
-        &lib.repo_root,
-        &lib.spt_rules,
-        &lib.lib_paths,
-        &lib.cache,
-    )
-    .unwrap();
-    deployment::deploy(
-        &lib.game_root,
-        &lib.lib_paths,
-        &lib.spt_rules,
-        &lib.mods,
-        &lib.cache,
-    )
-    .expect("Sync failed");
-    lib.mark_clean();
-    lib.persist().unwrap();
+    // Sync
+    lib.sync().expect("Sync failed");
 
     // ... rest of your assertions ...
     let common_dir_in_game = game_root.join(&rules.server_mods).join("CommonDir");
@@ -219,48 +185,14 @@ fn test_purge_removes_deactivated_mods() {
     lib.mods.get_mut("DeleteMe").unwrap().is_active = true;
 
     // Sync
-    cleanup::purge(
-        &lib.game_root,
-        &lib.repo_root,
-        &lib.spt_rules,
-        &lib.lib_paths,
-        &lib.cache,
-    )
-    .unwrap();
-    deployment::deploy(
-        &lib.game_root,
-        &lib.lib_paths,
-        &lib.spt_rules,
-        &lib.mods,
-        &lib.cache,
-    )
-    .unwrap();
-    lib.mark_clean();
-    lib.persist().unwrap();
+    lib.sync().unwrap();
 
     let target_path = game_root.join(&rules.server_mods).join("DeleteMe");
     assert!(target_path.exists());
 
     // 2. Deactivate and sync
     lib.mods.get_mut("DeleteMe").unwrap().is_active = false;
-    cleanup::purge(
-        &lib.game_root,
-        &lib.repo_root,
-        &lib.spt_rules,
-        &lib.lib_paths,
-        &lib.cache,
-    )
-    .unwrap();
-    deployment::deploy(
-        &lib.game_root,
-        &lib.lib_paths,
-        &lib.spt_rules,
-        &lib.mods,
-        &lib.cache,
-    )
-    .unwrap();
-    lib.mark_clean();
-    lib.persist().unwrap();
+    lib.sync().unwrap();
 
     // 3. Verify it's gone from game but exists in repo
     assert!(!target_path.exists());
@@ -434,24 +366,7 @@ fn test_untracked_file_safety_in_shared_folder() {
     let id_b = setup_mod(&mut lib, "ModB");
 
     // Sync
-    cleanup::purge(
-        &lib.game_root,
-        &lib.repo_root,
-        &lib.spt_rules,
-        &lib.lib_paths,
-        &lib.cache,
-    )
-    .unwrap();
-    deployment::deploy(
-        &lib.game_root,
-        &lib.lib_paths,
-        &lib.spt_rules,
-        &lib.mods,
-        &lib.cache,
-    )
-    .unwrap();
-    lib.mark_clean();
-    lib.persist().unwrap();
+    lib.sync().unwrap();
 
     // 2. Add untracked file to the real directory created by the Linker
     let shared_dir = game_root.join(&rules.client_plugins).join("SharedDir");
@@ -463,24 +378,7 @@ fn test_untracked_file_safety_in_shared_folder() {
     // 3. Deactivate all mods and sync (purge)
     lib.mods.get_mut(&id_a).unwrap().is_active = false;
     lib.mods.get_mut(&id_b).unwrap().is_active = false;
-    cleanup::purge(
-        &lib.game_root,
-        &lib.repo_root,
-        &lib.spt_rules,
-        &lib.lib_paths,
-        &lib.cache,
-    )
-    .unwrap();
-    deployment::deploy(
-        &lib.game_root,
-        &lib.lib_paths,
-        &lib.spt_rules,
-        &lib.mods,
-        &lib.cache,
-    )
-    .unwrap();
-    lib.mark_clean();
-    lib.persist().unwrap();
+    lib.sync().unwrap();
 
     // 4. Verification
     assert!(
@@ -534,24 +432,7 @@ fn test_persistence_cycle() {
 
     // FIX: Use lowercase "persistmod"
     lib.mods.get_mut("persistmod").unwrap().is_active = true;
-    cleanup::purge(
-        &lib.game_root,
-        &lib.repo_root,
-        &lib.spt_rules,
-        &lib.lib_paths,
-        &lib.cache,
-    )
-    .unwrap();
-    deployment::deploy(
-        &lib.game_root,
-        &lib.lib_paths,
-        &lib.spt_rules,
-        &lib.mods,
-        &lib.cache,
-    )
-    .unwrap();
-    lib.mark_clean();
-    lib.persist().unwrap();
+    lib.sync().unwrap();
 
     let loaded_lib = Library::load(&repo_root).expect("Failed to load library");
 
@@ -992,26 +873,8 @@ fn test_remove_library_with_mods() {
     let staged = create_staged_mod_for_test(mod_src_utf8, mod_fs);
     mod_manager::add_mod(&mut lib, staged, "Test Backup").expect("Failed to add mod");
 
-    // Activate mod and sync (deploy links)
     lib.mods.get_mut("TestMod").unwrap().is_active = true;
-    lib.persist().expect("Failed to persist library");
-
-    cleanup::purge(
-        &lib.game_root,
-        &lib.repo_root,
-        &lib.spt_rules,
-        &lib.lib_paths,
-        &lib.cache,
-    )
-    .expect("Failed to purge");
-    deployment::deploy(
-        &lib.game_root,
-        &lib.lib_paths,
-        &lib.spt_rules,
-        &lib.mods,
-        &lib.cache,
-    )
-    .expect("Failed to deploy");
+    lib.sync().expect("Sync failed");
 
     // Note: Mod links would exist if deployed, but we verify cleanup happens during remove
 

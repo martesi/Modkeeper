@@ -1,10 +1,10 @@
 use camino::Utf8Path;
-use mod_keeper_lib::core::linker::{is_same_file, link, read_link_target, unlink};
+use mod_keeper_lib::core::linker::{link, read_link_target, unlink};
 use std::fs;
 use tempfile::tempdir;
 
 #[test]
-fn test_file_hard_link() {
+fn test_file_symlink() {
     let tmp = tempdir().unwrap();
     let root = Utf8Path::from_path(tmp.path()).unwrap();
 
@@ -13,16 +13,17 @@ fn test_file_hard_link() {
 
     fs::write(&src, "hello linker").unwrap();
 
-    // 1. Create Link
-    link(&src, &dst).expect("Failed to create hard link");
+    // 1. Create symlink
+    link(&src, &dst).expect("Failed to create symlink");
 
-    // 2. Verify content is shared
+    // 2. Verify content is readable through the symlink
     assert_eq!(fs::read_to_string(&dst).unwrap(), "hello linker");
 
-    // 3. Verify they are the same physical file
-    assert!(is_same_file(&src, &dst));
+    // 3. Verify dst is actually a symlink pointing to src
+    let target = read_link_target(&dst).expect("Failed to read symlink target");
+    assert!(target.ends_with("source.txt"));
 
-    // 4. Verify modifying one affects the other
+    // 4. Verify modifying source is visible through symlink
     fs::write(&src, "changed").unwrap();
     assert_eq!(fs::read_to_string(&dst).unwrap(), "changed");
 }
