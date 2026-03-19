@@ -34,14 +34,14 @@ tauri-specta = { version = "=2.0.0-rc.21", features = ["derive", "typescript"] }
 confy = "2.0.0"
 directories = "6.0.0"
 camino = { version = "1.2.2", features = ["serde1"] }
-junction = "1.2" # Essential for Windows Junctions
+
 sysinfo = "0.30" # For process checking
 toml = "0.7"
 walkdir = "2"
 regex = "1.10"
 uuid = { version = "1.19.0", features = ["v4"] }
 semver = "1.0.27"
-file-id = "0.2.3"
+
 dunce = "1.0.5"
 parking_lot = "0.12.5"
 zip = "7.0.0"
