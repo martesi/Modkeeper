@@ -19,15 +19,8 @@ pub fn remove_library(config: &mut GlobalConfig, repo_root: &Utf8Path) -> Result
     // Load library to get cache for unlinking mods
     let library = Library::load(repo_root).ok();
 
-    // If library exists and is loaded, unlink all mods
     if let Some(lib) = library.as_ref() {
-        cleanup::purge(
-            &lib.game_root,
-            &lib.repo_root,
-            &lib.spt_rules,
-            &lib.lib_paths,
-            &lib.cache,
-        )?;
+        cleanup::purge(lib)?;
     }
 
     // Remove from both library_last and library_recent

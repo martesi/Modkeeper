@@ -1,4 +1,5 @@
 use crate::core::cache::LibraryCache;
+use crate::core::library::Library;
 use crate::core::linker;
 use crate::models::error::SError;
 use crate::models::mod_dto::Mod;
@@ -51,18 +52,19 @@ pub fn is_protected_path_absolute(
 
 /// Entry point for deployment logic.
 /// Performs conflict detection and recursive linking of active mods.
-pub fn deploy(
-    game_root: &Utf8Path,
-    lib_paths: &LibPathRules,
-    spt_rules: &SPTPathRules,
-    mods: &BTreeMap<String, Mod>,
-    cache: &LibraryCache,
-) -> Result<(), SError> {
-    check_file_collisions(mods, cache)?;
+pub fn deploy(library: &Library) -> Result<(), SError> {
+    check_file_collisions(&library.mods, &library.cache)?;
 
-    let folder_ownership = build_folder_ownership_map(spt_rules, mods, cache);
+    let folder_ownership =
+        build_folder_ownership_map(&library.spt_rules, &library.mods, &library.cache);
 
-    execute_recursive_link(game_root, lib_paths, mods, cache, &folder_ownership)
+    execute_recursive_link(
+        &library.game_root,
+        &library.lib_paths,
+        &library.mods,
+        &library.cache,
+        &folder_ownership,
+    )
 }
 
 /// Validates that no two active mods provide the same file.
@@ -189,13 +191,13 @@ fn iter_active_files_and_ancestors<'a>(
 /// and the shared directories that were created for this mod's files.
 /// Always includes the specified mod in ownership calculation regardless of its active status.
 pub fn find_mod_links(
-    game_root: &Utf8Path,
-    _lib_paths: &LibPathRules,
-    spt_rules: &SPTPathRules,
-    mods: &BTreeMap<String, Mod>,
-    cache: &LibraryCache,
+    library: &Library,
     mod_id: &str,
 ) -> Result<(HashSet<Utf8PathBuf>, HashSet<Utf8PathBuf>), SError> {
+    let game_root = &library.game_root;
+    let spt_rules = &library.spt_rules;
+    let mods = &library.mods;
+    let cache = &library.cache;
     // Get the mod's files from cache
     let mod_fs = cache
         .mods

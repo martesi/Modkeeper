@@ -1,26 +1,22 @@
-use crate::core::cache::LibraryCache;
 use crate::core::deployment;
+use crate::core::library::Library;
 use crate::core::linker;
 use crate::models::error::SError;
-use crate::models::paths::{LibPathRules, SPTPathRules};
 use camino::{Utf8Path, Utf8PathBuf};
-use file_id::FileId;
+use dunce::canonicalize as dunce_canon;
 use std::collections::HashSet;
 use walkdir::WalkDir;
 
 /// Entry point for the cleanup logic.
-/// Scans the game directory and removes managed files, links, or empty folders.
-pub fn purge(
-    game_root: &Utf8Path,
-    repo_root: &Utf8Path,
-    spt_rules: &SPTPathRules,
-    lib_paths: &LibPathRules,
-    cache: &LibraryCache,
-) -> Result<(), SError> {
-    let managed_scope = build_managed_scope(cache);
-    let managed_ids = build_managed_ids(lib_paths, cache);
+/// Scans managed game directories and removes all symlinks pointing back into our repo.
+pub fn purge(library: &Library) -> Result<(), SError> {
+    let managed_scope = build_managed_scope(library);
+    let roots = deployment::get_protected_paths_absolute(&library.game_root, &library.spt_rules);
 
-    let roots = deployment::get_protected_paths_absolute(game_root, spt_rules);
+    // Pre-compute canonical repo_root for robust symlink target comparison
+    let canonical_repo_root = dunce_canon(&library.repo_root)
+        .map(|p| Utf8PathBuf::from(p.to_string_lossy().into_owned()))
+        .unwrap_or_else(|_| library.repo_root.clone());
 
     for root in roots.iter().filter(|r| r.exists()) {
         let mut it = WalkDir::new(root).contents_first(false).into_iter();
@@ -33,13 +29,11 @@ pub fn purge(
                 continue;
             }
 
-            // Process the entry. If it returns true, we skip children (e.g., directory was removed).
             if process_entry(
                 path,
-                game_root,
-                repo_root,
+                &library.game_root,
+                &canonical_repo_root,
                 &managed_scope,
-                &managed_ids,
                 &entry,
             )? {
                 it.skip_current_dir();
@@ -49,47 +43,43 @@ pub fn purge(
     Ok(())
 }
 
-/// Processes a single filesystem entry to determine if it should be unlinked or removed.
-/// Returns Ok(true) if the entry was a directory and was removed (signaling to skip children).
+/// Processes a single filesystem entry.
+/// Returns Ok(true) if the entry was removed (signaling to skip children).
 fn process_entry(
     path: &Utf8Path,
     game_root: &Utf8Path,
     repo_root: &Utf8Path,
     managed_scope: &HashSet<Utf8PathBuf>,
-    managed_ids: &HashSet<FileId>,
     entry: &walkdir::DirEntry,
 ) -> Result<bool, SError> {
     let meta = entry.path().symlink_metadata()?;
 
-    // Case A: Managed Junctions/Symlinks (pointing back to our repo)
-    if !meta.is_file() {
-        let Ok(target) = linker::read_link_target(path) else {
+    // Case A: Symlinks pointing back to our repo — remove them
+    if meta.file_type().is_symlink() {
+        let Ok(raw_target) = linker::read_link_target(path) else {
             return Ok(false);
         };
+
+        // Canonicalize the target to handle \\?\ prefixes and case differences on Windows
+        let target = dunce_canon(&raw_target)
+            .map(|p| Utf8PathBuf::from(p.to_string_lossy().into_owned()))
+            .unwrap_or(raw_target);
 
         if target.starts_with(repo_root) {
+            // Check if target is a directory BEFORE unlinking (unlink removes the path)
+            let target_is_dir = target.is_dir();
             linker::unlink(path)?;
-            return Ok(true);
-        }
-    }
-
-    // Case B: Managed Hardlinks (matched by physical file ID)
-    if meta.is_file() {
-        let Ok(id) = linker::get_id(path) else {
-            return Ok(false);
-        };
-
-        if managed_ids.contains(&id) {
-            linker::unlink(path)?;
+            // Only skip children if this was a directory symlink.
+            // For file symlinks, returning true would cause WalkDir to skip remaining siblings.
+            return Ok(target_is_dir);
         }
         return Ok(false);
     }
 
-    // Case C: Ancestor-only Empty Directory Cleanup
-    if meta.is_dir() && !meta.file_type().is_symlink() {
+    // Case B: Ancestor-only empty directory cleanup
+    if meta.is_dir() {
         let rel_path = path.strip_prefix(game_root).unwrap_or(path);
 
-        // We only remove the directory if it's empty AND part of our known managed structure
         if is_dir_empty(path) && managed_scope.contains(rel_path) {
             let _ = std::fs::remove_dir(path);
             return Ok(true);
@@ -99,8 +89,11 @@ fn process_entry(
     Ok(false)
 }
 
-fn build_managed_scope(cache: &LibraryCache) -> HashSet<Utf8PathBuf> {
-    cache
+/// Builds the set of relative paths that our managed mods have ever contributed to.
+/// Used to identify empty directories that are safe to remove.
+fn build_managed_scope(library: &Library) -> HashSet<Utf8PathBuf> {
+    library
+        .cache
         .mods
         .values()
         .flat_map(|m_fs| {
@@ -112,72 +105,32 @@ fn build_managed_scope(cache: &LibraryCache) -> HashSet<Utf8PathBuf> {
         .collect()
 }
 
-fn build_managed_ids(lib_paths: &LibPathRules, cache: &LibraryCache) -> HashSet<FileId> {
-    cache
-        .mods
-        .iter()
-        .flat_map(|(id, fs)| {
-            fs.files
-                .iter()
-                .map(move |f| lib_paths.mods.join(id).join(f))
-        })
-        .filter_map(|p| linker::get_id(&p).ok())
-        .collect()
-}
-
 fn is_dir_empty(path: &Utf8Path) -> bool {
     std::fs::read_dir(path)
         .map(|mut i| i.next().is_none())
         .unwrap_or(false)
 }
 
-/// Unlinks all files, junctions, and shared directories for a specific mod.
-/// Returns the list of paths that were unlinked/removed.
+/// Unlinks all symlinks and shared directories for a specific mod.
 pub fn unlink_mod(
-    game_root: &Utf8Path,
-    _repo_root: &Utf8Path,
-    lib_paths: &LibPathRules,
-    cache: &LibraryCache,
+    library: &Library,
     mod_id: &str,
     unlink_paths: &HashSet<Utf8PathBuf>,
     shared_dirs: &HashSet<Utf8PathBuf>,
-    spt_rules: &SPTPathRules,
 ) -> Result<Vec<Utf8PathBuf>, SError> {
     let mut unlinked = Vec::new();
-    let mod_source_dir = lib_paths.mods.join(mod_id);
-    let protected_paths = deployment::get_protected_paths_absolute(game_root, spt_rules);
+    let mod_source_dir = library.lib_paths.mods.join(mod_id);
+    let protected_paths =
+        deployment::get_protected_paths_absolute(&library.game_root, &library.spt_rules);
 
-    // Get the mod's file IDs for hard link matching
-    let mod_file_ids: HashSet<FileId> = cache
-        .mods
-        .get(mod_id)
-        .map(|m_fs| {
-            m_fs.files
-                .iter()
-                .filter_map(|f| linker::get_id(&mod_source_dir.join(f)).ok())
-                .collect()
-        })
-        .unwrap_or_default();
-
-    // Unlink all paths that were uniquely owned by this mod
     for path in unlink_paths {
-        // Skip protected system root paths
         if protected_paths.iter().any(|protected| path == protected) {
             continue;
         }
         if path.exists() || path.is_symlink() {
-            // Check if it's a junction/symlink pointing to our mod
+            // Only unlink if it's a symlink pointing to our mod's directory
             if let Ok(target) = linker::read_link_target(path) {
                 if target.starts_with(&mod_source_dir) {
-                    linker::unlink(path)?;
-                    unlinked.push(path.clone());
-                    continue;
-                }
-            }
-
-            // Check if it's a hard link matching our mod's file IDs
-            if let Ok(id) = linker::get_id(path) {
-                if mod_file_ids.contains(&id) {
                     linker::unlink(path)?;
                     unlinked.push(path.clone());
                 }
@@ -185,12 +138,11 @@ pub fn unlink_mod(
         }
     }
 
-    // Clean up empty shared directories (walk from deepest to shallowest)
+    // Clean up empty shared directories (deepest first)
     let mut sorted_shared_dirs: Vec<_> = shared_dirs.iter().collect();
     sorted_shared_dirs.sort_by(|a, b| b.components().count().cmp(&a.components().count()));
 
     for shared_dir in sorted_shared_dirs {
-        // Skip protected system root paths - never remove server_mods or client_plugins directories
         if protected_paths
             .iter()
             .any(|protected| shared_dir == protected)
@@ -198,8 +150,6 @@ pub fn unlink_mod(
             continue;
         }
         if shared_dir.exists() && is_dir_empty(shared_dir) {
-            // Check if this directory is still needed by other mods
-            // We can remove it if it's empty and was created for our mod
             let _ = std::fs::remove_dir(shared_dir);
             unlinked.push(shared_dir.clone());
         }

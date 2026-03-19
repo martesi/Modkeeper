@@ -4,36 +4,24 @@ use crate::core::library::Library;
 use crate::core::mod_fs::ModFS;
 use crate::models::error::SError;
 use crate::models::mod_backup::{BackupManifest, ModBackup};
-use crate::models::paths::{BackupPathRules, LibPathRules, SPTPathRules};
+use crate::models::paths::{BackupPathRules, LibPathRules};
 use crate::utils::file::FileUtils;
 use crate::utils::time::get_unix_timestamp;
 
 /// Creates a backup of a mod at the current timestamp.
-/// Backup is stored at: `backups/{mod_id}/{timestamp}/` with structure:
-/// - manifest.toml: Contains name and timestamp
-/// - content/: Mod files from mods/{mod_id}
-/// - config/: BepInEx config file (if exists)
-pub fn create_backup(
-    lib_paths: &LibPathRules,
-    spt_rules: &SPTPathRules,
-    game_root: &Utf8Path,
-    mod_id: &str,
-    name: &str,
-) -> Result<(), SError> {
-    let mod_dir = lib_paths.mods.join(mod_id);
+pub fn create_backup(library: &Library, mod_id: &str, name: &str) -> Result<(), SError> {
+    let mod_dir = library.lib_paths.mods.join(mod_id);
 
     if !mod_dir.exists() {
         return Ok(()); // Nothing to backup
     }
 
     let timestamp = get_unix_timestamp().to_string();
-    let backup_dir = lib_paths.backups.join(mod_id).join(&timestamp);
+    let backup_dir = library.lib_paths.backups.join(mod_id).join(&timestamp);
     let backup_rules = BackupPathRules::new(&backup_dir);
 
-    // Create backup directory and content folder
     std::fs::create_dir_all(&backup_rules.content)?;
 
-    // Write manifest.toml
     let manifest = BackupManifest {
         timestamp: timestamp.clone(),
         name: name.to_string(),
@@ -42,12 +30,11 @@ pub fn create_backup(
         toml::to_string_pretty(&manifest).map_err(|e| SError::ParseError(e.to_string()))?;
     std::fs::write(&backup_rules.manifest, manifest_content)?;
 
-    // Copy mod content
     FileUtils::copy_recursive(&mod_dir, &backup_rules.content)?;
 
-    // Copy config file if exists
-    let game_config_path = game_root
-        .join(&spt_rules.client_config)
+    let game_config_path = library
+        .game_root
+        .join(&library.spt_rules.client_config)
         .join(format!("{}.cfg", mod_id));
     if game_config_path.exists() {
         std::fs::create_dir_all(&backup_rules.config)?;

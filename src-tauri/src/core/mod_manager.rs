@@ -15,13 +15,7 @@ pub fn add_mod(library: &mut Library, staged: StagedMod, backup_name: &str) -> R
 
     // Create backup if mod already exists
     if dst.exists() {
-        mod_backup::create_backup(
-            &library.lib_paths,
-            &library.spt_rules,
-            &library.game_root,
-            &mod_id,
-            backup_name,
-        )?;
+        mod_backup::create_backup(library, &mod_id, backup_name)?;
     }
 
     std::fs::create_dir_all(&dst)?;
@@ -61,26 +55,10 @@ pub fn remove_mod(library: &mut Library, id: &str) -> Result<(), SError> {
     // Always attempt to unlink - active status may not match filesystem state
     if mod_fs_exists {
         // Find what paths need to be unlinked (treats mod as active for ownership calculation)
-        let (unlink_paths, shared_dirs) = deployment::find_mod_links(
-            &library.game_root,
-            &library.lib_paths,
-            &library.spt_rules,
-            &library.mods,
-            &library.cache,
-            id,
-        )?;
+        let (unlink_paths, shared_dirs) = deployment::find_mod_links(library, id)?;
 
         // Unlink all paths and shared directories
-        cleanup::unlink_mod(
-            &library.game_root,
-            &library.repo_root,
-            &library.lib_paths,
-            &library.cache,
-            id,
-            &unlink_paths,
-            &shared_dirs,
-            &library.spt_rules,
-        )?;
+        cleanup::unlink_mod(library, id, &unlink_paths, &shared_dirs)?;
     }
 
     // Remove all backups for this mod
