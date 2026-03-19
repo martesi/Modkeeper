@@ -137,4 +137,14 @@ impl Library {
         Toml::write(&self.lib_paths.cache, &self.cache)?;
         Ok(())
     }
+
+    /// Purge → Deploy → Mark Clean → Persist.
+    /// The canonical way to apply mod activation changes to the game directory.
+    pub fn sync(&mut self) -> Result<(), SError> {
+        use crate::core::{cleanup, deployment};
+        cleanup::purge(self)?;
+        deployment::deploy(self)?;
+        self.mark_clean();
+        self.persist()
+    }
 }

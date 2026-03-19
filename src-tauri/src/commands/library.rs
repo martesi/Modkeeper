@@ -2,8 +2,7 @@ use crate::core::global_service;
 use crate::core::library::Library;
 use crate::core::registry::AppRegistry;
 use crate::core::{
-    cleanup, deployment, dto_builder, library_service, mod_backup, mod_documentation, mod_manager,
-    mod_stager,
+    dto_builder, library_service, mod_backup, mod_documentation, mod_manager, mod_stager,
 };
 use crate::models::error::SError;
 use crate::models::global::LibrarySwitch;
@@ -95,27 +94,7 @@ pub async fn sync_mods(state: State<'_, AppRegistry>) -> Result<LibraryDTO, SErr
     let instance_handle = state.active_instance.clone();
     tauri::async_runtime::spawn_blocking(move || {
         with_lib_arc_mut(instance_handle, |inst| {
-            // 1. Purge existing managed links
-            cleanup::purge(
-                &inst.game_root,
-                &inst.repo_root,
-                &inst.spt_rules,
-                &inst.lib_paths,
-                &inst.cache,
-            )?;
-
-            // 2. Deploy active mods
-            deployment::deploy(
-                &inst.game_root,
-                &inst.lib_paths,
-                &inst.spt_rules,
-                &inst.mods,
-                &inst.cache,
-            )?;
-
-            inst.mark_clean();
-            inst.persist()?;
-            Ok(dto_builder::build_frontend_dto(inst))
+            inst.sync().map(|_| dto_builder::build_frontend_dto(inst))
         })
     })
     .await
@@ -200,17 +179,10 @@ pub async fn create_backup(
     backup_name: String,
 ) -> Result<(), SError> {
     let instance_handle = state.active_instance.clone();
-    tauri::async_runtime::spawn_blocking(move || -> Result<(), SError> {
-        let (lib_paths, spt_rules, game_root) = {
-            let lock = instance_handle.lock();
-            let inst = lock.as_ref().ok_or(SError::NoActiveLibrary)?;
-            (
-                inst.lib_paths.clone(),
-                inst.spt_rules.clone(),
-                inst.game_root.clone(),
-            )
-        };
-        mod_backup::create_backup(&lib_paths, &spt_rules, &game_root, &mod_id, &backup_name)
+    tauri::async_runtime::spawn_blocking(move || {
+        let inst_guard = instance_handle.lock();
+        let inst = inst_guard.as_ref().ok_or(SError::NoActiveLibrary)?;
+        mod_backup::create_backup(inst, &mod_id, &backup_name)
     })
     .await
     .map_err(|e| SError::AsyncRuntimeError(e.to_string()))?
