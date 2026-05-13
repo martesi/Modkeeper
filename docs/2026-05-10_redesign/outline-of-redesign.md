@@ -2,11 +2,13 @@
 
 ## Phase 1 — Audit & Assessment
 
+Audit and create files in `docs/2026-05-10_redesign/audits/`.
+
 ### 1.1 Audit Codebase Structure
 
-- Map every module in `src-tauri/src/core/` and classify as OOP or FP.
-- Identify modules that mix paradigms without justification (e.g., `mod_fs.rs`, `mod_manager.rs`).
-- Document which modules legitimately need OOP (stateful structs like `AppRegistry`) and which should be pure FP pipelines.
+- Map every file in `src-tauri/src/` and classify as OOP or FP.
+- Identify files that mix paradigms without justification.
+- Document which files legitimately need OOP (stateful structs) and which should be pure FP pipelines.
 
 ### 1.2 Audit Dependencies
 
@@ -18,6 +20,12 @@
 - Trace backend log flow: identify where logs are created, how they're transported to the frontend, and where they get lost.
 - Trace frontend error handling: identify where fatal errors are caught and where they're swallowed silently.
 - Document every gap found.
+
+### 1.4 Audit Tests
+
+- Map test name and its corresponding module, is it necessary, is it useful?
+- Identify tests that can be removed or refactored.
+- Document ones that is not useful or necessary
 
 ---
 
