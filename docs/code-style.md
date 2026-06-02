@@ -21,3 +21,4 @@
 ## General
 
 - Avoid comments.
+- Use inline function if more than 5 lines in a conditional block.
