@@ -15,6 +15,8 @@
 - Prefer undefined over null if not provided from backend.
 - Use "ur" to unwrap Result provided by backend, prefer to use like ".then(ur)".
 - Use i18n solution when displaying text on ui, like t/msg macro or Trans component.
+- Centralize translation helper functions in a single util/module per namespace, and import those helpers from UI components instead of redefining ad hoc text functions.
+- Name translation helper functions with the `tText` pattern, such as `libraryText.tTextManageLibraries()` or `commonText.tTextCancel()`.
 - Prefer to use shadcn/ui component to display content if availible.
 - Avoid using raw text for type, use enum instead.
 
