@@ -1,5 +1,12 @@
 # Frontend Redesign Data and API Contract
 
+> **Superseded.** See
+> [`docs/2026-07-09_redesign/frontend-redesign-data-api-contract.md`](../2026-07-09_redesign/frontend-redesign-data-api-contract.md),
+> which resolves all 10 open items from `frontend-redesign-data-api-contract-mod-1.md` (some of
+> which were decided here but never actually applied to this file — e.g. `isActive` below is still
+> present despite the recorded decision to remove it). Kept for history; `mod-1` review notes stay
+> here since the new document's §2 traces each one to its resolution.
+
 Status: Draft contract for future backend migration
 
 Companion spec:

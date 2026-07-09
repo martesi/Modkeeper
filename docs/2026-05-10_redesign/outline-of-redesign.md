@@ -1,5 +1,10 @@
 # Outline of Redesign
 
+> **Superseded.** See
+> [`docs/2026-07-09_redesign/outline-of-redesign.md`](../2026-07-09_redesign/outline-of-redesign.md).
+> Phase 2 now includes the SQLite state/index layer and tool registry, and Phase 3 no longer
+> contradicts `frontend-redesign-spec.md` about editing `src/modules/*` in place. Kept for history.
+
 ## Phase 1 — Audit & Assessment
 
 Audit and create files in `docs/2026-05-10_redesign/audits/`.
