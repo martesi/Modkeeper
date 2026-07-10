@@ -13,3 +13,8 @@
 - Bun is used as the package manager and dev runtime
 - Use Bun commands (e.g., `bun run dev`) for frontend development
 - `export_types` binary updates TypeScript bindings
+
+<!-- Problem Decomposition Specification -->
+Identify the underlying core critical question that remains unstated, and articulate it clearly.
+When decomposing problems, prioritize clarifying causal mechanisms instead of building excessive hierarchical structures. Do not stack empty abstract layers merely to feign profound analysis.
+<!-- Problem Decomposition Specification -->
