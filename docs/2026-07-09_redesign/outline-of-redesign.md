@@ -11,7 +11,7 @@ Companion docs:
 
 Changes since 2026-05-10:
 
-- Phase 2 now includes the SQLite state/index layer and executable tool registry from `purpose-of-redesign.md`.
+- Phase 2 now includes the plain-file App Config layer and executable tool registry. `purpose-of-redesign.md`'s SQLite state/index layer was initially adopted here and later **cancelled** during design review (`design-review.md` C4) — see the revised 2.5 below and the recorded deviation note in `backend-redesign-spec.md` §3.
 - Phase 2 execution method changed to mechanical-port-then-refactor with the test suite as a gating oracle (see "Backend Execution Method" below) — this is a direct adoption of how the Bun team ported Bun from Zig to Rust.
 - Phase 3 no longer describes editing `src/modules/*` in place. It now points at the `src/redesign/` build-fresh strategy that `frontend-redesign-spec.md` actually specifies, removing the contradiction between the two documents.
 - Phase 1 audit results are folded in as findings, not just as an audit checklist, since Phase 1 is complete.
@@ -23,7 +23,7 @@ Changes since 2026-05-10:
 Audits live in `docs/2026-05-10_redesign/audits/`. Findings that constrain later phases:
 
 - **1.1 Codebase structure:** `core/mod_fs.rs` mixes struct-based state with static logic (`resolve_id`, `infer_mod_type`) and needs to become a plain DTO plus free functions. `utils/file.rs`, `utils/toml.rs`, `utils/process.rs` use the "struct with static methods" pattern and should become top-level functions. `core/library.rs`, `core/registry.rs`, `config/global.rs` are justified OOP (encapsulated mutable state) per `1.5_justification.md`. Two files postdate this audit and are unclassified: `core/mod_manager.rs` (already FP — free functions over `&mut Library`) and `core/decompression.rs` (already FP — single free function). Both are fine as-is.
-- **1.2 Dependencies:** `help` (Cargo.toml) and `radix-ui` (package.json) are confirmed unused — remove both. `confy` can likely be dropped in favor of direct `toml` usage once the SQLite migration lands (see Phase 2.6).
+- **1.2 Dependencies:** `help` (Cargo.toml) and `radix-ui` (package.json) are confirmed unused — remove both. `confy` can likely be dropped in favor of direct `toml` usage once the App Config migration lands (see Phase 2.5).
 - **1.3 Logging:** No global React error boundary (`__root.tsx` has no `errorComponent`), IPC calls (e.g. `commands.init()`) aren't consistently caught/toasted, and `tauri-plugin-log` has no file sink configured. These are Phase 4 blockers, not nice-to-haves — L-001 and L-002 are rated High severity.
 - **1.4 Tests:** Backend integration tests (`tests/library.rs`, `tests/linker.rs`, `tests/mod_fs.rs`) are the main safety net and are rated high-value — they become the correctness oracle for Phase 2 (see below). Frontend has **zero** automated tests. This is a known, accepted gap for the Phase 3 prototype (it's UI-only, mock-data-driven); it should be revisited once Phase 3 moves off mock data.
 - **1.7 Manifest removal:** Already decided and scoped — hash-only mod identification, ~230 backend lines and ~474 frontend lines removed. This lands inside Phase 2 (backend) and is a precondition for the simplified mod card in Phase 3 (no version/author/dependency fields to show because they no longer exist).
@@ -62,20 +62,22 @@ See `backend-redesign-spec.md` for the full layer table and file-by-file audit. 
 
 Naming (`verb_noun`), DTO-only input, `Result<T, SError>` output at the command boundary — `SError` is unchanged, returned directly, with one added `#[serde(tag = "code", content = "data")]` attribute so its wire shape is stable (see `backend-redesign-spec.md` §11; there is no separate boundary error type) — one command → one service call, domain-grouped files (`commands/global.rs`, `commands/library.rs`, plus new `commands/tool.rs` for the tool registry). Full audit table of current commands against these rules is in `backend-redesign-spec.md`.
 
-### 2.5 Adopt SQLite as the State and Index Layer
+### 2.5 Adopt a Plain-File App Config as the Registry/State Layer
 
-New in this revision — see `purpose-of-redesign.md`. Scope and schema live in `backend-redesign-spec.md` §8; this phase item covers the migration itself. This is two databases, not one:
+Revised: the per-library SQLite Library DB originally scoped here is **cancelled**
+(`design-review.md` C4 — the access patterns don't need a query engine, the kept in-process lock
+model already serializes writers, and the dependency/migration/transparency costs outweighed the
+wins). What remains is the App Config track, plus the per-library files staying as they are:
 
-- An **App Config** (one plain config file per install, app data directory — `toml` crate directly, not `confy`, not SQLite) holding the known-library registry and active selection, plus durable settings.
-- A **Library DB** (SQLite) per library, living inside that library's own mod-manager directory under its game root, holding that library's mods, tools, and cache/index data. It replaces that library's `manifest.toml`/`cache.toml`.
-- Both are introduced alongside the existing `confy`/manifest/cache files (additive, not a hard cutover).
-- The App Config migrates from `confy`'s `GlobalConfig` once, at startup. Each Library DB migrates from that library's own `manifest.toml`/`cache.toml` lazily, the first time that library is opened — not all registered libraries up front.
-- Keep on-disk mod/game content files authoritative; SQLite stores registration, state, and derived index/cache data only.
-- Cut over `commands/`/`core/*_service.rs` to read/write through the new stores once parity is verified against the test oracle, one domain/library at a time.
+- An **App Config** (one plain config file per install, app data directory — `toml` crate directly, not `confy`, not SQLite) holding the known-library registry and active selection, plus durable settings. Writes are atomic and surfaced (`backend-redesign-spec.md` §8 Write Path).
+- Each library's own state stays in its own plain files: `manifest.toml`/`cache.toml` unchanged as the format, plus a new `tools.toml` sibling for the tool registry (2.6).
+- The App Config is introduced alongside the existing `confy` file (additive, not a hard cutover) and migrates from `confy`'s `GlobalConfig` once, at startup — adopting each library's id from its own `manifest.toml`, minting only where no readable manifest exists (`design-review.md` C7). There is no per-library data migration.
+- Keep on-disk mod/game content files authoritative; the App Config stores registration, active selection, and settings only — never a library's own data.
+- Drop `confy` once nothing reads it.
 
 ### 2.6 Add the Executable Tool Registry
 
-New in this revision. `commands/tool.rs` (interface) + `core/tool_service.rs` (service) + a `tools` table (2.5). Configure and execute are separate commands (`upsert_tool`/`delete_tool` vs. `execute_tool`) per `purpose-of-redesign.md`. Full contract in `backend-redesign-spec.md`.
+New in this revision. `commands/tool.rs` (interface) + `core/tool_service.rs` (service) + a per-library `tools.toml` file (2.5). Configure and execute are separate commands (`upsert_tool`/`delete_tool` vs. `execute_tool`) per `purpose-of-redesign.md`. Full contract in `backend-redesign-spec.md`.
 
 ### 2.7 Remove Unnecessary Comments
 
@@ -93,7 +95,7 @@ Per `purpose-of-redesign.md`'s Execution Strategy: build fresh under `src/redesi
 
 - Design system alignment: commit to the Fidelity Modern language (tokens, glass utilities, geometry) defined in `frontend-redesign-spec.md` §6, replacing the current mixed Fluent/web aesthetic.
 - Layout fixes: sticky header, styled scrollbar, max-width centered content — all detailed in `frontend-redesign-spec.md` §5.
-- New screens/flows this phase adds beyond the original purpose statement: bottom-center navigation dock, unified Manage Library dialog (replacing the scattered instance switcher + rename/close/remove dialogs), Configure Tool dialog, simplified single-column Settings. These exist because the SQLite/tool-registry scope (Phase 2.5–2.6) and the PRD inputs in `docs/2026-05-10_redesign/ui/` expanded the surface area beyond "restyle the existing screens" — see `frontend-redesign-spec.md` for the full screen-by-screen spec.
+- New screens/flows this phase adds beyond the original purpose statement: bottom-center navigation dock, unified Manage Library dialog (replacing the scattered instance switcher + rename/close/remove dialogs), Configure Tool dialog, simplified single-column Settings. These exist because the App Config/tool-registry scope (Phase 2.5–2.6) and the PRD inputs in `docs/2026-05-10_redesign/ui/` expanded the surface area beyond "restyle the existing screens" — see `frontend-redesign-spec.md` for the full screen-by-screen spec.
 
 ### 3.2 i18n Rules
 
@@ -133,7 +135,7 @@ Findings from 1.3 are the acceptance bar, not just a starting point:
 
 ### 5.2 Functional Verification
 
-- Core workflows: add library, add mod, remove mod, toggle mod, rebuild cache, configure tool, execute tool.
+- Core workflows: add library, add mod, remove mod, toggle mod, sync/deploy (`sync_mods` — kept per `design-review.md` C3/M5), rebuild cache, configure tool, execute tool.
 - UI renders correctly with and without transparent backgrounds; manual checks per `frontend-redesign-spec.md` §13.
 - Logs appear in dev console and log file; fatal frontend errors are caught by the error boundary, not swallowed.
 

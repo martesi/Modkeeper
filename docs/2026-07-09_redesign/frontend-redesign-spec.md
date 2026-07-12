@@ -35,6 +35,7 @@ The current app can be studied and its primitive UI components can be reused, bu
 - Library empty state for no active library.
 - Library empty state for active library with zero mods.
 - Library grid with title-only mod cards, toolbar, local search, sort, filter, selection, and bulk actions.
+- Manual Sync (deploy) action on the library execution bar, highlighted whenever the active library's `deployStale` flag is set — toggles persist mod state only; deployment stays an explicit user-triggered step (`design-review.md` C3/M5).
 - Unified Manage Library dialog.
 - Configure Tool dialog UI.
 - Simplified Settings view with row-based controls.
@@ -91,6 +92,14 @@ Route switch-over rule:
 - Existing route files may become thin adapters only after the new files exist.
 - If an existing route file needs to be replaced as an adapter, first preserve its old content in `docs/2026-05-10_redesign/reference/current-frontend/`.
 - Do not delete old feature files during the redesign switch-over. Cleanup is a later, explicit task.
+
+**Recorded exception:** `src/modules/settings/developer-settings.tsx` (the Test Game Root panel)
+is deleted outright during the switch-over, together with the backend
+`create_simulation_game_root` command it wraps (`design-review.md` C9/M3). The preservation rule
+protects files whose *feature* survives into the redesign in some form; this one's feature (a
+developer settings section) doesn't exist in the redesigned UI at all, and deleting the backend
+command plus re-running `export_types` would leave the file uncompilable anyway. This is the only
+exception; everything else on the list above stays.
 
 ## 4. New Source Layout
 
@@ -170,7 +179,6 @@ src/redesign/
     theme-mode-control.tsx
     accent-swatches.tsx
     language-select.tsx
-    developer-settings-row.tsx
 ```
 
 Route adapters after switch-over:
@@ -226,8 +234,10 @@ be driven side by side and checked for functional parity while the redesign is i
 is what `frontend-redesign-spec.md` §2's "runtime toggle" scope item refers to.
 
 - The toggle is a `useLegacyUi` boolean in the settings repository (`settings-repository.ts`,
-  persisted alongside theme/accent/language), surfaced as a row in the Settings developer section
-  (§9.6) — not a build-time flag, so switching doesn't require a rebuild.
+  persisted alongside theme/accent/language), surfaced as a single utility row on the Settings
+  screen's general row list (§9.6), explicitly labeled as a transition-only control — there is no
+  developer section in the redesigned UI (`design-review.md` C9/M3). Not a build-time flag, so
+  switching doesn't require a rebuild.
 - The route adapter that would otherwise unconditionally render `RedesignRoot`
   (`src/routes/__root.tsx`, per §4's route adapter table) checks this setting first: if it's on,
   render the current app's existing root component tree instead. Both trees exist in the bundle
@@ -312,6 +322,8 @@ type LibrarySummary = {
   id: LibraryId
   name: string
   gameRoot: string
+  deployStale: boolean // deployed symlinks no longer match recorded mod state — drives the Sync
+                       // button's highlighted state (contract §5, design-review.md C3/M5)
   isActive: boolean // derived locally in the prototype; the future contract derives this from
                      // workspace.activeLibraryId instead of carrying it on the type — see the
                      // contract §2, item 2. Keep the derivation in one place (library-state.ts)
@@ -320,13 +332,20 @@ type LibrarySummary = {
   // see contract §2 item 10. Don't add a field the prototype doesn't need to remove later.
 }
 
+// A registered-but-unreadable library is a path-only stub in the workspace's libraries list
+// (contract §5, design-review.md C13): render as a bare path, remove is the only action.
+type LibraryStub = {
+  path: string
+}
+
 type ModSummary = {
   id: ModId
   libraryId: LibraryId
   name: string
   type: 'client' | 'server' | 'both' | 'unknown'
   isEnabled: boolean
-  iconDataUrl?: string
+  // No iconDataUrl — mods have no per-mod image; the card's category icon is tinted by `type`
+  // (contract §5, design-review.md C6).
 }
 
 type ToolSummary = {
@@ -342,10 +361,13 @@ type OperationAccepted = {
   accepted: true
 }
 
+// Field-for-field match with the contract §6 (including taskId, action, cacheStatus, and typed
+// failures — not unknown[]): the two documents must not drift.
 type WorkspaceEvent =
-  | { type: 'cache_rebuild_completed'; libraryId: LibraryId; workspace: LibraryWorkspace }
-  | { type: 'mod_install_completed'; libraryId: LibraryId; failures: unknown[]; workspace: LibraryWorkspace }
-  | { type: 'bulk_update_completed'; libraryId: LibraryId; failures: unknown[]; workspace: LibraryWorkspace }
+  | { type: 'cache_rebuild_completed'; taskId: string; libraryId: LibraryId; cacheStatus: CacheStatus; workspace: LibraryWorkspace }
+  | { type: 'mod_install_completed'; taskId: string; libraryId: LibraryId; failures: { archivePath: string; error: SError }[]; workspace: LibraryWorkspace }
+  | { type: 'bulk_update_completed'; taskId: string; libraryId: LibraryId; action: 'enable' | 'disable' | 'delete'; failures: { modId: ModId; error: SError }[]; workspace: LibraryWorkspace }
+  | { type: 'sync_completed'; taskId: string; libraryId: LibraryId; failures: { modId: ModId; error: SError }[]; workspace: LibraryWorkspace }
 ```
 
 `example-data.ts`:
@@ -355,7 +377,9 @@ type WorkspaceEvent =
 - Provides no-active-library scenario data for empty activation testing.
 - Provides 2-3 example tools for Manage Library and Configure Tool states.
 - Provides long names and paths to test truncation.
-- `iconDataUrl` fields (read side) use small inline `data:` URLs (or omit the field) as a convenient stand-in — never a bare file path. The contract treats `iconDataUrl` as opaque/backend-produced (contract §9), so this is a practical prototype choice, not a format guarantee the UI may rely on.
+- Tool `iconDataUrl` fields (read side — tools are the only type carrying an icon, contract §9) use small inline `data:` URLs (or omit the field) as a convenient stand-in — never a bare file path. The contract treats `iconDataUrl` as opaque/backend-produced, so this is a practical prototype choice, not a format guarantee the UI may rely on.
+- Provides at least one path-only `LibraryStub` so the unreadable-library row (bare path + remove) can be checked.
+- Provides one library with `deployStale: true` so the Sync button's highlighted state can be checked.
 
 **Maintenance workload for automated UI checks:** low-to-moderate, not open-ended, for two structural
 reasons. First, the data model this redesign settled on is intentionally flat — no versions,
@@ -382,10 +406,16 @@ deleteLibrary(input: { libraryId: LibraryId; deleteFiles: boolean }): Promise<Li
 
 // Fire-and-track, matching the contract's "Non-Blocking Operations" (contract §6) exactly —
 // resolve quickly with an acknowledgment, real completion arrives through listenWorkspaceEvent.
+// The repository mints the client-owned taskId (uuid) internally and registers the caller's
+// completion handling in the event bus BEFORE the invoke goes out (contract §6, design-review.md
+// C15) — call sites never see or construct taskIds.
 rebuildLibraryCache(libraryId: LibraryId): Promise<OperationAccepted>
 installZipArchives(input: { libraryId: LibraryId; paths: string[] }): Promise<OperationAccepted>
 bulkUpdateMods(input: { libraryId: LibraryId; modIds: ModId[]; action: 'enable' | 'disable' | 'delete' }): Promise<OperationAccepted>
 toggleModStatus(input: { libraryId: LibraryId; modId: ModId; enabled: boolean }): Promise<OperationAccepted>
+syncMods(libraryId: LibraryId): Promise<OperationAccepted>
+// The explicit deploy step (contract §6 sync_mods) — triggered by the execution bar's Sync
+// button, highlighted while the active library's deployStale is true.
 
 listenWorkspaceEvent(callback: (event: WorkspaceEvent) => void): () => void
 ```
@@ -397,14 +427,18 @@ internally, so there is exactly one code path doing the mutation and the future 
 touches this one function body, not every call site.
 
 `listenWorkspaceEvent` mirrors the contract's `listen_workspace_event` shape exactly, even in the
-prototype: the three fire-and-track mock functions above resolve `{ accepted: true }` quickly, then,
+prototype: the four fire-and-track mock functions above resolve `{ accepted: true }` quickly, then,
 after a short simulated delay, mutate `example-data` and emit the matching `WorkspaceEvent` through
 this same local mechanism (a small in-module event emitter is enough — no real IPC involved). The
-reason to bother with this in a prototype that has no real backend: the state layer
-(`library-state.ts`, `redesign-initializers.tsx`) subscribes to `listenWorkspaceEvent` once, and that
-subscription code is *identical* whether it's driven by this mock emitter or the real Tauri event
-listener later — only `listenWorkspaceEvent`'s own implementation changes at migration time, not its
-callers. Skipping this and having mocks resolve the final `LibraryWorkspace` directly would mean
+subscription is a **single, persistent bus**, initialized once by `redesign-initializers.tsx` and
+dispatching by the event's `taskId` (contract §6, `design-review.md` C15): pending state is keyed
+by `taskId`, the handler is registered before the invoke is sent, and an event arriving for an
+unregistered `taskId` (e.g. after a reload) is dropped — the view self-corrects on the next
+workspace read. The reason to bother with this in a prototype that has no real backend: the state
+layer (`library-state.ts`, `redesign-initializers.tsx`) subscribes to `listenWorkspaceEvent` once,
+and that subscription code is *identical* whether it's driven by this mock emitter or the real
+Tauri event listener later — only `listenWorkspaceEvent`'s own implementation changes at migration
+time, not its callers. Skipping this and having mocks resolve the final `LibraryWorkspace` directly would mean
 every component that starts one of these three operations has to be rewritten when the real backend
 arrives, which is exactly the kind of call-site churn the mock-repository approach exists to avoid.
 
@@ -436,16 +470,20 @@ Tool repository methods should simulate success/failure states where useful, but
 `settings-repository.ts`:
 
 ```ts
-loadSettings(): Settings
-saveSettings(settings: Settings): void | Promise<void>
+loadSettings(): Promise<Settings>
+saveSettings(settings: Settings): Promise<Settings>
 applyTheme(theme: 'system' | 'light' | 'dark'): Promise<void>
 applyAccent(color: string): void
 applyLanguage(locale: string): Promise<void>
 ```
 
-Local storage is a prototype-only stand-in here. The contract resolves settings storage to SQLite
-(§8 of the contract) — `loadSettings`/`saveSettings` are the two functions that change internally
-when the backend lands; nothing above them should need to change.
+Local storage is a prototype-only stand-in here. The contract resolves settings storage to the
+backend-owned App Config file (contract §8, `design-review.md` T1) — `loadSettings`/`saveSettings`
+are the two functions that change internally when the backend lands; nothing above them should
+need to change. Both are async from day one (a synchronous `loadSettings(): Settings` could not
+survive the swap to `get_settings(): Promise<AppSettings>`), and `saveSettings` returns the **full**
+settings object, which replaces the settings atom wholesale — full-replacement, never a client-side
+merge of a partial update (T1's pattern: the backend is the sole authority on post-change settings).
 
 Path opening:
 
@@ -513,7 +551,7 @@ Required composition:
 - `LibraryContent`: central coordinator for conditional states.
 - `LibraryTitle`: handles title/subtitle/profile metadata display.
 - `ModGridToolbar`: independently decides whether it should render based on active library and mod count.
-- `LibraryExecutionBar`: reserved for non-console execution shortcuts/status that are in scope. It renders nothing when no active library or when no tools/status are available.
+- `LibraryExecutionBar`: reserved for non-console execution shortcuts/status that are in scope — including the **Sync (deploy) button**: quiet when the active library's `deployStale` is false, highlighted/accented when true, calling `syncMods` (`design-review.md` C3/M5 — deploy state is an execution concern, not a mod-browsing concern, so it lives here and not in `ModGridToolbar`). It renders nothing when no active library.
 - `LibraryActivateEmptyState`: renders only for no active library.
 - `LibraryDropEmptyState`: renders only for active library with zero mods.
 - `ModGrid`: renders only for active library with one or more mods.
@@ -554,9 +592,10 @@ Per §7's repository rule, the redesign calls the "New API name" column directly
 | Open library path in Explorer | `open_path` through opener utility | `@tauri-apps/plugin-opener` | Frontend utility requirement. |
 | Install zip archive | `install_mod_archives` | `commands.addMods(paths, unknownName, backupName)` | Real once stubbed (`MOCK-FALLBACK` until then, driven by `listenWorkspaceEvent`); frontend filters to `.zip`. Future API reports per-archive failures on `mod_install_completed`, not the initial call's return value. |
 | Get installed mods | Included in workspace | `LibraryDTO.mods` | Included in `get_library_workspace`'s response — see that row. |
-| Toggle mod status | `bulk_update_mods` (one-element `modIds`) | repeated `commands.toggleMod` | Real once stubbed via `toggleModStatus` wrapper, fire-and-track like the other two rows below. No `set_mod_enabled` — removed from the contract. |
+| Toggle mod status | `bulk_update_mods` (one-element `modIds`) | repeated `commands.toggleMod` | Real once stubbed via `toggleModStatus` wrapper, fire-and-track like the other fire-and-track rows below. No `set_mod_enabled` — removed from the contract. Toggling only flips recorded state (and `deployStale`); it never deploys. |
 | Bulk enable/disable | `bulk_update_mods` | repeated `commands.toggleMod` | Real once stubbed (`MOCK-FALLBACK` until then, driven by `listenWorkspaceEvent`). |
 | Bulk delete | `bulk_update_mods` | `commands.removeMods(ids)` | Real once stubbed (`MOCK-FALLBACK` until then), gated by local confirmation, same fire-and-track shape as the row above. |
+| Deploy (Sync) | `sync_mods` | `commands.syncMods()` | Real once stubbed (`MOCK-FALLBACK` until then, driven by `listenWorkspaceEvent`'s `sync_completed`). Kept per `design-review.md` C3/M5 — the explicit deploy step; the execution bar's Sync button highlights while `deployStale` is true. |
 | Save tool | `upsert_tool` | None | Backend requirement, no current equivalent — `MOCK-FALLBACK` until stubbed. |
 | Delete tool | `delete_tool` | None | Backend requirement, no current equivalent — `MOCK-FALLBACK` until stubbed. |
 | Execute tool | `execute_tool` | None | Backend requirement, no current equivalent — `MOCK-FALLBACK` until stubbed. |
@@ -657,8 +696,8 @@ Interactions:
 - Checkbox updates `selectedModIdsAtom`.
 - Select All applies to currently visible mods only.
 - Search filters locally in real time.
-- Toggle calls `toggleModStatus` (which wraps the bulk mock repository action — see §7). This is fire-and-track (contract §6): the affected card shows a pending/disabled state from the moment the call resolves `{ accepted: true }` until `listenWorkspaceEvent` reports `bulk_update_completed`, not a synchronous style change.
-- Bulk enable/disable uses the mock bulk update repository action, same pending-then-settle pattern — the toolbar's `ACTIONS` menu and the affected cards are disabled while pending, but this is a UX affordance, not the correctness mechanism (the backend independently guards against overlap, `backend-redesign-spec.md` §8a).
+- Toggle calls `toggleModStatus` (which wraps the bulk mock repository action — see §7). This is fire-and-track (contract §6): the affected card shows a pending/disabled state from the moment the call resolves `{ accepted: true }` until `listenWorkspaceEvent` reports the `bulk_update_completed` event carrying the matching `taskId`. Pending state, not an optimistic update — the completion handler's job is to clear pending state and reconcile from the event's fresh workspace; there is no local rollback because nothing was applied locally (`design-review.md` C15/M6). Toggling never deploys — it flips `deployStale`, which the execution bar's Sync button reflects.
+- Bulk enable/disable uses the mock bulk update repository action, same pending-then-settle pattern — the toolbar's `ACTIONS` menu and the affected cards are disabled while pending, but this is a UX affordance, not a correctness mechanism (overlapping calls simply serialize on the backend's lock; there is no reject-on-overlap, `backend-redesign-spec.md` §8a).
 - Bulk delete uses the mock bulk update repository action after local confirmation, same pattern.
 
 ### 9.4 Manage Library Dialog
@@ -751,7 +790,7 @@ Rows:
 - Accent swatches, defaulting to `#e91e63`.
 - Language select.
 - Import/export settings row if retained.
-- Developer row includes the new/old UI switch (§5a) as a compact utility control, alongside anything else retained from the current developer row.
+- A single transition-only utility row hosting the new/old UI switch (§5a), explicitly labeled as temporary and removed with the legacy UI. There is no developer section, and nothing else from the current developer panel is carried forward (`design-review.md` C9/M3 — the Test Game Root panel is deleted with its backend command).
 
 Behavior:
 
@@ -808,17 +847,20 @@ into what the user sees is a frontend responsibility, owned by a new `src/redesi
 (added to the source layout in §4, alongside `common-text.ts` etc.):
 
 - One plain-named member per known code on the `errorText` object, keyed under `error.*` — e.g.
-  `errorText.modNotFound()`, `errorText.noActiveLibrary()` (the backend's `ModNotFound`/
-  `NoActiveLibrary` code, decapitalized — no `t` prefix, same as every other namespace object).
-  Interpolate `data` into the message where it's useful (e.g. a file collision's file list),
+  `errorText.modNotFound()`, `errorText.noActiveLibrary()` (no `t` prefix, same as every other
+  namespace object). Interpolate `data` into the message where it's useful (e.g. a file
+  collision's file list; note `data` is a positional array for multi-field variants, contract §9),
   following the same `<Trans>`-only-when-needed rule as everything else.
 - A single fallback, `errorText.unknown()`, for any `code` without a mapped member yet — new backend
-  variants (§9's `InvalidToolIcon`, §8's `StoreError`) must not be able to produce an un-translated
-  raw code string in the UI; the fallback is the safety net until a real translation is added.
-- `use-command-error.ts` (shared hook, §4) is where this lookup happens: it takes an `SError`,
-  decapitalizes `code` and resolves `errorText[decapitalizedCode] ?? errorText.unknown`, and hands
-  the resulting translated string to the toast — call sites never do this mapping themselves, and
-  never reach for `SError.data` directly to build a message outside this hook.
+  variants (`InvalidToolIcon`, `ConfigSaveFailed`, `TaskIdInUse` — `backend-redesign-spec.md` §11)
+  must not be able to produce an un-translated raw code string in the UI; the fallback is the
+  safety net until a real translation is added.
+- `use-command-error.ts` (shared hook, §4) is where this lookup happens: it takes an `SError` and
+  resolves it through an **explicit lookup table keyed by the exact `code` string** (e.g.
+  `'ModNotFound' → errorText.modNotFound`), falling back to `errorText.unknown` — not a
+  decapitalize-the-variant-name convention, which breaks on acronym-leading variants
+  (`IOError` → `iOError`). Call sites never do this mapping themselves, and never reach for
+  `SError.data` directly to build a message outside this hook.
 - This table only ever grows — it is the concrete artifact that makes "the frontend must not show
   raw backend error text" (`backend-redesign-spec.md` §11) actually true in the UI, not just a rule
   stated in a doc.
@@ -877,6 +919,7 @@ Manual checks:
 - Drop a `.zip` onto the app and confirm install path is invoked.
 - Drop a non-zip file and confirm the backend is not called.
 - Toggle a mod and confirm enabled/disabled card styling updates.
+- Confirm the execution bar's Sync button highlights after a toggle (`deployStale`) and returns to quiet after Sync completes (`sync_completed`).
 - Select all visible mods, search/filter, and confirm selection count follows visible results.
 - Bulk enable, disable, and delete selected mods.
 - Create/switch/rename/rebuild/activate libraries from Manage Library.
@@ -893,9 +936,10 @@ Manual checks:
 - Existing old feature files remain available for reference.
 - Redesign code does not import the old `src/modules/*` feature structure.
 - Redesign repositories call the new backend contract directly once stubbed; every remaining example-data fallback is tagged `// MOCK-FALLBACK` and traceable via a single grep. Nothing calls the *current* generated backend bindings (the old contract).
-- Repository and type field names already match `frontend-redesign-data-api-contract.md` (`iconDataUrl` read-only on summaries, `iconData` write-only on tool save, bulk-only mod status calls) so backend migration touches repository internals only, not call sites.
+- Repository and type field names already match `frontend-redesign-data-api-contract.md` (`iconDataUrl` read-only on `ToolSummary` — mods carry no icon field, `iconData` write-only on tool save, bulk-only mod status calls, client-minted `taskId` kept inside the repository layer) so backend migration touches repository internals only, not call sites.
 - Only durable library/settings state is global; confirmation and form draft state is parent-owned or local.
 - Library page is one central composition with independent title, toolbar, execution bar, empty state, and mod list parts.
+- The execution bar hosts the Sync (deploy) action, highlighted exactly when the active library's `deployStale` is true; toggling never deploys on its own.
 - Empty activation state and empty drop state share one card component.
 - Activation empty state does not render a toolbar.
 - No active AI feature is implemented.
