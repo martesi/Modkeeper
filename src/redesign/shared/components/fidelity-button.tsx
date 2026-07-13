@@ -17,11 +17,11 @@ const buttonVariants = cva(
         primary:
           'bg-[var(--mk-primary)] text-[var(--mk-on-primary)] hover:bg-[var(--mk-primary-hover)] active:bg-[var(--mk-primary-active)]',
         secondary:
-          'border border-[var(--mk-outline)] bg-[var(--mk-surface-container)] text-[var(--mk-text)] hover:bg-[var(--mk-surface-strong)]',
+          'border border-[var(--mk-outline)] bg-[var(--mk-surface-container)] text-[var(--mk-text)] hover:bg-[var(--mk-surface-container-hover)]',
         outline:
-          'border border-[var(--mk-outline)] bg-transparent text-[var(--mk-text)] hover:bg-[var(--mk-surface-container)]',
+          'border border-[var(--mk-outline)] bg-transparent text-[var(--mk-text)] hover:bg-[var(--mk-state-hover)] active:bg-[var(--mk-state-active)]',
         ghost:
-          'bg-transparent text-[var(--mk-text)] hover:bg-[var(--mk-surface-container)]',
+          'bg-transparent text-[var(--mk-text)] hover:bg-[var(--mk-state-hover)] active:bg-[var(--mk-state-active)]',
         destructive:
           'bg-[var(--mk-danger)] text-[var(--mk-on-danger)] hover:bg-[var(--mk-danger-hover)]',
       },

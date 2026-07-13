@@ -22,8 +22,17 @@
   /* Surfaces */
   --mk-surface: #fff8f7;
   --mk-surface-container: rgba(255, 233, 232, 0.72);
+  --mk-surface-container-hover: rgba(255, 214, 216, 0.9);
   --mk-surface-strong: rgba(255, 248, 247, 0.84);
   --mk-outline: rgba(146, 110, 109, 0.38);
+
+  /*
+   * State layers for quiet controls (ghost/outline). A primary-tinted overlay keeps hover legible
+   * on any near-white surface — a plain surface tint sits too close to the glass panels/modals it
+   * appears over.
+   */
+  --mk-state-hover: rgba(233, 30, 99, 0.12);
+  --mk-state-active: rgba(233, 30, 99, 0.2);
 
   /* Text */
   --mk-text: #281717;
@@ -47,6 +56,7 @@
 .dark {
   --mk-surface: #1c1413;
   --mk-surface-container: rgba(60, 40, 39, 0.62);
+  --mk-surface-container-hover: rgba(84, 58, 57, 0.72);
   --mk-surface-strong: rgba(34, 24, 23, 0.84);
   --mk-outline: rgba(214, 178, 177, 0.24);
   --mk-text: #f7ebea;
