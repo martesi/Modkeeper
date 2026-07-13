@@ -6,48 +6,41 @@ pub mod store;
 pub mod utils;
 
 use crate::commands::global::{
-    apply_window_effect, close_library, create_library, get_settings, init, open_library,
-    remove_library, save_settings,
+    activate_library, apply_window_effect, create_library, get_library_workspace, get_settings,
+    save_settings,
 };
 use crate::commands::library::{
-    add_mods, create_backup, get_backups, get_library, rebuild_library_cache, remove_backup,
-    remove_mods, rename_library, restore_backup, reveal_mod, sync_mods, toggle_mod,
+    bulk_update_mods, delete_library, install_mod_archives, rebuild_library_cache, rename_library,
+    sync_mods,
 };
 use crate::core::registry::AppRegistry;
+use crate::models::workspace::WorkspaceEvent;
+use crate::store::AppConfigStore;
 use parking_lot::Mutex;
 use specta_typescript::Typescript;
 use std::sync::Arc;
-use tauri_specta::{Builder, collect_commands};
+use tauri_specta::{Builder, collect_commands, collect_events};
 
 /// Stage 1: Setup command handler with all registered commands
 fn setup_command_handler() -> Builder<tauri::Wry> {
-    use crate::commands::test::create_simulation_game_root;
-    Builder::<tauri::Wry>::new().commands(collect_commands![
-        // library
-        add_mods,
-        remove_mods,
-        sync_mods,
-        get_library,
-        toggle_mod,
-        get_backups,
-        create_backup,
-        restore_backup,
-        remove_backup,
-        rename_library,
-        rebuild_library_cache,
-        reveal_mod,
-        // global
-        apply_window_effect,
-        open_library,
-        create_library,
-        close_library,
-        remove_library,
-        init,
-        get_settings,
-        save_settings,
-        // test (debug only)
-        create_simulation_game_root,
-    ])
+    Builder::<tauri::Wry>::new()
+        .commands(collect_commands![
+            // library
+            bulk_update_mods,
+            sync_mods,
+            install_mod_archives,
+            rebuild_library_cache,
+            rename_library,
+            delete_library,
+            // global
+            get_library_workspace,
+            activate_library,
+            create_library,
+            apply_window_effect,
+            get_settings,
+            save_settings,
+        ])
+        .events(collect_events![WorkspaceEvent])
 }
 
 /// Stage 2: Export TypeScript bindings (debug builds only)
@@ -66,14 +59,16 @@ fn export_typescript_bindings(builder: &Builder<tauri::Wry>) {
 /// Stage 3: Initialize application state (AppRegistry and handles)
 fn initialize_app_state() -> (
     AppRegistry,
-    Arc<Mutex<crate::config::global::GlobalConfig>>,
+    Arc<Mutex<AppConfigStore>>,
     Arc<Mutex<Option<crate::core::library::Library>>>,
+    Arc<Mutex<Option<String>>>,
 ) {
     let app_registry = AppRegistry::default();
-    let config_handle = app_registry.global_config.clone();
+    let config_handle = app_registry.app_config.clone();
     let instance_handle = app_registry.active_instance.clone();
+    let warning_handle = app_registry.config_warning.clone();
 
-    (app_registry, config_handle, instance_handle)
+    (app_registry, config_handle, instance_handle, warning_handle)
 }
 
 /// Stage 4: Register Tauri plugins
@@ -88,40 +83,56 @@ fn register_plugins() -> tauri::Builder<tauri::Wry> {
         .plugin(tauri_plugin_dialog::init())
 }
 
-/// Helper: Load the initial library from library_last in a background thread
+/// Helper: Load the initial library (App Config active_library_id) in a background thread
 fn load_initial_library(
-    config_handle: Arc<Mutex<crate::config::global::GlobalConfig>>,
+    config_handle: Arc<Mutex<AppConfigStore>>,
     instance_handle: Arc<Mutex<Option<crate::core::library::Library>>>,
+    warning_handle: Arc<Mutex<Option<String>>>,
 ) {
     tauri::async_runtime::spawn_blocking(move || {
-        let last_library_path = config_handle.lock().library_last.clone();
+        let library_root = {
+            let store = config_handle.lock();
+            store
+                .config
+                .app_state
+                .active_library_id
+                .as_ref()
+                .and_then(|id| store.config.find_library(id))
+                .map(|known| known.library_root.clone())
+        };
 
-        if let Some(path) = last_library_path {
-            match crate::core::library::Library::load(&path) {
-                Ok(library) => {
-                    *instance_handle.lock() = Some(library);
-                }
-                Err(e) => {
-                    tracing::error!("Failed to load library from {}: {}", path, e);
-                    // Clear library_last on failure to prevent repeated failures
-                    let mut config = config_handle.lock();
-                    config.library_last = None;
-                    config.save();
+        let Some(library_root) = library_root else {
+            return;
+        };
+
+        match crate::core::library::Library::load(&library_root) {
+            Ok(library) => {
+                *instance_handle.lock() = Some(library);
+            }
+            Err(e) => {
+                tracing::error!("Failed to load library from {}: {}", library_root, e);
+                // Clear the active id on failure to prevent repeated failures;
+                // a save failure is logged and surfaced later, never fatal (C12).
+                let mut store = config_handle.lock();
+                store.config.app_state.active_library_id = None;
+                if let Err(save_err) = store.save() {
+                    tracing::error!("Failed to persist cleared active library: {save_err}");
+                    *warning_handle.lock() = Some(save_err.to_string());
                 }
             }
         }
     });
 }
 
-/// Helper: Start a timer that checks if init command was called within 10 seconds
-/// If init is not called, the application will exit with an error
+/// Helper: Start a timer that checks if the startup command was called within 10 seconds
+/// If it was not called, the application will exit with an error
 fn start_init_timeout_checker(init_called: Arc<std::sync::atomic::AtomicBool>) {
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
 
         if !init_called.load(std::sync::atomic::Ordering::Relaxed) {
             tracing::error!(
-                "init command was not called within 10 seconds of setup. Application will exit."
+                "get_library_workspace was not called within 10 seconds of setup. Application will exit."
             );
             std::process::exit(1);
         }
@@ -131,8 +142,9 @@ fn start_init_timeout_checker(init_called: Arc<std::sync::atomic::AtomicBool>) {
 /// Stage 5: Setup application (mount events and load initial library)
 fn setup_application(
     builder: Builder<tauri::Wry>,
-    config_handle: Arc<Mutex<crate::config::global::GlobalConfig>>,
+    config_handle: Arc<Mutex<AppConfigStore>>,
     instance_handle: Arc<Mutex<Option<crate::core::library::Library>>>,
+    warning_handle: Arc<Mutex<Option<String>>>,
     init_called: Arc<std::sync::atomic::AtomicBool>,
 ) -> impl FnOnce(&mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     move |app| {
@@ -140,9 +152,9 @@ fn setup_application(
         builder.mount_events(app);
 
         // Load the initial library in the background
-        load_initial_library(config_handle, instance_handle);
+        load_initial_library(config_handle, instance_handle, warning_handle);
 
-        // Start timer to check if init was called within 10 seconds
+        // Start timer to check if the startup command was called within 10 seconds
         start_init_timeout_checker(init_called);
 
         Ok(())
@@ -159,7 +171,7 @@ pub fn run() {
     export_typescript_bindings(&builder);
 
     // Stage 3: Initialize application state
-    let (app_registry, config_handle, instance_handle) = initialize_app_state();
+    let (app_registry, config_handle, instance_handle, warning_handle) = initialize_app_state();
     let init_called = app_registry.init_called.clone();
 
     // Stage 4: Register plugins
@@ -169,7 +181,13 @@ pub fn run() {
     let invoke_handler = builder.invoke_handler();
 
     // Stage 6: Configure application setup
-    let setup_fn = setup_application(builder, config_handle, instance_handle, init_called);
+    let setup_fn = setup_application(
+        builder,
+        config_handle,
+        instance_handle,
+        warning_handle,
+        init_called,
+    );
 
     // Stage 7: Build and run the application
     tauri_builder

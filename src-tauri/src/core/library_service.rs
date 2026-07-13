@@ -1,22 +1,15 @@
-use crate::config::global::GlobalConfig;
 use crate::core::cache::{LibraryCache, normalize_mod_folders};
 use crate::core::library::Library;
 use crate::core::mod_stager::{self, StageMaterial};
-use crate::core::{mod_backup, mod_manager};
+use crate::core::mod_manager;
 use crate::models::error::SError;
-use crate::models::global::LibrarySwitch;
-use crate::models::library::{LibraryCreationRequirement, LibraryDTO};
+use crate::models::workspace::{ArchiveFailure, BulkModAction};
 use crate::models::paths::LibPathRules;
 use crate::utils::thread::with_lib_arc_mut;
 use camino::{Utf8Path, Utf8PathBuf};
 use parking_lot::Mutex;
 use std::sync::Arc;
-use tauri::AppHandle;
-use tauri_plugin_opener::OpenerExt;
-use tracing::{debug, error, info};
-
-/// Service for managing library lifecycle operations.
-/// Handles opening, creating, and querying libraries while updating global configuration.
+use tracing::debug;
 
 /// Validates that a library directory has the required structure.
 /// Checks for manifest.toml and required directories (mods/, backups/, staging/).
@@ -72,159 +65,120 @@ pub fn derive_library_root(game_root: &Utf8Path) -> Utf8PathBuf {
     game_root.join(&spt_rules.library_default)
 }
 
-/// Loads a library and updates the global configuration (MRU list and last_opened).
-pub fn open_library(config: &mut GlobalConfig, path: &Utf8Path) -> Result<Library, SError> {
-    // 1. Attempt to load the library first.
-    // If this fails (e.g., path invalid, manifest missing), we propagate the error
-    // and do NOT update the configuration.
-    let library = Library::load(path)?;
-
-    config.open_library(path);
-
-    // Persist the configuration changes
-    config.save();
-
-    Ok(library)
-}
-
-/// Creates a new library and updates the global configuration.
-/// Derives repo_root from game_root as game_root/.mod_keeper if not provided.
-/// If the library already exists and is valid, opens it instead of creating.
-pub fn create_library(
-    config: &mut GlobalConfig,
-    requirement: LibraryCreationRequirement,
-) -> Result<Library, SError> {
-    // Use provided repo_root or derive from game_root
-    let repo_root = requirement
-        .repo_root
-        .clone()
-        .unwrap_or_else(|| derive_library_root(&requirement.game_root));
-
-    // Check if the library directory already exists
-    if repo_root.exists() {
-        // Validate the existing library structure
-        match validate_library_structure(&repo_root) {
-            Ok(_) => {
-                // Library exists and is valid, open it instead of creating
-                return open_library(config, &repo_root);
-            }
-            Err(e) => {
-                // Library exists but is invalid, return the error
-                return Err(e);
-            }
-        }
-    }
-
-    // Library doesn't exist, create a new one
-    // Update requirement with the repo_root
-    let mut updated_requirement = requirement;
-    updated_requirement.repo_root = Some(repo_root.clone());
-
-    let library = Library::create(updated_requirement.clone())?;
-
-    // Update config only on success
-    config.open_library(&repo_root);
-    config.save();
-
-    Ok(library)
-}
-
-/// Returns a summary of all known libraries.
-pub fn get_known_library_summary(config: &GlobalConfig) -> Vec<LibraryDTO> {
-    config
-        .all_libraries()
-        .iter()
-        .filter_map(|path| {
-            // Attempt to read the manifest for each known path
-            match Library::read_library_manifest(path) {
-                Ok(mut dto) => {
-                    // Clear the mods field as requested (lightweight DTO)
-                    dto.mods.clear();
-                    Some(dto)
-                }
-                Err(e) => {
-                    // Log the error but do not propagate it; skip this entry
-                    error!("Failed to load library manifest: {e} at {path}");
-                    None
-                }
-            }
-        })
-        .collect()
-}
-
-/// Returns the manifest for the currently active library, if any.
-/// Uses library_last if set.
-pub fn get_active_library_manifest(config: &GlobalConfig) -> Option<LibraryDTO> {
-    config
-        .library_last
-        .as_ref()
-        .and_then(|path| Library::read_library_manifest(path).ok())
-}
-
-/// Converts the global configuration state into a LibrarySwitch DTO.
-/// When active_library is provided, uses its in-memory state directly.
-/// Otherwise falls back to reading from the library manifest file.
-pub fn to_library_switch(config: &GlobalConfig, active_library: Option<&Library>) -> LibrarySwitch {
-    let active = active_library
-        .map(|lib| lib.to_dto())
-        .or_else(|| get_active_library_manifest(config));
-
-    LibrarySwitch {
-        active,
-        libraries: get_known_library_summary(config),
+fn assert_is_library(library: &Library, library_id: &str) -> Result<(), SError> {
+    if library.id == library_id {
+        Ok(())
+    } else {
+        Err(SError::InvalidLibrary(
+            library_id.to_string(),
+            "not the active library".to_string(),
+        ))
     }
 }
 
-/// Resolves raw user inputs into staged mods and installs them into the active library.
-/// Heavy IO (staging, extraction, copying) runs on the caller's thread; the library
-/// mutex is held only for the install loop.
-pub fn install_mods(
+/// Enable/disable commit mod state only (metadata, cheap) - no symlinks are
+/// touched, no collision check runs; deploy stays the explicit sync step (C3).
+/// Delete unlinks and removes just the selected mods. Plain blocking (delta 3).
+pub fn bulk_update_mods(
     instance_handle: Arc<Mutex<Option<Library>>>,
-    inputs: &[Utf8PathBuf],
-    material: &StageMaterial,
-    backup_name: &str,
-) -> Result<LibraryDTO, SError> {
-    info!("Staging mod files");
-    let staged_mods = mod_stager::resolve(inputs, material)?;
-    debug!("staged_mods: {:?}", staged_mods);
-
+    library_id: &str,
+    mod_ids: &[String],
+    action: &BulkModAction,
+) -> Result<(), SError> {
     with_lib_arc_mut(instance_handle, |inst| {
-        info!("Adding mods to library");
-        // Install & cleanup, using try_for_each for early exit on error
-        staged_mods
-            .into_iter()
-            .try_for_each(|staged| {
-                debug!("current: {:?}", staged);
-                // Extract cleanup data before moving staged into add_mod
-                let is_staging = staged.is_staging;
-                let source_path = staged.source_path.clone();
-                mod_manager::add_mod(inst, staged, backup_name)
-                    .and_then(|_| mod_stager::clean_up(is_staging, &source_path))
-            })
-            .map(|_| inst.to_dto())
-    })?
-}
-
-/// Removes the given mods from the active library, exiting on the first error.
-pub fn remove_mods(
-    instance_handle: Arc<Mutex<Option<Library>>>,
-    ids: &[String],
-) -> Result<LibraryDTO, SError> {
-    with_lib_arc_mut(instance_handle, |inst| {
-        ids.iter()
-            .try_for_each(|mod_id| {
+        assert_is_library(inst, library_id)?;
+        match action {
+            BulkModAction::Enable | BulkModAction::Disable => {
+                let is_active = *action == BulkModAction::Enable;
+                for mod_id in mod_ids {
+                    inst.mods
+                        .get_mut(mod_id)
+                        .ok_or_else(|| SError::ModNotFound(mod_id.to_string()))?
+                        .is_active = is_active;
+                }
+                inst.mark_dirty();
+                inst.persist()
+            }
+            BulkModAction::Delete => mod_ids.iter().try_for_each(|mod_id| {
                 debug!("Removing mod {}", mod_id);
                 mod_manager::remove_mod(inst, mod_id)
-            })
-            .map(|_| inst.to_dto())
+            }),
+        }
     })?
 }
 
-/// Renames the active library and persists the change.
-pub fn rename_library(library: &mut Library, name: String) -> Result<(), SError> {
-    library.name = name;
-    library.persist()?;
-    Ok(())
+/// Full sync of the active library: purge -> redeploy -> collision check ->
+/// mark clean (C3). Holds the library mutex for its full FS duration.
+pub fn sync_active_library(
+    instance_handle: Arc<Mutex<Option<Library>>>,
+    library_id: &str,
+) -> Result<(), SError> {
+    with_lib_arc_mut(instance_handle, |inst| {
+        assert_is_library(inst, library_id)?;
+        inst.sync()
+    })?
+}
+
+/// Installs each archive independently, collecting per-archive failures
+/// instead of failing the whole call (§7b); failures ride the completion event.
+pub fn install_mod_archives(
+    instance_handle: Arc<Mutex<Option<Library>>>,
+    library_id: &str,
+    material: &StageMaterial,
+    archive_paths: &[Utf8PathBuf],
+    backup_name: &str,
+) -> Vec<ArchiveFailure> {
+    let mut failures = Vec::new();
+    for path in archive_paths {
+        if let Err(error) = install_single_archive(
+            instance_handle.clone(),
+            library_id,
+            material,
+            path,
+            backup_name,
+        ) {
+            failures.push(ArchiveFailure {
+                archive_path: path.to_string(),
+                error,
+            });
+        }
+    }
+    failures
+}
+
+fn install_single_archive(
+    instance_handle: Arc<Mutex<Option<Library>>>,
+    library_id: &str,
+    material: &StageMaterial,
+    archive_path: &Utf8PathBuf,
+    backup_name: &str,
+) -> Result<(), SError> {
+    // Staging (extraction) runs outside the lock; only the install holds it.
+    let staged_mods = mod_stager::resolve(std::slice::from_ref(archive_path), material)?;
+
+    with_lib_arc_mut(instance_handle, |inst| {
+        assert_is_library(inst, library_id)?;
+        staged_mods.into_iter().try_for_each(|staged| {
+            debug!("installing: {:?}", staged);
+            let is_staging = staged.is_staging;
+            let source_path = staged.source_path.clone();
+            mod_manager::add_mod(inst, staged, backup_name)
+                .and_then(|_| mod_stager::clean_up(is_staging, &source_path))
+        })
+    })?
+}
+
+/// Rebuilds the active library's cache under the mutex for the full duration.
+/// Folder normalization renames only (C8): backups are left on disk, and no
+/// re-link happens - a rename dangles that mod's deployed links until sync_mods.
+pub fn rebuild_active_library_cache(
+    instance_handle: Arc<Mutex<Option<Library>>>,
+    library_id: &str,
+) -> Result<(), SError> {
+    with_lib_arc_mut(instance_handle, |inst| {
+        assert_is_library(inst, library_id)?;
+        rebuild_library_cache(inst)
+    })?
 }
 
 pub fn rebuild_library_cache(library: &mut Library) -> Result<(), SError> {
@@ -233,15 +187,13 @@ pub fn rebuild_library_cache(library: &mut Library) -> Result<(), SError> {
     // 1. Normalize folder names to match resolved IDs
     let result = normalize_mod_folders(&library.lib_paths.mods, &library.spt_rules, &library.mods)?;
 
-    // 2. Clean up orphaned data for renamed mods, keeping display names for step 4
+    // 2. Drop stale mod entries for renamed folders, keeping display names for step 4.
+    // Backups are intentionally left on disk (C8).
     let mut old_names = std::collections::BTreeMap::new();
     for renamed in &result.renamed {
-        // Remove old mod entry, remembering its display name
         if let Some(old) = library.mods.remove(&renamed.old_name) {
             old_names.insert(renamed.new_name.clone(), old.name);
         }
-        // Remove old backups
-        mod_backup::remove_all_backups(&library.lib_paths, &renamed.old_name)?;
     }
 
     // 3. Rebuild cache from normalized folders
@@ -269,21 +221,5 @@ pub fn rebuild_library_cache(library: &mut Library) -> Result<(), SError> {
     }
 
     library.persist()?;
-    Ok(())
-}
-
-/// Reveals the mod directory in the file explorer.
-pub fn reveal_mod(app: &AppHandle, library: &Library, mod_id: &str) -> Result<(), SError> {
-    let mod_dir = library.lib_paths.mods.join(mod_id);
-
-    if !mod_dir.exists() {
-        return Err(SError::ModNotFound(mod_id.to_string()));
-    }
-
-    // Use the opener plugin to reveal the directory
-    app.opener()
-        .reveal_item_in_dir(mod_dir.as_std_path())
-        .map_err(|e| SError::IOError(e.to_string()))?;
-
     Ok(())
 }

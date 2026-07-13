@@ -75,6 +75,11 @@ impl Library {
         // Validate current physical version using the game_root from the loaded library
         let spt_version = version::fetch_and_validate(&spt_paths)?;
 
+        // Unreadable/unparseable cache is an open-time InvalidLibrary (C5)
+        let cache = toml::read(&lib_paths.cache).map_err(|e| {
+            SError::InvalidLibrary(repo_root.to_string(), format!("cache.toml: {e}"))
+        })?;
+
         Ok(Self {
             id: dto.id,
             name: dto.name,
@@ -82,7 +87,7 @@ impl Library {
             spt_paths_canonical: SPTPathCanonical::from_spt_paths(spt_paths.clone())?,
             game_root: dto.game_root,
             spt_rules: SPTPathRules::default(),
-            cache: toml::read(&lib_paths.cache)?,
+            cache,
             lib_paths,
             spt_version,
             mods: dto.mods,
@@ -90,8 +95,12 @@ impl Library {
         })
     }
 
+    /// Reads the library manifest; both IO and parse failures map to
+    /// InvalidLibrary (C5/M8).
     pub fn read_library_manifest(lib_root: &Utf8Path) -> Result<LibraryDTO, SError> {
-        toml::read::<LibraryDTO>(&LibPathRules::new(lib_root).manifest)
+        toml::read::<LibraryDTO>(&LibPathRules::new(lib_root).manifest).map_err(|e| {
+            SError::InvalidLibrary(lib_root.to_string(), format!("manifest.toml: {e}"))
+        })
     }
 
     pub fn to_dto(&self) -> LibraryDTO {

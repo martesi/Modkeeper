@@ -2,7 +2,6 @@ mod common;
 
 use camino::{Utf8Path, Utf8PathBuf};
 use common::{create_test_mod, setup_test_env};
-use mod_keeper_lib::config::global::GlobalConfig;
 use mod_keeper_lib::core::library::Library;
 use mod_keeper_lib::core::mod_fs::{self, ModFS};
 use mod_keeper_lib::core::mod_stager::StagedMod;
@@ -10,8 +9,26 @@ use mod_keeper_lib::core::{global_service, library_service, mod_manager};
 use mod_keeper_lib::models::error::SError;
 use mod_keeper_lib::models::library::LibraryCreationRequirement;
 use mod_keeper_lib::models::paths::SPTPathRules;
+use mod_keeper_lib::models::workspace::{BulkModAction, CreateLibraryInput};
+use mod_keeper_lib::store::AppConfigStore;
+use mod_keeper_lib::store::app_config::{AppConfig, KnownLibrary};
 use mod_keeper_lib::utils::id::hash_id;
+use parking_lot::Mutex;
 use std::fs;
+use std::sync::Arc;
+
+type ConfigHandle = Arc<Mutex<AppConfigStore>>;
+type InstanceHandle = Arc<Mutex<Option<Library>>>;
+
+// Fresh App Config store rooted in the test's temp dir, plus an empty instance slot
+fn test_handles(tmp: &tempfile::TempDir) -> (ConfigHandle, InstanceHandle) {
+    let path = Utf8PathBuf::from_path_buf(tmp.path().join("app_config.toml")).unwrap();
+    let store = AppConfigStore {
+        path,
+        config: AppConfig::default(),
+    };
+    (Arc::new(Mutex::new(store)), Arc::new(Mutex::new(None)))
+}
 
 // Helper function to create a StagedMod from a path and ModFS for testing
 fn create_staged_mod_for_test(mod_root: &Utf8Path, fs: ModFS) -> StagedMod {
@@ -506,381 +523,6 @@ fn test_validate_library_structure_missing_directory() {
 }
 
 #[test]
-fn test_create_library_when_mod_keeper_not_exists() {
-    let (_tmp, game_root, _repo_root) = setup_test_env();
-    let mut config = GlobalConfig::default();
-
-    // .mod_keeper should not exist yet
-    let expected_repo_root = game_root.join(".mod_keeper");
-    assert!(
-        !expected_repo_root.exists(),
-        "Library directory should not exist initially"
-    );
-
-    // Create library - should create new library
-    let requirement = LibraryCreationRequirement {
-        repo_root: None, // Will be derived from game_root
-        game_root: game_root.clone(),
-        name: "New Library".to_string(),
-    };
-
-    let library = library_service::create_library(&mut config, requirement)
-        .expect("Failed to create library");
-
-    // Verify library was created
-    assert_eq!(library.repo_root, expected_repo_root);
-    assert_eq!(library.name, "New Library");
-    assert!(
-        expected_repo_root.exists(),
-        "Library directory should exist after creation"
-    );
-    assert!(expected_repo_root.join("manifest.toml").exists());
-    assert!(expected_repo_root.join("mods").exists());
-    assert!(expected_repo_root.join("backups").exists());
-    assert!(expected_repo_root.join("staging").exists());
-
-    // Verify config was updated
-    assert_eq!(config.library_last.as_ref(), Some(&expected_repo_root));
-    assert!(config.all_libraries().contains(&&expected_repo_root));
-}
-
-#[test]
-fn test_create_library_when_mod_keeper_exists_valid() {
-    let (_tmp, game_root, _repo_root) = setup_test_env();
-    let mut config = GlobalConfig::default();
-
-    // First, create a library manually
-    let expected_repo_root = game_root.join(".mod_keeper");
-    let requirement1 = LibraryCreationRequirement {
-        repo_root: Some(expected_repo_root.clone()),
-        game_root: game_root.clone(),
-        name: "Original Library".to_string(),
-    };
-    let original_lib = Library::create(requirement1).expect("Failed to create original library");
-    original_lib.persist().expect("Failed to persist library");
-
-    // Now try to create library again - should open existing instead
-    let requirement2 = LibraryCreationRequirement {
-        repo_root: None, // Will be derived from game_root
-        game_root: game_root.clone(),
-        name: "New Library Name".to_string(), // This name should be ignored
-    };
-
-    let opened_lib = library_service::create_library(&mut config, requirement2)
-        .expect("Failed to open existing library");
-
-    // Verify we got the original library, not a new one
-    assert_eq!(opened_lib.id, original_lib.id);
-    assert_eq!(opened_lib.name, original_lib.name); // Should keep original name
-    assert_eq!(opened_lib.repo_root, expected_repo_root);
-
-    // Verify config was updated
-    assert_eq!(config.library_last.as_ref(), Some(&expected_repo_root));
-}
-
-#[test]
-fn test_create_library_when_mod_keeper_exists_invalid() {
-    let (_tmp, game_root, _repo_root) = setup_test_env();
-    let mut config = GlobalConfig::default();
-
-    // Create an invalid library directory (missing manifest)
-    let expected_repo_root = game_root.join(".mod_keeper");
-    std::fs::create_dir_all(expected_repo_root.join("mods")).unwrap();
-    std::fs::create_dir_all(expected_repo_root.join("backups")).unwrap();
-    std::fs::create_dir_all(expected_repo_root.join("staging")).unwrap();
-    // Intentionally don't create manifest.toml
-
-    // Try to create library - should return InvalidLibrary error
-    let requirement = LibraryCreationRequirement {
-        repo_root: None, // Will be derived from game_root
-        game_root: game_root.clone(),
-        name: "Invalid Library".to_string(),
-    };
-
-    let result = library_service::create_library(&mut config, requirement);
-
-    assert!(result.is_err(), "Should return error for invalid library");
-
-    match result {
-        Err(SError::InvalidLibrary(path, reason)) => {
-            assert_eq!(path, expected_repo_root.to_string());
-            assert!(reason.contains("manifest.toml"));
-        }
-        Err(e) => panic!("Expected InvalidLibrary error, got: {}", e),
-        Ok(_) => panic!("Expected error but got Ok"),
-    }
-
-    // Config should not be updated on error
-    assert!(config.library_recent.is_empty());
-    assert!(config.library_last.is_none());
-}
-
-#[test]
-fn test_get_active_library_manifest_uses_library_last() {
-    let (_tmp, game_root, _repo_root) = setup_test_env();
-    let mut config = GlobalConfig::default();
-
-    // Create first library
-    let repo_root1 = game_root.join(".mod_keeper_1");
-    let requirement1 = LibraryCreationRequirement {
-        repo_root: Some(repo_root1.clone()),
-        game_root: game_root.clone(),
-        name: "First Library".to_string(),
-    };
-    library_service::create_library(&mut config, requirement1)
-        .expect("Failed to create first library");
-
-    // Create second library
-    let repo_root2 = game_root.join(".mod_keeper_2");
-    let requirement2 = LibraryCreationRequirement {
-        repo_root: Some(repo_root2.clone()),
-        game_root: game_root.clone(),
-        name: "Second Library".to_string(),
-    };
-    library_service::create_library(&mut config, requirement2)
-        .expect("Failed to create second library");
-
-    // Second library should be library_last (most recently opened)
-    assert_eq!(config.library_last.as_ref(), Some(&repo_root2));
-    // First library should be in library_recent (since it was closed when we opened second)
-    assert!(config.library_recent.contains(&repo_root1));
-
-    // get_active_library_manifest should return library_last
-    let active = library_service::get_active_library_manifest(&config);
-    assert!(active.is_some());
-    assert_eq!(active.unwrap().name, "Second Library");
-}
-
-#[test]
-fn test_get_active_library_manifest_handles_invalid_library_last() {
-    let (_tmp, game_root, _repo_root) = setup_test_env();
-    let mut config = GlobalConfig::default();
-
-    // Add an invalid path as library_last
-    let invalid_path = game_root.join("invalid_library");
-    config.library_last = Some(invalid_path.clone());
-
-    // get_active_library_manifest should return None for invalid library_last
-    let active = library_service::get_active_library_manifest(&config);
-    assert!(active.is_none());
-}
-
-#[test]
-fn test_to_library_switch_with_invalid_library_last() {
-    let (_tmp, game_root, _repo_root) = setup_test_env();
-    let mut config = GlobalConfig::default();
-
-    // Create a valid library
-    let valid_repo_root = game_root.join(".mod_keeper");
-    let requirement = LibraryCreationRequirement {
-        repo_root: Some(valid_repo_root.clone()),
-        game_root: game_root.clone(),
-        name: "Valid Library".to_string(),
-    };
-    library_service::create_library(&mut config, requirement).expect("Failed to create library");
-
-    // Close the library (moves to library_recent)
-    global_service::close_library(&mut config, &valid_repo_root).expect("close_library failed");
-
-    // Set an invalid path as library_last
-    let invalid_path = game_root.join("invalid_library");
-    config.library_last = Some(invalid_path.clone());
-
-    // to_library_switch should return None for active when library_last is invalid
-    let switch = library_service::to_library_switch(&config, None);
-    assert!(switch.active.is_none());
-    // But should still list other valid libraries
-    assert!(!switch.libraries.is_empty());
-}
-
-#[test]
-fn test_rename_library() {
-    let (_tmp, game_root, repo_root) = setup_test_env();
-
-    // Create library
-    let requirement = LibraryCreationRequirement {
-        repo_root: Some(repo_root.clone()),
-        game_root: game_root.clone(),
-        name: "Original Name".to_string(),
-    };
-    let mut lib = Library::create(requirement).expect("Failed to create library");
-
-    // Verify original name
-    assert_eq!(lib.name, "Original Name");
-
-    // Rename library
-    library_service::rename_library(&mut lib, "New Name".to_string())
-        .expect("Failed to rename library");
-
-    // Verify name was updated
-    assert_eq!(lib.name, "New Name");
-
-    // Verify persistence by reloading
-    let reloaded = Library::load(&repo_root).expect("Failed to reload library");
-    assert_eq!(reloaded.name, "New Name");
-}
-
-#[test]
-fn test_close_library() {
-    let (_tmp, game_root, repo_root) = setup_test_env();
-    let mut config = GlobalConfig::default();
-
-    // Remove repo_root directory if it exists (setup_test_env creates empty directory)
-    if repo_root.exists() {
-        std::fs::remove_dir_all(&repo_root).expect("Failed to remove repo_root");
-    }
-
-    // Create library (opens it, sets library_last)
-    let requirement = LibraryCreationRequirement {
-        repo_root: Some(repo_root.clone()),
-        game_root: game_root.clone(),
-        name: "Test Library".to_string(),
-    };
-    library_service::create_library(&mut config, requirement).expect("Failed to create library");
-
-    // Verify library is in library_last (actively open)
-    assert_eq!(config.library_last.as_ref(), Some(&repo_root));
-    // Should NOT be in library_recent (since it's currently open)
-    assert!(!config.library_recent.contains(&repo_root));
-
-    // Close library
-    global_service::close_library(&mut config, &repo_root).expect("Failed to close library");
-
-    // Verify library_last is now None
-    assert!(config.library_last.is_none());
-
-    // Verify library was moved to front of library_recent
-    assert_eq!(config.library_recent.first(), Some(&repo_root));
-
-    // Verify library files still exist
-    assert!(repo_root.exists());
-    assert!(repo_root.join("manifest.toml").exists());
-}
-
-#[test]
-fn test_close_library_not_in_list() {
-    let (_tmp, _game_root, repo_root) = setup_test_env();
-    let mut config = GlobalConfig::default();
-
-    // Close a library that's not currently open (library_last is None)
-    global_service::close_library(&mut config, &repo_root).expect("close_library should succeed");
-
-    // library_last should still be None
-    assert!(config.library_last.is_none());
-
-    // The library should now be in library_recent (at front)
-    assert_eq!(config.library_recent.first(), Some(&repo_root));
-}
-
-#[test]
-fn test_remove_library() {
-    let (_tmp, game_root, repo_root) = setup_test_env();
-    let mut config = GlobalConfig::default();
-
-    // Remove repo_root directory if it exists (setup_test_env creates empty directory)
-    if repo_root.exists() {
-        std::fs::remove_dir_all(&repo_root).expect("Failed to remove repo_root");
-    }
-
-    // Create library (opens it, sets library_last)
-    let requirement = LibraryCreationRequirement {
-        repo_root: Some(repo_root.clone()),
-        game_root: game_root.clone(),
-        name: "Test Library".to_string(),
-    };
-    library_service::create_library(&mut config, requirement).expect("Failed to create library");
-
-    // Verify library is in library_last
-    assert_eq!(config.library_last.as_ref(), Some(&repo_root));
-    assert!(repo_root.exists());
-
-    // Remove library
-    global_service::remove_library(&mut config, &repo_root).expect("Failed to remove library");
-
-    // Verify library was removed from config completely
-    assert!(config.library_last.is_none());
-    assert!(!config.library_recent.contains(&repo_root));
-
-    // Verify library directory was deleted
-    assert!(!repo_root.exists());
-}
-
-#[test]
-fn test_remove_library_with_mods() {
-    let (_tmp, game_root, repo_root) = setup_test_env();
-    let mut config = GlobalConfig::default();
-
-    // Remove repo_root directory if it exists (setup_test_env creates empty directory)
-    if repo_root.exists() {
-        std::fs::remove_dir_all(&repo_root).expect("Failed to remove repo_root");
-    }
-
-    // Create library
-    let requirement = LibraryCreationRequirement {
-        repo_root: Some(repo_root.clone()),
-        game_root: game_root.clone(),
-        name: "Test Library".to_string(),
-    };
-    let mut lib = library_service::create_library(&mut config, requirement)
-        .expect("Failed to create library");
-
-    // Add a mod to the library
-    let mod_src = _tmp.path().join("test_mod");
-    let mod_src_utf8 = Utf8Path::from_path(&mod_src).unwrap();
-    create_test_mod(mod_src_utf8, "TestMod", true);
-
-    let mod_fs = mod_fs::scan(mod_src_utf8, &SPTPathRules::default()).expect("Failed to parse mod");
-    let mod_id = mod_fs.id.clone();
-    let staged = create_staged_mod_for_test(mod_src_utf8, mod_fs);
-    mod_manager::add_mod(&mut lib, staged, "Test Backup").expect("Failed to add mod");
-
-    lib.mods.get_mut(&mod_id).unwrap().is_active = true;
-    lib.sync().expect("Sync failed");
-
-    // Note: Mod links would exist if deployed, but we verify cleanup happens during remove
-
-    // Remove library
-    global_service::remove_library(&mut config, &repo_root).expect("Failed to remove library");
-
-    // Verify library was removed from config completely
-    assert!(config.library_last.is_none());
-    assert!(!config.library_recent.contains(&repo_root));
-
-    // Verify library directory was deleted
-    assert!(!repo_root.exists());
-}
-
-#[test]
-fn test_remove_library_not_in_config() {
-    let (_tmp, game_root, repo_root) = setup_test_env();
-    let mut config = GlobalConfig::default();
-
-    // Remove repo_root directory if it exists (setup_test_env creates empty directory)
-    if repo_root.exists() {
-        std::fs::remove_dir_all(&repo_root).expect("Failed to remove repo_root");
-    }
-
-    // Create library but don't add to config (use Library::create directly)
-    let requirement = LibraryCreationRequirement {
-        repo_root: Some(repo_root.clone()),
-        game_root: game_root.clone(),
-        name: "Test Library".to_string(),
-    };
-    Library::create(requirement).expect("Failed to create library");
-
-    // Verify library exists but not in config
-    assert!(repo_root.exists());
-    assert!(config.library_last.is_none());
-    assert!(config.library_recent.is_empty());
-
-    // Remove library (even though not in config)
-    global_service::remove_library(&mut config, &repo_root).expect("Failed to remove library");
-
-    // Verify library directory was still deleted
-    assert!(!repo_root.exists());
-}
-
-#[test]
 fn test_cache_rebuild_renames_mismatched_folder() {
     let (_tmp, game_root, repo_root) = setup_test_env();
     let requirement = LibraryCreationRequirement {
@@ -951,10 +593,10 @@ fn test_cache_rebuild_renames_mismatched_folder() {
         "Old mod entry should be removed"
     );
 
-    // 8. Verify old backup removed
+    // 8. Backups are intentionally left on disk during rebuild (C8)
     assert!(
-        !old_backup_dir.exists(),
-        "Old backup directory should be removed"
+        old_backup_dir.exists(),
+        "Backup directory must be preserved by rebuild"
     );
 }
 
@@ -996,4 +638,553 @@ fn test_cache_rebuild_conflict_error() {
         }
         other => panic!("Expected ModIdConflict error, got: {:?}", other),
     }
+}
+
+// --- App-Config-based library lifecycle (new endpoint services) ---
+
+#[test]
+fn test_create_library_registers_and_activates() {
+    let (_tmp, game_root, _repo_root) = setup_test_env();
+    let (config_handle, instance_handle) = test_handles(&_tmp);
+
+    let expected_root = game_root.join(".mod_keeper");
+    assert!(!expected_root.exists());
+
+    global_service::create_library(
+        &config_handle,
+        &instance_handle,
+        CreateLibraryInput {
+            game_root: game_root.to_string(),
+            library_root: None,
+            name: Some("New Library".to_string()),
+        },
+    )
+    .expect("Failed to create library");
+
+    // Files created
+    assert!(expected_root.join("manifest.toml").exists());
+    assert!(expected_root.join("mods").exists());
+    assert!(expected_root.join("backups").exists());
+    assert!(expected_root.join("staging").exists());
+
+    // Instance swapped in
+    let instance = instance_handle.lock();
+    let library = instance.as_ref().expect("library should be active");
+    assert_eq!(library.name, "New Library");
+
+    // Config registered the id and made it active
+    let store = config_handle.lock();
+    let known = store
+        .config
+        .find_library(&library.id)
+        .expect("library registered");
+    assert_eq!(known.library_root, expected_root);
+    assert_eq!(
+        store.config.app_state.active_library_id.as_deref(),
+        Some(library.id.as_str())
+    );
+    // Config was persisted to the test path
+    assert!(store.path.exists());
+}
+
+#[test]
+fn test_create_library_adopts_existing_id() {
+    let (_tmp, game_root, _repo_root) = setup_test_env();
+    let (config_handle, instance_handle) = test_handles(&_tmp);
+
+    // An existing valid library at the derived root
+    let expected_root = game_root.join(".mod_keeper");
+    let original = Library::create(LibraryCreationRequirement {
+        repo_root: Some(expected_root.clone()),
+        game_root: game_root.clone(),
+        name: "Original Library".to_string(),
+    })
+    .expect("Failed to create original library");
+
+    global_service::create_library(
+        &config_handle,
+        &instance_handle,
+        CreateLibraryInput {
+            game_root: game_root.to_string(),
+            library_root: None,
+            name: Some("Ignored Name".to_string()),
+        },
+    )
+    .expect("Failed to adopt existing library");
+
+    // The id was adopted, never re-minted (C7), and the name kept
+    let instance = instance_handle.lock();
+    let library = instance.as_ref().unwrap();
+    assert_eq!(library.id, original.id);
+    assert_eq!(library.name, "Original Library");
+}
+
+#[test]
+fn test_create_library_invalid_existing_dir_fails() {
+    let (_tmp, game_root, _repo_root) = setup_test_env();
+    let (config_handle, instance_handle) = test_handles(&_tmp);
+
+    // Dir exists but has no manifest
+    let expected_root = game_root.join(".mod_keeper");
+    fs::create_dir_all(expected_root.join("mods")).unwrap();
+    fs::create_dir_all(expected_root.join("backups")).unwrap();
+    fs::create_dir_all(expected_root.join("staging")).unwrap();
+
+    let result = global_service::create_library(
+        &config_handle,
+        &instance_handle,
+        CreateLibraryInput {
+            game_root: game_root.to_string(),
+            library_root: None,
+            name: None,
+        },
+    );
+
+    assert!(matches!(result, Err(SError::InvalidLibrary(_, _))));
+    // Nothing registered, nothing activated
+    assert!(config_handle.lock().config.known_libraries.is_empty());
+    assert!(instance_handle.lock().is_none());
+}
+
+#[test]
+fn test_activate_library_by_id() {
+    let (_tmp, game_root, _repo_root) = setup_test_env();
+    let (config_handle, instance_handle) = test_handles(&_tmp);
+
+    global_service::create_library(
+        &config_handle,
+        &instance_handle,
+        CreateLibraryInput {
+            game_root: game_root.to_string(),
+            library_root: None,
+            name: Some("Lib".to_string()),
+        },
+    )
+    .unwrap();
+    let library_id = instance_handle.lock().as_ref().unwrap().id.clone();
+
+    // Drop the instance, then re-activate by id
+    *instance_handle.lock() = None;
+    global_service::activate_library(&config_handle, &instance_handle, &library_id)
+        .expect("activate failed");
+
+    assert_eq!(
+        instance_handle.lock().as_ref().map(|l| l.id.clone()),
+        Some(library_id.clone())
+    );
+    assert_eq!(
+        config_handle.lock().config.app_state.active_library_id,
+        Some(library_id)
+    );
+}
+
+#[test]
+fn test_activate_unsupported_spt_version_fails_only_on_activate() {
+    let (_tmp, game_root, _repo_root) = setup_test_env();
+    let (config_handle, instance_handle) = test_handles(&_tmp);
+
+    global_service::create_library(
+        &config_handle,
+        &instance_handle,
+        CreateLibraryInput {
+            game_root: game_root.to_string(),
+            library_root: None,
+            name: Some("Old SPT".to_string()),
+        },
+    )
+    .unwrap();
+    let library_id = instance_handle.lock().as_ref().unwrap().id.clone();
+    let library_root = game_root.join(".mod_keeper");
+    *instance_handle.lock() = None;
+
+    // Tamper the recorded SPT version to an unsupported one
+    let manifest_path = library_root.join("manifest.toml");
+    let manifest = fs::read_to_string(&manifest_path).unwrap();
+    fs::write(&manifest_path, manifest.replace("4.0.11", "3.9.0")).unwrap();
+
+    // Assembly still lists it fully - no validation at list time (C13)
+    let store = config_handle.lock();
+    let workspace = global_service::assemble_workspace(&store.config, None, None);
+    drop(store);
+    assert_eq!(workspace.libraries.len(), 1);
+    assert!(matches!(
+        workspace.libraries[0],
+        mod_keeper_lib::models::workspace::LibraryEntry::Summary(_)
+    ));
+
+    // Activation is where the version hard-fails
+    let result = global_service::activate_library(&config_handle, &instance_handle, &library_id);
+    assert!(matches!(result, Err(SError::UnsupportedSPTVersion(_))));
+}
+
+#[test]
+fn test_rename_library_active_and_inactive() {
+    let (_tmp, game_root, _repo_root) = setup_test_env();
+    let (config_handle, instance_handle) = test_handles(&_tmp);
+
+    global_service::create_library(
+        &config_handle,
+        &instance_handle,
+        CreateLibraryInput {
+            game_root: game_root.to_string(),
+            library_root: None,
+            name: Some("Original Name".to_string()),
+        },
+    )
+    .unwrap();
+    let library_id = instance_handle.lock().as_ref().unwrap().id.clone();
+    let library_root = game_root.join(".mod_keeper");
+
+    // Active: rename goes through the live instance
+    global_service::rename_library(
+        &config_handle,
+        &instance_handle,
+        &library_id,
+        "Active Rename".to_string(),
+    )
+    .expect("rename failed");
+    assert_eq!(
+        instance_handle.lock().as_ref().unwrap().name,
+        "Active Rename"
+    );
+    assert_eq!(
+        Library::read_library_manifest(&library_root).unwrap().name,
+        "Active Rename"
+    );
+
+    // Inactive: rename writes manifest.toml directly
+    *instance_handle.lock() = None;
+    global_service::rename_library(
+        &config_handle,
+        &instance_handle,
+        &library_id,
+        "Inactive Rename".to_string(),
+    )
+    .expect("rename failed");
+    assert_eq!(
+        Library::read_library_manifest(&library_root).unwrap().name,
+        "Inactive Rename"
+    );
+}
+
+#[test]
+fn test_delete_library_entry_keeps_files() {
+    let (_tmp, game_root, _repo_root) = setup_test_env();
+    let (config_handle, instance_handle) = test_handles(&_tmp);
+
+    global_service::create_library(
+        &config_handle,
+        &instance_handle,
+        CreateLibraryInput {
+            game_root: game_root.to_string(),
+            library_root: None,
+            name: Some("Lib".to_string()),
+        },
+    )
+    .unwrap();
+    let library_id = instance_handle.lock().as_ref().unwrap().id.clone();
+    let library_root = game_root.join(".mod_keeper");
+
+    global_service::delete_library_entry(&config_handle, &instance_handle, &library_id)
+        .expect("delete entry failed");
+
+    // Row and activation gone; files intact so re-adding re-adopts the id (C7)
+    let store = config_handle.lock();
+    assert!(store.config.known_libraries.is_empty());
+    assert!(store.config.app_state.active_library_id.is_none());
+    drop(store);
+    assert!(instance_handle.lock().is_none());
+    assert!(library_root.join("manifest.toml").exists());
+}
+
+#[test]
+fn test_delete_library_files_removes_directory() {
+    let (_tmp, game_root, _repo_root) = setup_test_env();
+    let (config_handle, instance_handle) = test_handles(&_tmp);
+
+    global_service::create_library(
+        &config_handle,
+        &instance_handle,
+        CreateLibraryInput {
+            game_root: game_root.to_string(),
+            library_root: None,
+            name: Some("Lib".to_string()),
+        },
+    )
+    .unwrap();
+    let library_id = instance_handle.lock().as_ref().unwrap().id.clone();
+    let library_root = game_root.join(".mod_keeper");
+
+    // Add and deploy a mod so purge has links to clean up
+    let rules = SPTPathRules::default();
+    let mod_src = _tmp.path().join("test_mod");
+    let mod_src_utf8 = Utf8Path::from_path(&mod_src).unwrap();
+    create_test_mod(mod_src_utf8, "TestMod", true);
+    let mod_fs = mod_fs::scan(mod_src_utf8, &rules).unwrap();
+    let mod_id = mod_fs.id.clone();
+    {
+        let mut instance = instance_handle.lock();
+        let lib = instance.as_mut().unwrap();
+        let staged = create_staged_mod_for_test(mod_src_utf8, mod_fs);
+        mod_manager::add_mod(lib, staged, "Test Backup").unwrap();
+        lib.mods.get_mut(&mod_id).unwrap().is_active = true;
+        lib.sync().unwrap();
+    }
+    let deployed = game_root.join(&rules.server_mods).join("TestMod");
+    assert!(deployed.exists(), "mod should be deployed before delete");
+
+    global_service::delete_library_files(&config_handle, &instance_handle, &library_id)
+        .expect("delete files failed");
+
+    assert!(!library_root.exists(), "library dir should be deleted");
+    assert!(!deployed.exists(), "deployed links should be purged");
+    assert!(config_handle.lock().config.known_libraries.is_empty());
+    assert!(instance_handle.lock().is_none());
+}
+
+#[test]
+fn test_delete_library_unregistered_id_fails() {
+    let (_tmp, _game_root, _repo_root) = setup_test_env();
+    let (config_handle, instance_handle) = test_handles(&_tmp);
+
+    let result =
+        global_service::delete_library_files(&config_handle, &instance_handle, "no-such-id");
+    assert!(matches!(result, Err(SError::InvalidLibrary(_, _))));
+}
+
+// --- bulk_update_mods / sync (delta 3, C3) ---
+
+// Creates an active library with one installed (not yet deployed) server mod.
+fn setup_active_library_with_mod(
+    tmp: &tempfile::TempDir,
+    game_root: &Utf8Path,
+) -> (ConfigHandle, InstanceHandle, String, String) {
+    let (config_handle, instance_handle) = test_handles(tmp);
+    global_service::create_library(
+        &config_handle,
+        &instance_handle,
+        CreateLibraryInput {
+            game_root: game_root.to_string(),
+            library_root: None,
+            name: Some("Lib".to_string()),
+        },
+    )
+    .unwrap();
+
+    let mod_src = tmp.path().join("bulk_mod");
+    let mod_src_utf8 = Utf8Path::from_path(&mod_src).unwrap();
+    create_test_mod(mod_src_utf8, "BulkMod", true);
+    let mod_fs = mod_fs::scan(mod_src_utf8, &SPTPathRules::default()).unwrap();
+    let mod_id = mod_fs.id.clone();
+
+    let library_id = {
+        let mut instance = instance_handle.lock();
+        let lib = instance.as_mut().unwrap();
+        let staged = create_staged_mod_for_test(mod_src_utf8, mod_fs);
+        mod_manager::add_mod(lib, staged, "Test Backup").unwrap();
+        // add_mod marks dirty; clear via sync so the test observes bulk_update's dirty flag
+        lib.sync().unwrap();
+        lib.id.clone()
+    };
+
+    (config_handle, instance_handle, library_id, mod_id)
+}
+
+#[test]
+fn test_bulk_update_sets_stale_and_never_deploys() {
+    let (_tmp, game_root, _repo_root) = setup_test_env();
+    let (_config, instance_handle, library_id, mod_id) =
+        setup_active_library_with_mod(&_tmp, &game_root);
+    let rules = SPTPathRules::default();
+    let deployed = game_root.join(&rules.server_mods).join("BulkMod");
+
+    library_service::bulk_update_mods(
+        instance_handle.clone(),
+        &library_id,
+        &[mod_id.clone()],
+        &BulkModAction::Enable,
+    )
+    .expect("bulk enable failed");
+
+    {
+        let instance = instance_handle.lock();
+        let lib = instance.as_ref().unwrap();
+        assert!(lib.mods.get(&mod_id).unwrap().is_active);
+        assert!(
+            lib.to_dto().is_dirty,
+            "enable must set the dirty flag (deployStale)"
+        );
+    }
+    assert!(
+        !deployed.exists(),
+        "bulk_update_mods must never deploy symlinks (C3)"
+    );
+
+    // Explicit sync deploys and clears the stale flag
+    library_service::sync_active_library(instance_handle.clone(), &library_id)
+        .expect("sync failed");
+    assert!(deployed.exists());
+    assert!(!instance_handle.lock().as_ref().unwrap().to_dto().is_dirty);
+}
+
+#[test]
+fn test_bulk_update_rejects_non_active_library() {
+    let (_tmp, game_root, _repo_root) = setup_test_env();
+    let (_config, instance_handle, _library_id, mod_id) =
+        setup_active_library_with_mod(&_tmp, &game_root);
+
+    let result = library_service::bulk_update_mods(
+        instance_handle,
+        "some-other-library",
+        &[mod_id],
+        &BulkModAction::Enable,
+    );
+    assert!(matches!(result, Err(SError::InvalidLibrary(_, _))));
+}
+
+#[test]
+fn test_bulk_update_delete_removes_mod() {
+    let (_tmp, game_root, _repo_root) = setup_test_env();
+    let (_config, instance_handle, library_id, mod_id) =
+        setup_active_library_with_mod(&_tmp, &game_root);
+
+    library_service::bulk_update_mods(
+        instance_handle.clone(),
+        &library_id,
+        &[mod_id.clone()],
+        &BulkModAction::Delete,
+    )
+    .expect("bulk delete failed");
+
+    let instance = instance_handle.lock();
+    let lib = instance.as_ref().unwrap();
+    assert!(!lib.mods.contains_key(&mod_id));
+    assert!(!lib.lib_paths.mods.join(&mod_id).exists());
+}
+
+#[test]
+fn test_overlapping_mod_writes_settle_to_a_requested_state() {
+    let (_tmp, game_root, _repo_root) = setup_test_env();
+    let (_config, instance_handle, library_id, mod_id) =
+        setup_active_library_with_mod(&_tmp, &game_root);
+
+    // Two overlapping absolute writes to the same mod: both must complete,
+    // and the result is one of the requested states, never a corrupt third (§7e)
+    let handles: Vec<_> = [BulkModAction::Enable, BulkModAction::Disable]
+        .into_iter()
+        .map(|action| {
+            let instance_handle = instance_handle.clone();
+            let library_id = library_id.clone();
+            let mod_id = mod_id.clone();
+            std::thread::spawn(move || {
+                library_service::bulk_update_mods(
+                    instance_handle,
+                    &library_id,
+                    &[mod_id],
+                    &action,
+                )
+            })
+        })
+        .collect();
+
+    for handle in handles {
+        handle.join().unwrap().expect("both writes must succeed");
+    }
+
+    // Final state matches what was persisted
+    let instance = instance_handle.lock();
+    let lib = instance.as_ref().unwrap();
+    let in_memory = lib.mods.get(&mod_id).unwrap().is_active;
+    let reloaded = Library::read_library_manifest(&lib.repo_root).unwrap();
+    assert_eq!(reloaded.mods.get(&mod_id).unwrap().is_active, in_memory);
+}
+
+// --- Read-only workspace assembly (C13) ---
+
+#[test]
+fn test_assembly_unreadable_manifest_is_path_only_stub() {
+    let (_tmp, game_root, _repo_root) = setup_test_env();
+    let (config_handle, instance_handle) = test_handles(&_tmp);
+
+    global_service::create_library(
+        &config_handle,
+        &instance_handle,
+        CreateLibraryInput {
+            game_root: game_root.to_string(),
+            library_root: None,
+            name: Some("Good Lib".to_string()),
+        },
+    )
+    .unwrap();
+
+    // Register a second path with a corrupt manifest
+    let broken_root = game_root.join(".broken_lib");
+    fs::create_dir_all(&broken_root).unwrap();
+    fs::write(broken_root.join("manifest.toml"), "not [ valid toml").unwrap();
+    config_handle.lock().config.upsert_library(KnownLibrary {
+        id: "broken-id".to_string(),
+        library_root: broken_root.clone(),
+    });
+
+    let store = config_handle.lock();
+    let instance = instance_handle.lock();
+    let workspace = global_service::assemble_workspace(&store.config, instance.as_ref(), None);
+
+    // Both entries present - the unreadable one as a stub, never dropped
+    assert_eq!(workspace.libraries.len(), 2);
+    let stubs: Vec<_> = workspace
+        .libraries
+        .iter()
+        .filter_map(|entry| match entry {
+            mod_keeper_lib::models::workspace::LibraryEntry::Stub(stub) => Some(stub),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(stubs.len(), 1);
+    assert_eq!(stubs[0].path, broken_root.to_string());
+}
+
+#[test]
+fn test_assembly_reports_mods_and_deploy_stale() {
+    let (_tmp, game_root, _repo_root) = setup_test_env();
+    let (config_handle, instance_handle, library_id, mod_id) =
+        setup_active_library_with_mod(&_tmp, &game_root);
+
+    library_service::bulk_update_mods(
+        instance_handle.clone(),
+        &library_id,
+        &[mod_id.clone()],
+        &BulkModAction::Enable,
+    )
+    .unwrap();
+
+    let store = config_handle.lock();
+    let instance = instance_handle.lock();
+    let workspace = global_service::assemble_workspace(&store.config, instance.as_ref(), None);
+
+    assert_eq!(
+        workspace.active_library_id.as_deref(),
+        Some(library_id.as_str())
+    );
+    let mods = workspace
+        .mods_by_library_id
+        .get(&library_id)
+        .expect("mods listed");
+    let entry = mods.iter().find(|m| m.id == mod_id).expect("mod present");
+    assert!(entry.is_enabled);
+
+    match &workspace.libraries[0] {
+        mod_keeper_lib::models::workspace::LibraryEntry::Summary(summary) => {
+            assert!(
+                summary.deploy_stale,
+                "pending toggle must read as deployStale"
+            );
+        }
+        other => panic!("expected summary, got {other:?}"),
+    }
+    // Tools map exists but is empty (tool registry deferred)
+    assert_eq!(
+        workspace.tools_by_library_id.get(&library_id).map(Vec::len),
+        Some(0)
+    );
 }

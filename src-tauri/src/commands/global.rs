@@ -1,31 +1,9 @@
+use crate::core::global_service;
 use crate::core::registry::AppRegistry;
-use crate::core::{global_service, library_service};
 use crate::models::error::SError;
-use crate::models::global::LibrarySwitch;
-use crate::models::library::LibraryCreationRequirement;
+use crate::models::workspace::{ActivateLibraryInput, CreateLibraryInput, LibraryWorkspace};
 use crate::store::app_config::AppSettings;
-use camino::Utf8PathBuf;
 use tauri::{AppHandle, Manager, State};
-
-#[tauri::command]
-#[specta::specta]
-pub async fn get_settings(state: State<'_, AppRegistry>) -> Result<AppSettings, SError> {
-    Ok(global_service::get_settings(&state.app_config.lock()))
-}
-
-#[tauri::command]
-#[specta::specta]
-pub async fn save_settings(
-    state: State<'_, AppRegistry>,
-    settings: AppSettings,
-) -> Result<AppSettings, SError> {
-    let config_handle = state.app_config.clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        global_service::save_settings(&mut config_handle.lock(), settings)
-    })
-    .await
-    .map_err(|e| SError::AsyncRuntimeError(e.to_string()))?
-}
 
 /// Detect if running on Windows 11 (build >= 22000)
 #[cfg(target_os = "windows")]
@@ -111,90 +89,33 @@ pub fn apply_window_effect(app_handle: AppHandle, is_dark: Option<bool>) {
     }
 }
 
+/// The startup command: returns the full workspace and, as the first frontend
+/// call, carries the watchdog handoff (C11) and shows the window (prevents an
+/// unstyled flash). Also delivers any pending startup config warning once (C12).
 #[tauri::command]
 #[specta::specta]
-pub async fn open_library(
-    state: State<'_, AppRegistry>,
-    path: String,
-) -> Result<LibrarySwitch, SError> {
-    let path_buf = Utf8PathBuf::from(path);
-
-    // Clone BOTH handles to move them into the blocking thread
-    let config_handle = state.global_config.clone();
-    let instance_handle = state.active_instance.clone();
-
-    tauri::async_runtime::spawn_blocking(move || {
-        // 1. Lock Config, Load Library (IO), Update Config
-        // We scope this block so we can release the config lock before acquiring the instance lock
-        // (though keeping it held is also safe here since the order is fixed).
-        let (lib, switch_dto) = {
-            let mut config = config_handle.lock();
-            let lib = library_service::open_library(&mut config, &path_buf)?;
-            let switch = library_service::to_library_switch(&config, Some(&lib));
-            (lib, switch)
-        };
-
-        // 2. Lock Instance and Swap
-        // IMPORTANT: This drops the *old* Library instance.
-        // Doing this here ensures any heavy resource cleanup (closing files, freeing RAM)
-        // happens on this blocking thread, not the async runtime.
-        *instance_handle.lock() = Some(lib);
-
-        Ok(switch_dto)
-    })
-    .await
-    .map_err(|e| SError::AsyncRuntimeError(e.to_string()))? // Unwraps JoinError
-}
-
-#[tauri::command]
-#[specta::specta]
-pub async fn create_library(
-    state: State<'_, AppRegistry>,
-    requirement: LibraryCreationRequirement,
-) -> Result<LibrarySwitch, SError> {
-    // Clone handles to move into the blocking thread
-    let config_handle = state.global_config.clone();
-    let instance_handle = state.active_instance.clone();
-
-    tauri::async_runtime::spawn_blocking(move || {
-        // 1. Lock Config, Create Library on disk, Update MRU
-        let (lib, switch) = {
-            let mut config = config_handle.lock();
-            let lib = library_service::create_library(&mut config, requirement)?;
-            let switch = library_service::to_library_switch(&config, Some(&lib));
-            (lib, switch)
-        };
-
-        // 2. Lock Instance and Swap
-        // This overwrites the old instance, triggering its Drop (cleanup) on this worker thread.
-        *instance_handle.lock() = Some(lib);
-
-        Ok(switch)
-    })
-    .await
-    .map_err(|e| SError::AsyncRuntimeError(e.to_string()))? // Unwrap the JoinHandle error
-}
-
-#[tauri::command]
-#[specta::specta]
-pub async fn init(
+pub async fn get_library_workspace(
     app_handle: AppHandle,
     state: State<'_, AppRegistry>,
-) -> Result<LibrarySwitch, SError> {
-    // Mark that init has been called
+) -> Result<LibraryWorkspace, SError> {
+    // Watchdog handoff: the startup timeout checker watches this flag (C11)
     state
         .init_called
         .store(true, std::sync::atomic::Ordering::Relaxed);
 
-    // Get current state (library already loaded in background thread)
-    let config_handle = state.global_config.clone();
+    let config_handle = state.app_config.clone();
     let instance_handle = state.active_instance.clone();
+    let warning_handle = state.config_warning.clone();
 
     let result = tauri::async_runtime::spawn_blocking(move || {
-        let config = config_handle.lock();
-        let instance_guard = instance_handle.lock();
-        let active_library = instance_guard.as_ref();
-        Ok(library_service::to_library_switch(&config, active_library))
+        let store = config_handle.lock();
+        let instance = instance_handle.lock();
+        let warning = warning_handle.lock().take();
+        Ok(global_service::assemble_workspace(
+            &store.config,
+            instance.as_ref(),
+            warning,
+        ))
     })
     .await
     .map_err(|e| SError::AsyncRuntimeError(e.to_string()))?;
@@ -209,39 +130,23 @@ pub async fn init(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn close_library(
+pub async fn activate_library(
     state: State<'_, AppRegistry>,
-    repo_root: String,
-) -> Result<LibrarySwitch, SError> {
-    let path_buf = Utf8PathBuf::from(repo_root);
-    let config_handle = state.global_config.clone();
+    input: ActivateLibraryInput,
+) -> Result<LibraryWorkspace, SError> {
+    let config_handle = state.app_config.clone();
     let instance_handle = state.active_instance.clone();
 
     tauri::async_runtime::spawn_blocking(move || {
-        // Check if this is the active library
-        let is_active = {
-            let instance_guard = instance_handle.lock();
-            instance_guard
-                .as_ref()
-                .map(|lib| lib.repo_root == path_buf)
-                .unwrap_or(false)
-        };
+        global_service::activate_library(&config_handle, &instance_handle, &input.library_id)?;
 
-        // Close library via service
-        let mut config = config_handle.lock();
-        global_service::close_library(&mut config, &path_buf)?;
-        drop(config);
-
-        // If closing active library, clear the instance
-        if is_active {
-            *instance_handle.lock() = None;
-        }
-
-        // Return updated switch
-        let config = config_handle.lock();
-        let instance_guard = instance_handle.lock();
-        let active_lib = instance_guard.as_ref();
-        Ok(library_service::to_library_switch(&config, active_lib))
+        let store = config_handle.lock();
+        let instance = instance_handle.lock();
+        Ok(global_service::assemble_workspace(
+            &store.config,
+            instance.as_ref(),
+            None,
+        ))
     })
     .await
     .map_err(|e| SError::AsyncRuntimeError(e.to_string()))?
@@ -249,44 +154,43 @@ pub async fn close_library(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn remove_library(
+pub async fn create_library(
     state: State<'_, AppRegistry>,
-    repo_root: String,
-) -> Result<LibrarySwitch, SError> {
-    // Check if game/server is running before proceeding
-    if state.is_game_or_server_running() {
-        return Err(SError::GameOrServerRunning);
-    }
-
-    let path_buf = Utf8PathBuf::from(repo_root);
-    let config_handle = state.global_config.clone();
+    input: CreateLibraryInput,
+) -> Result<LibraryWorkspace, SError> {
+    let config_handle = state.app_config.clone();
     let instance_handle = state.active_instance.clone();
 
     tauri::async_runtime::spawn_blocking(move || {
-        // Check if this is the active library
-        let is_active = {
-            let instance_guard = instance_handle.lock();
-            instance_guard
-                .as_ref()
-                .map(|lib| lib.repo_root == path_buf)
-                .unwrap_or(false)
-        };
+        global_service::create_library(&config_handle, &instance_handle, input)?;
 
-        // Remove library via service (unlinks mods, removes from config, deletes directory)
-        let mut config = config_handle.lock();
-        global_service::remove_library(&mut config, &path_buf)?;
-        drop(config);
+        let store = config_handle.lock();
+        let instance = instance_handle.lock();
+        Ok(global_service::assemble_workspace(
+            &store.config,
+            instance.as_ref(),
+            None,
+        ))
+    })
+    .await
+    .map_err(|e| SError::AsyncRuntimeError(e.to_string()))?
+}
 
-        // If removing active library, clear the instance
-        if is_active {
-            *instance_handle.lock() = None;
-        }
+#[tauri::command]
+#[specta::specta]
+pub async fn get_settings(state: State<'_, AppRegistry>) -> Result<AppSettings, SError> {
+    Ok(global_service::get_settings(&state.app_config.lock()))
+}
 
-        // Return updated switch
-        let config = config_handle.lock();
-        let instance_guard = instance_handle.lock();
-        let active_lib = instance_guard.as_ref();
-        Ok(library_service::to_library_switch(&config, active_lib))
+#[tauri::command]
+#[specta::specta]
+pub async fn save_settings(
+    state: State<'_, AppRegistry>,
+    settings: AppSettings,
+) -> Result<AppSettings, SError> {
+    let config_handle = state.app_config.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        global_service::save_settings(&mut config_handle.lock(), settings)
     })
     .await
     .map_err(|e| SError::AsyncRuntimeError(e.to_string()))?

@@ -38,6 +38,7 @@ pub fn setup_test_env() -> (TempDir, camino::Utf8PathBuf, camino::Utf8PathBuf) {
 }
 
 /// Mock a mod folder structure
+#[allow(dead_code)] // not every test binary uses this helper
 pub fn create_test_mod(path: &Utf8Path, name: &str, is_server: bool) {
     let rules = SPTPathRules::default();
     let mod_dir = if is_server {

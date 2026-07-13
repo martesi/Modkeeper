@@ -39,38 +39,69 @@ pub fn save_to(path: &Utf8PathBuf, config: &AppConfig) -> Result<(), SError> {
     file::atomic_write(path, content).map_err(|e| SError::ConfigSaveFailed(e.to_string()))
 }
 
-pub fn load() -> Result<AppConfig, SError> {
-    load_from(&config_path()?)
+/// The App Config bound to the file it round-trips through. Keeping the path
+/// explicit lets services and tests save without a hidden global location.
+pub struct AppConfigStore {
+    pub path: Utf8PathBuf,
+    pub config: AppConfig,
 }
 
-pub fn save(config: &AppConfig) -> Result<(), SError> {
-    save_to(&config_path()?, config)
+impl AppConfigStore {
+    pub fn save(&self) -> Result<(), SError> {
+        save_to(&self.path, &self.config)
+    }
 }
 
 /// Startup path: load the App Config, running the one-time confy migration when
 /// no libraries are registered yet. Never blocks or fails startup - failures are
 /// logged and returned as a warning for the frontend to surface later (C12).
 /// A config that failed to parse is left untouched on disk (no silent reset).
-pub fn load_or_migrate(old: &crate::config::global::GlobalConfig) -> (AppConfig, Option<String>) {
-    let mut config = match load() {
-        Ok(config) => config,
+pub fn load_or_migrate(
+    old: &crate::config::global::GlobalConfig,
+) -> (AppConfigStore, Option<String>) {
+    let path = match config_path() {
+        Ok(path) => path,
         Err(e) => {
-            tracing::error!("Failed to load app config: {e}");
-            return (AppConfig::default(), Some(e.to_string()));
+            tracing::error!("Failed to locate app config dir: {e}");
+            let fallback = Utf8PathBuf::from_path_buf(std::env::temp_dir())
+                .map(|dir| dir.join(CONFIG_FILE))
+                .unwrap_or_else(|_| Utf8PathBuf::from(CONFIG_FILE));
+            return (
+                AppConfigStore {
+                    path: fallback,
+                    config: AppConfig::default(),
+                },
+                Some(e.to_string()),
+            );
         }
     };
 
-    if config.known_libraries.is_empty() {
+    let mut store = match load_from(&path) {
+        Ok(config) => AppConfigStore { path, config },
+        Err(e) => {
+            tracing::error!("Failed to load app config: {e}");
+            let warning = Some(e.to_string());
+            return (
+                AppConfigStore {
+                    path,
+                    config: AppConfig::default(),
+                },
+                warning,
+            );
+        }
+    };
+
+    if store.config.known_libraries.is_empty() {
         let migrated = app_config::migrate_from_confy(old);
         if !migrated.known_libraries.is_empty() {
-            config.known_libraries = migrated.known_libraries;
-            config.app_state.active_library_id = migrated.app_state.active_library_id;
-            if let Err(e) = save(&config) {
+            store.config.known_libraries = migrated.known_libraries;
+            store.config.app_state.active_library_id = migrated.app_state.active_library_id;
+            if let Err(e) = store.save() {
                 tracing::error!("Failed to save migrated app config: {e}");
-                return (config, Some(e.to_string()));
+                return (store, Some(e.to_string()));
             }
         }
     }
 
-    (config, None)
+    (store, None)
 }
