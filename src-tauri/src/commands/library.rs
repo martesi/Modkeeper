@@ -1,7 +1,7 @@
 use crate::core::global_service;
 use crate::core::library::Library;
 use crate::core::registry::AppRegistry;
-use crate::core::{library_service, mod_backup, mod_manager, mod_stager};
+use crate::core::{library_service, mod_backup, mod_manager};
 use crate::models::error::SError;
 use crate::models::global::LibrarySwitch;
 use crate::models::library::LibraryDTO;
@@ -9,7 +9,7 @@ use crate::models::mod_backup::ModBackup;
 use crate::utils::thread::{with_lib_arc, with_lib_arc_mut};
 use camino::Utf8PathBuf;
 use tauri::{AppHandle, State};
-use tracing::{debug, info};
+use tracing::debug;
 
 #[tauri::command]
 #[specta::specta]
@@ -32,31 +32,10 @@ pub async fn add_mods(
     let instance_handle = state.active_instance.clone();
 
     tauri::async_runtime::spawn_blocking(move || {
-        info!("Staging mod files");
-        // 1. Resolve (Heavy Compute/IO)
-        // We do this here to avoid blocking the async runtime
-        let staged_mods = mod_stager::resolve(&inputs, &material)?;
-        debug!("staged_mods: {:?}", staged_mods);
-
-        with_lib_arc_mut(instance_handle, |inst| {
-            info!("Adding mods to library");
-            // 3. Install & Cleanup
-            // Using try_for_each for early exit on error
-            staged_mods
-                .into_iter()
-                .try_for_each(|staged| {
-                    debug!("current: {:?}", staged);
-                    // Extract cleanup data before moving staged into add_mod
-                    let is_staging = staged.is_staging;
-                    let source_path = staged.source_path.clone();
-                    mod_manager::add_mod(inst, staged, &backup_name)
-                        .and_then(|_| mod_stager::clean_up(is_staging, &source_path))
-                })
-                .map(|_| inst.to_dto())
-        })
+        library_service::install_mods(instance_handle, &inputs, &material, &backup_name)
     })
     .await
-    .map_err(|e| SError::AsyncRuntimeError(e.to_string()))??
+    .map_err(|e| SError::AsyncRuntimeError(e.to_string()))?
 }
 
 #[tauri::command]
@@ -68,18 +47,10 @@ pub async fn remove_mods(
     let instance_handle = state.active_instance.clone();
     // Offload synchronous file IO and locking to a blocking thread
     tauri::async_runtime::spawn_blocking(move || {
-        with_lib_arc_mut(instance_handle, |inst| -> Result<LibraryDTO, SError> {
-            ids.iter()
-                .try_for_each(|mod_id| {
-                    debug!("Removing mod {}", mod_id);
-                    mod_manager::remove_mod(inst, mod_id)
-                })
-                .map(|_| inst.to_dto())
-        })
-        // Iterate and remove each mod, exiting immediately on the first error
+        library_service::remove_mods(instance_handle, &ids)
     })
     .await
-    .map_err(|e| SError::AsyncRuntimeError(e.to_string()))??
+    .map_err(|e| SError::AsyncRuntimeError(e.to_string()))?
 }
 
 #[tauri::command]

@@ -1,14 +1,19 @@
 use crate::config::global::GlobalConfig;
 use crate::core::cache::{LibraryCache, normalize_mod_folders};
 use crate::core::library::Library;
+use crate::core::mod_stager::{self, StageMaterial};
+use crate::core::{mod_backup, mod_manager};
 use crate::models::error::SError;
 use crate::models::global::LibrarySwitch;
 use crate::models::library::{LibraryCreationRequirement, LibraryDTO};
 use crate::models::paths::LibPathRules;
+use crate::utils::thread::with_lib_arc_mut;
 use camino::{Utf8Path, Utf8PathBuf};
+use parking_lot::Mutex;
+use std::sync::Arc;
 use tauri::AppHandle;
 use tauri_plugin_opener::OpenerExt;
-use tracing::error;
+use tracing::{debug, error, info};
 
 /// Service for managing library lifecycle operations.
 /// Handles opening, creating, and querying libraries while updating global configuration.
@@ -170,6 +175,51 @@ pub fn to_library_switch(config: &GlobalConfig, active_library: Option<&Library>
     }
 }
 
+/// Resolves raw user inputs into staged mods and installs them into the active library.
+/// Heavy IO (staging, extraction, copying) runs on the caller's thread; the library
+/// mutex is held only for the install loop.
+pub fn install_mods(
+    instance_handle: Arc<Mutex<Option<Library>>>,
+    inputs: &[Utf8PathBuf],
+    material: &StageMaterial,
+    backup_name: &str,
+) -> Result<LibraryDTO, SError> {
+    info!("Staging mod files");
+    let staged_mods = mod_stager::resolve(inputs, material)?;
+    debug!("staged_mods: {:?}", staged_mods);
+
+    with_lib_arc_mut(instance_handle, |inst| {
+        info!("Adding mods to library");
+        // Install & cleanup, using try_for_each for early exit on error
+        staged_mods
+            .into_iter()
+            .try_for_each(|staged| {
+                debug!("current: {:?}", staged);
+                // Extract cleanup data before moving staged into add_mod
+                let is_staging = staged.is_staging;
+                let source_path = staged.source_path.clone();
+                mod_manager::add_mod(inst, staged, backup_name)
+                    .and_then(|_| mod_stager::clean_up(is_staging, &source_path))
+            })
+            .map(|_| inst.to_dto())
+    })?
+}
+
+/// Removes the given mods from the active library, exiting on the first error.
+pub fn remove_mods(
+    instance_handle: Arc<Mutex<Option<Library>>>,
+    ids: &[String],
+) -> Result<LibraryDTO, SError> {
+    with_lib_arc_mut(instance_handle, |inst| {
+        ids.iter()
+            .try_for_each(|mod_id| {
+                debug!("Removing mod {}", mod_id);
+                mod_manager::remove_mod(inst, mod_id)
+            })
+            .map(|_| inst.to_dto())
+    })?
+}
+
 /// Renames the active library and persists the change.
 pub fn rename_library(library: &mut Library, name: String) -> Result<(), SError> {
     library.name = name;
@@ -178,7 +228,6 @@ pub fn rename_library(library: &mut Library, name: String) -> Result<(), SError>
 }
 
 pub fn rebuild_library_cache(library: &mut Library) -> Result<(), SError> {
-    use crate::core::mod_backup;
     use crate::models::mod_dto::Mod;
 
     // 1. Normalize folder names to match resolved IDs
