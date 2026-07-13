@@ -9,7 +9,7 @@
  */
 import { atom, getDefaultStore } from 'jotai'
 import type { AppSettings } from '../data/redesign-types'
-import { loadUseLegacyUi, saveUseLegacyUi } from '../data/settings-repository'
+import { loadUseLegacyUi, saveUseLegacyUi } from '../data/legacy-ui-storage'
 
 export const settingsAtom = atom<AppSettings | null>(null)
 

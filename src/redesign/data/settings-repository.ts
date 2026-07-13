@@ -5,11 +5,7 @@
  * `get_library_workspace`, and every mutation goes through `saveSettings`, which returns the FULL
  * object — the atom is replaced wholesale, never patched. The appliers (`applyTheme` side of theme
  * lives with next-themes in the initializers; accent/language live here) turn the saved value into
- * visible effect.
- *
- * The legacy-UI toggle (§10a) is deliberately NOT part of AppSettings: it is frontend-local,
- * transition-only, and removed with the legacy tree — so localStorage is its permanent home, not a
- * MOCK-FALLBACK.
+ * visible effect. The transition-only legacy-UI toggle lives in `legacy-ui-storage.ts` (§10a).
  */
 import { isTauri } from '@tauri-apps/api/core'
 import { toast } from 'sonner'
@@ -90,18 +86,4 @@ export function applyAccent(accentColor: string): void {
 export async function applyLanguage(language: string): Promise<void> {
   if (i18n.locale === language) return
   await changeLocale(language)
-}
-
-// --- Transition-only legacy-UI toggle (§10a) ---
-
-const LEGACY_UI_KEY = 'modkeeper-use-legacy-ui'
-
-export function loadUseLegacyUi(): boolean {
-  if (typeof window === 'undefined') return false
-  return localStorage.getItem(LEGACY_UI_KEY) === 'true'
-}
-
-export function saveUseLegacyUi(value: boolean): void {
-  if (typeof window === 'undefined') return
-  localStorage.setItem(LEGACY_UI_KEY, String(value))
 }
