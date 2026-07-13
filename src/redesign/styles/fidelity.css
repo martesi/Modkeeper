@@ -1,0 +1,99 @@
+/*
+ * Fidelity Modern design system.
+ * Tokens are authoritative per consolidated-spec.md §11 (MODIFICATIONS.md over DESIGN.md).
+ * This file only defines tokens + utilities; it does not import Tailwind (the redesign root and
+ * Storybook preview pull Tailwind in separately).
+ */
+
+:root {
+  /* Brand */
+  --mk-primary: #e91e63;
+  --mk-primary-hover: #d81b60;
+  --mk-primary-active: #c2185b;
+  --mk-on-primary: #ffffff;
+  --mk-tertiary: #00828d;
+  --mk-tertiary-hover: #006f79;
+
+  /* Destructive (derived — spec names only primary/tertiary) */
+  --mk-danger: #c62828;
+  --mk-danger-hover: #b71c1c;
+  --mk-on-danger: #ffffff;
+
+  /* Surfaces */
+  --mk-surface: #fff8f7;
+  --mk-surface-container: rgba(255, 233, 232, 0.72);
+  --mk-surface-strong: rgba(255, 248, 247, 0.84);
+  --mk-outline: rgba(146, 110, 109, 0.38);
+
+  /* Text */
+  --mk-text: #281717;
+  --mk-text-muted: #5d3f3e;
+
+  /* Shape */
+  --mk-radius-control: 1rem;
+  --mk-radius-panel: 2rem;
+  --mk-radius-dialog: 2rem;
+
+  /* Layout */
+  --mk-content-max: 1280px;
+  --mk-shadow-panel: 0 18px 60px rgba(40, 23, 23, 0.12);
+}
+
+/*
+ * Dark override. The spec only enumerates the light palette; these values keep the warm hue while
+ * making the glass surfaces legible under next-themes' `.dark` class. Kept in one block so a future
+ * dark pass tunes here without touching component code.
+ */
+.dark {
+  --mk-surface: #1c1413;
+  --mk-surface-container: rgba(60, 40, 39, 0.62);
+  --mk-surface-strong: rgba(34, 24, 23, 0.84);
+  --mk-outline: rgba(214, 178, 177, 0.24);
+  --mk-text: #f7ebea;
+  --mk-text-muted: #cbadac;
+  --mk-shadow-panel: 0 18px 60px rgba(0, 0, 0, 0.45);
+}
+
+/* Glass surfaces */
+.mk-glass-standard {
+  backdrop-filter: blur(24px) saturate(140%);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
+}
+
+.mk-glass-strong {
+  backdrop-filter: blur(40px) saturate(160%);
+  -webkit-backdrop-filter: blur(40px) saturate(160%);
+}
+
+/* Visible focus ring on glass, keyed to the primary pink */
+.mk-focus-ring {
+  outline: none;
+}
+.mk-focus-ring:focus-visible {
+  outline: 2px solid var(--mk-primary);
+  outline-offset: 2px;
+}
+
+/* Warm scrollbar: subtle track, primary thumb on hover */
+.mk-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--mk-outline) transparent;
+}
+.mk-scrollbar::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.mk-scrollbar::-webkit-scrollbar-track {
+  background: var(--mk-surface-container);
+  border-radius: 9999px;
+}
+.mk-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--mk-outline);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.mk-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--mk-primary);
+  background-clip: padding-box;
+}
