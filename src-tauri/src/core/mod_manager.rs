@@ -5,7 +5,7 @@ use crate::core::mod_backup;
 use crate::core::mod_stager::StagedMod;
 use crate::models::error::SError;
 use crate::models::mod_dto::Mod;
-use crate::utils::file::FileUtils;
+use crate::utils::file;
 
 /// Adds or updates a mod in the library.
 /// Creates a backup if the mod already exists.
@@ -19,7 +19,7 @@ pub fn add_mod(library: &mut Library, staged: StagedMod, backup_name: &str) -> R
     }
 
     std::fs::create_dir_all(&dst)?;
-    FileUtils::copy_recursive(&staged.source_path, &dst)?;
+    file::copy_recursive(&staged.source_path, &dst)?;
 
     library
         .mods

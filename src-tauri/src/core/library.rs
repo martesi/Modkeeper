@@ -5,7 +5,7 @@ use crate::models::error::SError;
 use crate::models::library::{LibraryCreationRequirement, LibraryDTO};
 use crate::models::mod_dto::Mod;
 use crate::models::paths::{LibPathRules, SPTPathCanonical, SPTPathRules};
-use crate::utils::toml::Toml;
+use crate::utils::toml;
 use camino::{Utf8Path, Utf8PathBuf};
 use std::collections::BTreeMap;
 use std::default::Default;
@@ -82,7 +82,7 @@ impl Library {
             spt_paths_canonical: SPTPathCanonical::from_spt_paths(spt_paths.clone())?,
             game_root: dto.game_root,
             spt_rules: SPTPathRules::default(),
-            cache: Toml::read(&lib_paths.cache)?,
+            cache: toml::read(&lib_paths.cache)?,
             lib_paths,
             spt_version,
             mods: dto.mods,
@@ -91,7 +91,7 @@ impl Library {
     }
 
     pub fn read_library_manifest(lib_root: &Utf8Path) -> Result<LibraryDTO, SError> {
-        Toml::read::<LibraryDTO>(&LibPathRules::new(lib_root).manifest)
+        toml::read::<LibraryDTO>(&LibPathRules::new(lib_root).manifest)
     }
 
     pub fn to_dto(&self) -> LibraryDTO {
@@ -133,8 +133,8 @@ impl Library {
 
     /// Persists the library manifest and cache to disk.
     pub fn persist(&self) -> Result<(), SError> {
-        Toml::write(&self.lib_paths.manifest, &self.to_dto())?;
-        Toml::write(&self.lib_paths.cache, &self.cache)?;
+        toml::write(&self.lib_paths.manifest, &self.to_dto())?;
+        toml::write(&self.lib_paths.cache, &self.cache)?;
         Ok(())
     }
 

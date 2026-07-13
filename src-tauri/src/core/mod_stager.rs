@@ -1,9 +1,8 @@
 use crate::core::decompression;
-use crate::core::mod_fs::ModFS;
+use crate::core::mod_fs::{self, ModFS};
 use crate::models::error::SError;
 use crate::models::paths::SPTPathRules;
-use crate::utils::file::FileUtils;
-use crate::utils::process::ProcessChecker;
+use crate::utils::{file, process};
 use camino::{Utf8Path, Utf8PathBuf};
 use std::fs;
 use std::fs::remove_dir_all;
@@ -59,7 +58,7 @@ pub fn any_mod_tool_running(sys: &mut System, mods_to_install: &[StagedMod]) -> 
         .flat_map(|m| m.fs.executables.iter().map(|exe| m.source_path.join(exe)))
         .collect();
 
-    if ProcessChecker::is_running(sys, &specific_paths) {
+    if process::is_running(sys, &specific_paths) {
         return Err(SError::ProcessRunning);
     }
 
@@ -88,8 +87,8 @@ fn process_as_directory(
 
     match is_game_structure {
         Ok(true) => {
-            // It IS a game structure, so it MUST be a valid mod. Fail if ModFS::new fails.
-            Some(ModFS::new(input, rules).map(|fs| {
+            // It IS a game structure, so it MUST be a valid mod. Fail if mod_fs::scan fails.
+            Some(mod_fs::scan(input, rules).map(|fs| {
                 // Determine name: directory name
                 let name = input.file_name().unwrap_or(unknown_mod_name).to_string();
                 StagedMod {
@@ -102,8 +101,8 @@ fn process_as_directory(
         }
         Ok(false) => {
             // Sub-strategy A2: Folder is a standard mod folder.
-            // We try ModFS::new. If it succeeds, Good. If it fails, we treat it as "Not a mod" (None).
-            ModFS::new(input, rules).ok().map(|fs| {
+            // We try mod_fs::scan. If it succeeds, Good. If it fails, we treat it as "Not a mod" (None).
+            mod_fs::scan(input, rules).ok().map(|fs| {
                 // Determine name: directory name
                 let name = input.file_name().unwrap_or(unknown_mod_name).to_string();
                 Ok(StagedMod {
@@ -172,10 +171,10 @@ fn stage_loose_files(
         let name = input
             .file_name()
             .ok_or_else(|| SError::ParseError(format!("Unable to get file name for {input}")))?;
-        FileUtils::copy_recursive(input, &dest_dir.join(name))?;
+        file::copy_recursive(input, &dest_dir.join(name))?;
     }
 
-    let fs = ModFS::new(&dest_dir, rules)?;
+    let fs = mod_fs::scan(&dest_dir, rules)?;
 
     // Determine name: translated "Unknown mod" for loose files
     let name = unknown_mod_name.to_string();
@@ -200,7 +199,7 @@ fn stage_archive(
 
     decompression::extract(archive, &dest_dir)?;
 
-    let fs = ModFS::new(&dest_dir, rules)?;
+    let fs = mod_fs::scan(&dest_dir, rules)?;
 
     // Determine name: archive name without extension
     let name = archive.file_stem().unwrap_or(unknown_mod_name).to_string();

@@ -1,4 +1,4 @@
-use crate::core::mod_fs::ModFS;
+use crate::core::mod_fs::{self, ModFS};
 use crate::models::error::SError;
 use crate::models::paths::SPTPathRules;
 use camino::Utf8PathBuf;
@@ -43,7 +43,7 @@ pub fn normalize_mod_folders(
     for path in entries {
         let folder_name = path.file_name().ok_or(SError::Unexpected)?.to_string();
 
-        let mod_fs = ModFS::new(&path, spt_paths)?;
+        let mod_fs = mod_fs::scan(&path, spt_paths)?;
         let resolved_id = &mod_fs.id;
 
         if folder_name != *resolved_id {
@@ -90,7 +90,7 @@ impl LibraryCache {
                 return Err(SError::Unexpected);
             }
 
-            cache.add(ModFS::new(&path, spt_paths)?);
+            cache.add(mod_fs::scan(&path, spt_paths)?);
         }
 
         Ok(cache)

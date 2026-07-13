@@ -4,7 +4,7 @@ use camino::{Utf8Path, Utf8PathBuf};
 use common::{create_test_mod, setup_test_env};
 use mod_keeper_lib::config::global::GlobalConfig;
 use mod_keeper_lib::core::library::Library;
-use mod_keeper_lib::core::mod_fs::ModFS;
+use mod_keeper_lib::core::mod_fs::{self, ModFS};
 use mod_keeper_lib::core::mod_stager::StagedMod;
 use mod_keeper_lib::core::{global_service, library_service, mod_manager};
 use mod_keeper_lib::models::error::SError;
@@ -44,7 +44,7 @@ fn test_library_init_and_add_mod() {
     create_test_mod(mod_src_utf8, "MyMod", true);
 
     // 3. Add mod to library
-    let mod_fs = ModFS::new(mod_src_utf8, &SPTPathRules::default()).expect("Failed to parse mod");
+    let mod_fs = mod_fs::scan(mod_src_utf8, &SPTPathRules::default()).expect("Failed to parse mod");
     let staged = create_staged_mod_for_test(mod_src_utf8, mod_fs);
     mod_manager::add_mod(&mut lib, staged, "Test Backup").expect("Failed to add mod");
 
@@ -81,7 +81,7 @@ fn test_collision_detection() {
         fs::write(file_path, "some content").unwrap();
 
         // 3. Add to library and activate
-        let fs = ModFS::new(&p, &rules).expect("Failed to parse mod");
+        let fs = mod_fs::scan(&p, &rules).expect("Failed to parse mod");
         let mod_id = fs.id.clone();
         let staged = create_staged_mod_for_test(&p, fs);
         mod_manager::add_mod(&mut lib, staged, "Test Backup").expect("Failed to add mod");
@@ -138,7 +138,7 @@ fn test_recursive_linking_logic() {
         fs::write(file_path, "data").unwrap();
 
         // 3. Add and activate using the resolved hash ID
-        let fs = ModFS::new(&p, &rules).unwrap();
+        let fs = mod_fs::scan(&p, &rules).unwrap();
         let mod_id = fs.id.clone();
         let staged = create_staged_mod_for_test(&p, fs);
         mod_manager::add_mod(lib, staged, "Test Backup").unwrap();
@@ -171,7 +171,7 @@ fn test_purge_removes_deactivated_mods() {
 
     // 1. Add and activate mod
     create_test_mod(&repo_root.join("src"), "DeleteMe", true);
-    let fs = ModFS::new(&repo_root.join("src"), &rules).unwrap();
+    let fs = mod_fs::scan(&repo_root.join("src"), &rules).unwrap();
     let mod_id = fs.id.clone();
     let staged = create_staged_mod_for_test(&repo_root.join("src"), fs);
     mod_manager::add_mod(&mut lib, staged, "Test Backup").unwrap();
@@ -214,7 +214,7 @@ fn test_to_dto_uses_hash_id() {
     std::fs::write(dummy_dll, "").unwrap();
 
     // 2. Add mod to library
-    let fs = ModFS::new(mod_src_utf8, &rules).unwrap();
+    let fs = mod_fs::scan(mod_src_utf8, &rules).unwrap();
     let staged = create_staged_mod_for_test(mod_src_utf8, fs);
     mod_manager::add_mod(&mut lib, staged, "Test Backup").expect("Add mod failed");
 
@@ -249,7 +249,7 @@ fn test_mod_backup_on_overwrite() {
     .unwrap();
 
     // 1. Initial Add
-    let fs1 = ModFS::new(&src, &rules).unwrap();
+    let fs1 = mod_fs::scan(&src, &rules).unwrap();
     let staged1 = create_staged_mod_for_test(&src, fs1);
     mod_manager::add_mod(&mut lib, staged1, "Test Backup").unwrap();
 
@@ -265,7 +265,7 @@ fn test_mod_backup_on_overwrite() {
     )
     .unwrap();
 
-    let fs2 = ModFS::new(&src2, &rules).unwrap();
+    let fs2 = mod_fs::scan(&src2, &rules).unwrap();
     let staged2 = create_staged_mod_for_test(&src2, fs2);
     mod_manager::add_mod(&mut lib, staged2, "Test Backup").unwrap();
 
@@ -317,7 +317,7 @@ fn test_untracked_file_safety_in_shared_folder() {
         fs::create_dir_all(p.join(file_rel.parent().unwrap())).unwrap();
         fs::write(p.join(&file_rel), "dll content").unwrap();
 
-        let fs = ModFS::new(&p, &rules).unwrap();
+        let fs = mod_fs::scan(&p, &rules).unwrap();
         let mod_id = fs.id.clone();
         let staged = create_staged_mod_for_test(&p, fs);
 
@@ -386,7 +386,7 @@ fn test_persistence_cycle() {
     )
     .unwrap();
 
-    let mod_fs = ModFS::new(&src, &rules).unwrap();
+    let mod_fs = mod_fs::scan(&src, &rules).unwrap();
     let staged = create_staged_mod_for_test(&src, mod_fs);
     mod_manager::add_mod(&mut lib, staged, "Test Backup").unwrap();
 
@@ -829,7 +829,7 @@ fn test_remove_library_with_mods() {
     let mod_src_utf8 = Utf8Path::from_path(&mod_src).unwrap();
     create_test_mod(mod_src_utf8, "TestMod", true);
 
-    let mod_fs = ModFS::new(mod_src_utf8, &SPTPathRules::default()).expect("Failed to parse mod");
+    let mod_fs = mod_fs::scan(mod_src_utf8, &SPTPathRules::default()).expect("Failed to parse mod");
     let mod_id = mod_fs.id.clone();
     let staged = create_staged_mod_for_test(mod_src_utf8, mod_fs);
     mod_manager::add_mod(&mut lib, staged, "Test Backup").expect("Failed to add mod");

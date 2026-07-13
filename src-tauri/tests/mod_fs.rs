@@ -1,9 +1,9 @@
 use camino::Utf8PathBuf;
-use mod_keeper_lib::core::mod_fs::ModFS;
+use mod_keeper_lib::core::mod_fs;
 use mod_keeper_lib::models::error::SError;
 use mod_keeper_lib::models::mod_dto::ModType;
 use mod_keeper_lib::models::paths::SPTPathRules;
-use mod_keeper_lib::utils::file::FileUtils;
+use mod_keeper_lib::utils::file;
 use mod_keeper_lib::utils::id::hash_id;
 use std::fs;
 use tempfile::tempdir;
@@ -19,7 +19,7 @@ fn test_resolve_id_server_only() {
     fs::create_dir_all(server_path.parent().unwrap()).unwrap();
     fs::write(server_path, "").unwrap();
 
-    let mod_fs = ModFS::new(&root, &rules).unwrap();
+    let mod_fs = mod_fs::scan(&root, &rules).unwrap();
 
     // Server ID should be hashed version of "weathermod"
     let expected_id = hash_id("weathermod");
@@ -40,7 +40,7 @@ fn test_resolve_id_client_only() {
     fs::create_dir_all(client_path.parent().unwrap()).unwrap();
     fs::write(client_path, "").unwrap();
 
-    let mod_fs = ModFS::new(&root, &rules).unwrap();
+    let mod_fs = mod_fs::scan(&root, &rules).unwrap();
 
     // Client ID should be hashed version of "authorname/logic.dll" (lowercase)
     let expected_id = hash_id("authorname/logic.dll");
@@ -63,7 +63,7 @@ fn test_resolve_id_combined() {
     fs::write(s_path, "").unwrap();
     fs::write(c_path, "").unwrap();
 
-    let mod_fs = ModFS::new(&root, &rules).unwrap();
+    let mod_fs = mod_fs::scan(&root, &rules).unwrap();
 
     // BTreeSet sorts alphabetically:
     // "CoreMod" vs "Fixes.dll"
@@ -89,7 +89,7 @@ fn test_resolve_id_ignores_non_dll_in_client_plugins() {
     fs::create_dir_all(s_path.parent().unwrap()).unwrap();
     fs::write(s_path, "").unwrap();
 
-    let mod_fs = ModFS::new(&root, &rules).unwrap();
+    let mod_fs = mod_fs::scan(&root, &rules).unwrap();
 
     // ID should be hashed version of "validmod" (lowercase), the readme.txt is ignored
     let expected_id = hash_id("validmod");
@@ -113,7 +113,7 @@ fn test_executables_detection() {
     fs::create_dir_all(&deep_dir).unwrap();
     fs::write(deep_dir.join("nested_tool.exe"), "").unwrap();
 
-    let mod_fs = ModFS::new(&root, &rules).unwrap();
+    let mod_fs = mod_fs::scan(&root, &rules).unwrap();
 
     assert_eq!(mod_fs.executables.len(), 2);
     assert!(
@@ -148,7 +148,7 @@ fn test_copy_recursive_overwrite_and_deep_nesting() {
     fs::write(&old_file, "old content").unwrap();
 
     // 3. Act
-    FileUtils::copy_recursive(&src, &dst).unwrap();
+    file::copy_recursive(&src, &dst).unwrap();
 
     // 4. Assert
     let content = fs::read_to_string(dst.join("a/b/c/d.txt")).unwrap();
@@ -165,7 +165,7 @@ fn test_new_fails_for_invalid_structure() {
     fs::create_dir_all(root.join("RandomFolder")).unwrap();
     fs::write(root.join("RandomFolder/something.dll"), "").unwrap();
 
-    let result = ModFS::new(&root, &rules);
+    let result = mod_fs::scan(&root, &rules);
 
     assert!(result.is_err());
     // Match against your specific error variant
@@ -189,7 +189,7 @@ fn test_deterministic_id_sorting() {
         fs::write(p, "").unwrap();
     }
 
-    let mod_fs = ModFS::new(&root, &rules).unwrap();
+    let mod_fs = mod_fs::scan(&root, &rules).unwrap();
 
     // BTreeSet should have forced: a_modm_modz_mod (lowercase, no divider) -> hashed
     let expected_id = hash_id("a_modm_modz_mod");

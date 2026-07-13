@@ -2,7 +2,7 @@ use crate::config::global::GlobalConfig;
 use crate::core::library::Library;
 use crate::core::mod_stager::StageMaterial;
 use crate::models::error::SError;
-use crate::utils::process::ProcessChecker;
+use crate::utils::process;
 use parking_lot::Mutex;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -20,7 +20,7 @@ pub struct AppRegistry {
 
 impl AppRegistry {
     pub fn is_running<P: AsRef<Path>>(&self, canonical_paths: &[P]) -> bool {
-        ProcessChecker::is_running(&mut self.sys.lock(), canonical_paths)
+        process::is_running(&mut self.sys.lock(), canonical_paths)
     }
 
     pub fn get_canonical_spt_paths(&self) -> Option<Vec<PathBuf>> {

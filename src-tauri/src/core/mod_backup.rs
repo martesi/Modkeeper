@@ -1,11 +1,11 @@
 use camino::{Utf8Path, Utf8PathBuf};
 
 use crate::core::library::Library;
-use crate::core::mod_fs::ModFS;
+use crate::core::mod_fs;
 use crate::models::error::SError;
 use crate::models::mod_backup::{BackupManifest, ModBackup};
 use crate::models::paths::{BackupPathRules, LibPathRules};
-use crate::utils::file::FileUtils;
+use crate::utils::file;
 use crate::utils::time::get_unix_timestamp;
 
 /// Creates a backup of a mod at the current timestamp.
@@ -30,7 +30,7 @@ pub fn create_backup(library: &Library, mod_id: &str, name: &str) -> Result<(), 
         toml::to_string_pretty(&manifest).map_err(|e| SError::ParseError(e.to_string()))?;
     std::fs::write(&backup_rules.manifest, manifest_content)?;
 
-    FileUtils::copy_recursive(&mod_dir, &backup_rules.content)?;
+    file::copy_recursive(&mod_dir, &backup_rules.content)?;
 
     let game_config_path = library
         .game_root
@@ -121,7 +121,7 @@ pub fn restore_backup(
 
     // Restore mod content from backup
     std::fs::create_dir_all(&mod_dir)?;
-    FileUtils::copy_recursive(&backup_rules.content, &mod_dir)?;
+    file::copy_recursive(&backup_rules.content, &mod_dir)?;
 
     // Restore config if requested and exists
     if restore_config {
@@ -135,7 +135,7 @@ pub fn restore_backup(
     }
 
     // Rebuild the ModFS for the restored mod
-    let restored_fs = ModFS::new(&mod_dir, &library.spt_rules)?;
+    let restored_fs = mod_fs::scan(&mod_dir, &library.spt_rules)?;
 
     // Update cache with restored files
     library.cache.add(restored_fs.clone());
