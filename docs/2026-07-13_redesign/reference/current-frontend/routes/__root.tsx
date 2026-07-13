@@ -1,37 +1,16 @@
 import { useState } from 'react'
 import { createRootRoute, Outlet } from '@tanstack/react-router'
-import { useAtomValue } from 'jotai'
-import { RedesignRoot } from '@/redesign/app/redesign-root'
-import { useLegacyUiAtom } from '@/redesign/state/settings-state'
 import { LibraryInit } from '@/modules/root/library-init'
 import { SettingsInit } from '@/modules/root/settings-init'
 import { AppNavigation } from '@/modules/root/app-navigation'
 import { FileDropHandler } from '@/modules/root/file-drop-handler'
 import { HeaderPortalContext } from '@/utils/header-portal-context'
 
-/**
- * Root route adapter (consolidated-spec.md §10 route table + §10a).
- *
- * Renders RedesignRoot by default; the transition-only `useLegacyUi` toggle swaps in the old app's
- * root tree instead. Both trees stay in the bundle until the legacy cleanup pass — the one
- * deliberate exception to "old files are reference only". Original content preserved at
- * docs/2026-07-13_redesign/reference/current-frontend/routes/__root.tsx.
- */
 export const Route = createRootRoute({
   component: RootComponent,
 })
 
 function RootComponent() {
-  const useLegacyUi = useAtomValue(useLegacyUiAtom)
-  if (useLegacyUi) return <LegacyRoot />
-  return (
-    <RedesignRoot>
-      <Outlet />
-    </RedesignRoot>
-  )
-}
-
-function LegacyRoot() {
   const [container, setContainer] = useState<HTMLElement | null>(null)
 
   return (

@@ -1,7 +1,4 @@
 import { createLazyFileRoute } from '@tanstack/react-router'
-import { useAtomValue } from 'jotai'
-import { useLegacyUiAtom } from '@/redesign/state/settings-state'
-import { SettingsScreen } from '@/redesign/settings/settings-screen'
 import { Trans } from '@lingui/react/macro'
 import { HeaderPortal } from '@/components/header-portal'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -11,21 +8,11 @@ import { DeveloperSettings } from '@/modules/settings/developer-settings'
 import { SettingsImportExport } from '@/modules/settings/settings-import-export'
 import { Separator } from '@/components/ui/separator'
 
-/**
- * Settings route adapter (consolidated-spec.md §10 route table + §10a toggle). The redesign branch
- * mounts the Global-stage placeholder until 8.5's full row list. Original content preserved at
- * docs/2026-07-13_redesign/reference/current-frontend/routes/settings.lazy.tsx.
- */
 export const Route = createLazyFileRoute('/settings')({
   component: RouteComponent,
 })
 
 function RouteComponent() {
-  const useLegacyUi = useAtomValue(useLegacyUiAtom)
-  return useLegacyUi ? <LegacySettings /> : <SettingsScreen />
-}
-
-function LegacySettings() {
   return (
     <div className="space-y-6">
       <div>

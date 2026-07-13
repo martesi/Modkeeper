@@ -1,7 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { RouterProvider } from '@tanstack/react-router'
-import { Provider as JotaiProvider } from 'jotai'
+import { Provider as JotaiProvider, getDefaultStore } from 'jotai'
 import { ThemeProvider } from 'next-themes'
 import Router from '@utils/router.ts'
 import './assets/style.css'
@@ -20,7 +20,9 @@ createRoot(document.getElementById('root')!).render(
       storageKey="modkeeper-theme"
       attribute="class"
     >
-      <JotaiProvider>
+      {/* Explicitly the default store: the redesign repository layer writes atoms from outside
+          React via getDefaultStore(), so the React tree must read the same store. */}
+      <JotaiProvider store={getDefaultStore()}>
         <I18nProvider i18n={i18n}>
           <RouterProvider router={Router} />
           <Toaster />

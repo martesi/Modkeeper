@@ -1,7 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { useAtomValue } from 'jotai'
+import { useLegacyUiAtom } from '@/redesign/state/settings-state'
+import { WalkingSkeletonScreen } from '@/redesign/library/walking-skeleton-screen'
 import { ModList } from '@/modules/mod-list/mod-list'
 import { useLibrary } from '@/hooks/use-library'
-import { useAtomValue } from 'jotai'
 import { ALibraryActive } from '@/store/library'
 import { Button } from '@comps/button'
 import { Trans } from '@lingui/react/macro'
@@ -14,7 +16,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@comps/dropdown-menu'
-
 import {
   tArchive,
   tSelectModFiles,
@@ -26,11 +27,21 @@ import { HeaderPortal } from '@/components/header-portal'
 import { ButtonGroup } from '@/components/ui/button-group'
 import { InstanceSwitcher } from '@/modules/mod-list/instance-switcher'
 
+/**
+ * Library index adapter (consolidated-spec.md §10 route table + §10a toggle). The redesign branch
+ * mounts the 8.2 walking skeleton until 8.5's LibraryScreen replaces it. Original content
+ * preserved at docs/2026-07-13_redesign/reference/current-frontend/routes/library.index.tsx.
+ */
 export const Route = createFileRoute('/library/')({
   component: RouteComponent,
 })
 
 function RouteComponent() {
+  const useLegacyUi = useAtomValue(useLegacyUiAtom)
+  return useLegacyUi ? <LegacyLibraryIndex /> : <WalkingSkeletonScreen />
+}
+
+function LegacyLibraryIndex() {
   const library = useAtomValue(ALibraryActive)
   const { add, sync } = useLibrary()
 

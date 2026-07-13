@@ -7,6 +7,16 @@ const meta = {
   title: 'Shared/ConfirmDialog',
   component: ConfirmDialog,
   parameters: { layout: 'centered' },
+  // Each story drives the dialog through a stateful Harness via `render`, so these
+  // are placeholder defaults only — present so the required-prop type is satisfied.
+  args: {
+    open: false,
+    onOpenChange: () => {},
+    title: 'Confirm action',
+    confirmLabel: 'Confirm',
+    cancelLabel: 'Cancel',
+    onConfirm: () => {},
+  },
 } satisfies Meta<typeof ConfirmDialog>
 
 export default meta
@@ -48,37 +58,39 @@ export const Destructive: Story = {
   render: () => <Harness destructive />,
 }
 
+function ExtraContentHarness() {
+  const [open, setOpen] = useState(false)
+  const [deleteFiles, setDeleteFiles] = useState(false)
+  return (
+    <>
+      <FidelityButton variant="destructive" onClick={() => setOpen(true)}>
+        Delete library
+      </FidelityButton>
+      <ConfirmDialog
+        open={open}
+        onOpenChange={setOpen}
+        destructive
+        title="Delete this library?"
+        description="Choose whether the files on disk are also removed."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        onConfirm={() => setOpen(false)}
+      >
+        <label className="flex items-center gap-2.5 rounded-[var(--mk-radius-control)] border border-[var(--mk-outline)] bg-[var(--mk-surface-container)] px-3.5 py-2.5 text-sm text-[var(--mk-text)]">
+          <input
+            type="checkbox"
+            checked={deleteFiles}
+            onChange={(e) => setDeleteFiles(e.target.checked)}
+            className="size-4"
+            style={{ accentColor: 'var(--mk-primary)' }}
+          />
+          Also delete files on disk
+        </label>
+      </ConfirmDialog>
+    </>
+  )
+}
+
 export const WithExtraContent: Story = {
-  render: () => {
-    const [open, setOpen] = useState(false)
-    const [deleteFiles, setDeleteFiles] = useState(false)
-    return (
-      <>
-        <FidelityButton variant="destructive" onClick={() => setOpen(true)}>
-          Delete library
-        </FidelityButton>
-        <ConfirmDialog
-          open={open}
-          onOpenChange={setOpen}
-          destructive
-          title="Delete this library?"
-          description="Choose whether the files on disk are also removed."
-          confirmLabel="Delete"
-          cancelLabel="Cancel"
-          onConfirm={() => setOpen(false)}
-        >
-          <label className="flex items-center gap-2.5 rounded-[var(--mk-radius-control)] border border-[var(--mk-outline)] bg-[var(--mk-surface-container)] px-3.5 py-2.5 text-sm text-[var(--mk-text)]">
-            <input
-              type="checkbox"
-              checked={deleteFiles}
-              onChange={(e) => setDeleteFiles(e.target.checked)}
-              className="size-4"
-              style={{ accentColor: 'var(--mk-primary)' }}
-            />
-            Also delete files on disk
-          </label>
-        </ConfirmDialog>
-      </>
-    )
-  },
+  render: () => <ExtraContentHarness />,
 }
