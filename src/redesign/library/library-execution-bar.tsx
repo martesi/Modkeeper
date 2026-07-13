@@ -1,29 +1,34 @@
 import { useAtomValue } from 'jotai'
-import { RefreshCw } from 'lucide-react'
+import { FolderCog, RefreshCw, Upload } from 'lucide-react'
 import { FidelityPanel } from '../shared/components/fidelity-panel'
 import { FidelityButton } from '../shared/components/fidelity-button'
+import { FidelityIconButton } from '../shared/components/fidelity-icon-button'
 import { activeLibraryAtom, libraryBusyAtom } from '../state/library-state'
 import { syncMods } from '../data/library-repository'
+import { useZipFilePicker } from '../shared/hooks/use-zip-file-picker'
 import { libraryText } from '../i18n/library-text'
 
 /**
- * Library execution bar (consolidated-spec.md §12.3), walking-skeleton slice.
- *
- * Proves the FIRE-AND-TRACK repository shape against a real consumer: Sync calls `syncMods`, which
- * mints a taskId and registers a pending task, flipping "library busy". The button is highlighted
- * while `deployStale` (the explicit-deploy signal, C3) and shows the busy affordance until the
+ * Library execution bar (consolidated-spec.md §12.3): deploy status + the actions that operate on
+ * the library as a whole — import archives, manage libraries, and the explicit Sync step (C3),
+ * highlighted while `deployStale`. Sync is FIRE-AND-TRACK: it flips "library busy" until the
  * matching `sync_completed` event clears the task.
  */
-export function LibraryExecutionBar() {
+export function LibraryExecutionBar({
+  onManageLibraries,
+}: {
+  onManageLibraries: () => void
+}) {
   const activeLibrary = useAtomValue(activeLibraryAtom)
   const libraryBusy = useAtomValue(libraryBusyAtom)
+  const pickAndInstall = useZipFilePicker()
 
   if (!activeLibrary) return null
 
   return (
     <FidelityPanel
       radius="control"
-      className="flex items-center justify-between gap-3 p-3"
+      className="flex flex-wrap items-center justify-between gap-3 p-3"
     >
       <span className="text-sm text-[var(--mk-text-muted)]">
         {libraryBusy
@@ -32,14 +37,32 @@ export function LibraryExecutionBar() {
             ? libraryText.deployStale()
             : libraryText.deployUpToDate()}
       </span>
-      <FidelityButton
-        variant={activeLibrary.deployStale ? 'primary' : 'secondary'}
-        busy={libraryBusy}
-        onClick={() => void syncMods(activeLibrary.id)}
-      >
-        <RefreshCw />
-        {libraryText.sync()}
-      </FidelityButton>
+      <div className="flex items-center gap-2">
+        <FidelityIconButton
+          variant="secondary"
+          aria-label={libraryText.manageLibraries()}
+          title={libraryText.manageLibraries()}
+          onClick={onManageLibraries}
+        >
+          <FolderCog />
+        </FidelityIconButton>
+        <FidelityButton
+          variant="secondary"
+          disabled={libraryBusy}
+          onClick={() => void pickAndInstall()}
+        >
+          <Upload />
+          {libraryText.addMods()}
+        </FidelityButton>
+        <FidelityButton
+          variant={activeLibrary.deployStale ? 'primary' : 'secondary'}
+          busy={libraryBusy}
+          onClick={() => void syncMods(activeLibrary.id)}
+        >
+          <RefreshCw />
+          {libraryText.sync()}
+        </FidelityButton>
+      </div>
     </FidelityPanel>
   )
 }

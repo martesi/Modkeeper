@@ -13,6 +13,11 @@ export const commonText = {
   libraryBusy: () =>
     t({ id: 'common.status.libraryBusy', message: 'Library busy' }),
   somethingWentWrong: () =>
-    t({ id: 'common.status.somethingWentWrong', message: 'Something went wrong' }),
+    t({
+      id: 'common.status.somethingWentWrong',
+      message: 'Something went wrong',
+    }),
   reload: () => t({ id: 'common.action.reload', message: 'Reload' }),
+  cancel: () => t({ id: 'common.action.cancel', message: 'Cancel' }),
+  close: () => t({ id: 'common.action.close', message: 'Close' }),
 }

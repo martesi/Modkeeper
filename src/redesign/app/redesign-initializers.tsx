@@ -11,6 +11,7 @@ import {
   loadLibraryWorkspace,
 } from '../data/library-repository'
 import { applyAccent, applyLanguage } from '../data/settings-repository'
+import { useWindowDropZone } from '../shared/hooks/use-window-drop-zone'
 import { setWorkspace } from '../state/library-state'
 import { settingsAtom } from '../state/settings-state'
 import { libraryText } from '../i18n/library-text'
@@ -29,6 +30,9 @@ import type { WorkspaceEvent } from '../data/redesign-types'
  * load and later saves alike — into visible effect. One write path, one apply path.
  */
 export function RedesignInitializers() {
+  // The global `.zip`-only window drop zone (§12) — active whenever a library is active.
+  useWindowDropZone()
+
   useEffect(() => {
     const unsubscribe = listenWorkspaceEvent(handleWorkspaceEvent)
     void initWorkspaceEventBus()

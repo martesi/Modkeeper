@@ -265,8 +265,11 @@ export async function deleteLibrary(input: {
     'deleteLibrary',
     () => commands.deleteLibrary(input),
     (workspace) => {
-      workspace.libraries = workspace.libraries.filter(
-        (lib) => !isLibrarySummary(lib) || lib.id !== input.libraryId,
+      // A path-only stub has no id, so its registered path doubles as the removal handle (C13).
+      workspace.libraries = workspace.libraries.filter((lib) =>
+        isLibrarySummary(lib)
+          ? lib.id !== input.libraryId
+          : lib.path !== input.libraryId,
       )
       delete workspace.modsByLibraryId[input.libraryId]
       delete workspace.toolsByLibraryId[input.libraryId]

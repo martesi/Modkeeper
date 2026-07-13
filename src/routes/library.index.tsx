@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useAtomValue } from 'jotai'
 import { useLegacyUiAtom } from '@/redesign/state/settings-state'
-import { WalkingSkeletonScreen } from '@/redesign/library/walking-skeleton-screen'
+import { LibraryScreen } from '@/redesign/library/library-screen'
 import { ModList } from '@/modules/mod-list/mod-list'
 import { useLibrary } from '@/hooks/use-library'
 import { ALibraryActive } from '@/store/library'
@@ -28,8 +28,7 @@ import { ButtonGroup } from '@/components/ui/button-group'
 import { InstanceSwitcher } from '@/modules/mod-list/instance-switcher'
 
 /**
- * Library index adapter (consolidated-spec.md §10 route table + §10a toggle). The redesign branch
- * mounts the 8.2 walking skeleton until 8.5's LibraryScreen replaces it. Original content
+ * Library index adapter (consolidated-spec.md §10 route table + §10a toggle). Original content
  * preserved at docs/2026-07-13_redesign/reference/current-frontend/routes/library.index.tsx.
  */
 export const Route = createFileRoute('/library/')({
@@ -38,7 +37,7 @@ export const Route = createFileRoute('/library/')({
 
 function RouteComponent() {
   const useLegacyUi = useAtomValue(useLegacyUiAtom)
-  return useLegacyUi ? <LegacyLibraryIndex /> : <WalkingSkeletonScreen />
+  return useLegacyUi ? <LegacyLibraryIndex /> : <LibraryScreen />
 }
 
 function LegacyLibraryIndex() {

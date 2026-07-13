@@ -1,24 +1,29 @@
 import { useState } from 'react'
-import { useAtomValue } from 'jotai'
+import { useAtom, useAtomValue } from 'jotai'
 import { cn } from '@/lib/utils'
 import { FidelityPanel } from '../shared/components/fidelity-panel'
+import { FidelityCheckbox } from '../shared/components/fidelity-checkbox'
+import { FidelitySwitch } from '../shared/components/fidelity-switch'
 import { ModCategoryIcon } from './mod-category-icon'
-import { libraryBusyAtom } from '../state/library-state'
+import { libraryBusyAtom, selectedModIdsAtom } from '../state/library-state'
 import { toggleModStatus } from '../data/library-repository'
 import { libraryText } from '../i18n/library-text'
 import type { ModSummary } from '../data/redesign-types'
 
 /**
- * Title-only mod card (consolidated-spec.md §12.3), walking-skeleton slice.
+ * Title-only mod card (consolidated-spec.md §12.3): left selection checkbox, ModType-tinted
+ * category icon, truncated title, right enable/disable switch. Stable dimensions in every state.
  *
- * Proves the PLAIN repository shape against a real consumer: the toggle calls `toggleModStatus`
- * (awaited) with LOCAL per-click pending — set on click, cleared when the promise settles — so it
- * gives instant feedback even queued behind a heavy op. The card is also disabled while the library
- * is busy (a fire-and-track op in flight), the consumer side of the "library busy" contract.
+ * The toggle is the PLAIN repository shape with LOCAL per-click pending — set on click, cleared
+ * when the promise settles — so it gives instant feedback even queued behind a heavy op. The card
+ * is also disabled while the library is busy (a fire-and-track op in flight), the consumer side of
+ * the "library busy" contract. Toggling never deploys — it sets `deployStale` (C3).
  */
 export function ModTitleCard({ mod }: { mod: ModSummary }) {
   const [pending, setPending] = useState(false)
   const libraryBusy = useAtomValue(libraryBusyAtom)
+  const [selectedIds, setSelectedIds] = useAtom(selectedModIdsAtom)
+  const selected = selectedIds.has(mod.id)
   const disabled = pending || libraryBusy
 
   async function handleToggle() {
@@ -34,65 +39,42 @@ export function ModTitleCard({ mod }: { mod: ModSummary }) {
     }
   }
 
+  function handleSelect(checked: boolean) {
+    const next = new Set(selectedIds)
+    if (checked) next.add(mod.id)
+    else next.delete(mod.id)
+    setSelectedIds(next)
+  }
+
   return (
     <FidelityPanel
       radius="control"
       className={cn(
-        'flex items-center gap-3 p-3 transition-opacity',
+        'flex h-14 items-center gap-3 px-3 transition-opacity',
         mod.isEnabled
           ? 'border-[var(--mk-primary)] bg-[var(--mk-state-hover)]'
-          : 'opacity-70'
+          : 'opacity-70',
       )}
     >
+      <FidelityCheckbox
+        checked={selected}
+        onCheckedChange={handleSelect}
+        aria-label={libraryText.selectMod(mod.name)}
+      />
       <ModCategoryIcon type={mod.type} />
-      <span className="min-w-0 flex-1 truncate text-sm font-medium" title={mod.name}>
+      <span
+        className="min-w-0 flex-1 truncate text-sm font-medium"
+        title={mod.name}
+      >
         {mod.name}
       </span>
-      <ModToggle
+      <FidelitySwitch
         checked={mod.isEnabled}
         disabled={disabled}
-        pending={pending}
-        label={mod.name}
-        onToggle={handleToggle}
+        busy={pending}
+        aria-label={libraryText.enableMod(mod.name)}
+        onCheckedChange={() => void handleToggle()}
       />
     </FidelityPanel>
-  )
-}
-
-function ModToggle({
-  checked,
-  disabled,
-  pending,
-  label,
-  onToggle,
-}: {
-  checked: boolean
-  disabled: boolean
-  pending: boolean
-  label: string
-  onToggle: () => void
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={libraryText.enableMod(label)}
-      aria-busy={pending || undefined}
-      disabled={disabled}
-      onClick={onToggle}
-      className={cn(
-        'mk-focus-ring relative h-6 w-11 shrink-0 rounded-full transition-colors',
-        'disabled:cursor-not-allowed disabled:opacity-50',
-        checked ? 'bg-[var(--mk-primary)]' : 'bg-[var(--mk-outline)]'
-      )}
-    >
-      <span
-        className={cn(
-          'absolute top-0.5 size-5 rounded-full bg-white shadow-sm transition-transform',
-          checked ? 'translate-x-[1.375rem]' : 'translate-x-0.5'
-        )}
-      />
-    </button>
   )
 }
