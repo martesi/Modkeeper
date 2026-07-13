@@ -1,9 +1,7 @@
 use crate::core::global_service;
 use crate::core::library::Library;
 use crate::core::registry::AppRegistry;
-use crate::core::{
-    dto_builder, library_service, mod_backup, mod_documentation, mod_manager, mod_stager,
-};
+use crate::core::{library_service, mod_backup, mod_manager, mod_stager};
 use crate::models::error::SError;
 use crate::models::global::LibrarySwitch;
 use crate::models::library::LibraryDTO;
@@ -54,7 +52,7 @@ pub async fn add_mods(
                     mod_manager::add_mod(inst, staged, &backup_name)
                         .and_then(|_| mod_stager::clean_up(is_staging, &source_path))
                 })
-                .map(|_| dto_builder::build_frontend_dto(inst))
+                .map(|_| inst.to_dto())
         })
     })
     .await
@@ -76,7 +74,7 @@ pub async fn remove_mods(
                     debug!("Removing mod {}", mod_id);
                     mod_manager::remove_mod(inst, mod_id)
                 })
-                .map(|_| dto_builder::build_frontend_dto(inst))
+                .map(|_| inst.to_dto())
         })
         // Iterate and remove each mod, exiting immediately on the first error
     })
@@ -94,7 +92,7 @@ pub async fn sync_mods(state: State<'_, AppRegistry>) -> Result<LibraryDTO, SErr
     let instance_handle = state.active_instance.clone();
     tauri::async_runtime::spawn_blocking(move || {
         with_lib_arc_mut(instance_handle, |inst| {
-            inst.sync().map(|_| dto_builder::build_frontend_dto(inst))
+            inst.sync().map(|_| inst.to_dto())
         })
     })
     .await
@@ -107,7 +105,7 @@ pub async fn get_library(state: State<'_, AppRegistry>) -> Result<LibraryDTO, SE
     let instance_handle = state.active_instance.clone();
     tauri::async_runtime::spawn_blocking(move || {
         with_lib_arc(instance_handle, |inst| {
-            dto_builder::build_frontend_dto(inst)
+            inst.to_dto()
         })
     })
     .await
@@ -125,7 +123,7 @@ pub async fn toggle_mod(
     tauri::async_runtime::spawn_blocking(move || {
         with_lib_arc_mut(instance_handle, |inst| {
             mod_manager::toggle_mod(inst, &id, is_active)
-                .map(|_| dto_builder::build_frontend_dto(inst))
+                .map(|_| inst.to_dto())
         })
     })
     .await
@@ -164,7 +162,7 @@ pub async fn restore_backup(
     tauri::async_runtime::spawn_blocking(move || {
         with_lib_arc_mut(instance_handle, |inst| {
             mod_backup::restore_backup(inst, &mod_id, &timestamp, restore_config)
-                .map(|_| dto_builder::build_frontend_dto(inst))
+                .map(|_| inst.to_dto())
         })
     })
     .await
@@ -206,22 +204,6 @@ pub async fn remove_backup(
     })
     .await
     .map_err(|e| SError::AsyncRuntimeError(e.to_string()))?
-}
-
-#[tauri::command]
-#[specta::specta]
-pub async fn get_mod_documentation(
-    state: State<'_, AppRegistry>,
-    mod_id: String,
-) -> Result<Option<String>, SError> {
-    let instance_handle = state.active_instance.clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        with_lib_arc(instance_handle, |inst| {
-            mod_documentation::read_documentation(inst, &mod_id)
-        })
-    })
-    .await
-    .map_err(|e| SError::AsyncRuntimeError(e.to_string()))??
 }
 
 #[tauri::command]

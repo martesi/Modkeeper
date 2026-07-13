@@ -138,7 +138,7 @@ pub fn restore_backup(
     let restored_fs = ModFS::new(&mod_dir, &library.spt_rules)?;
 
     // Update cache with restored files
-    library.cache.add(&mod_dir, restored_fs.clone());
+    library.cache.add(restored_fs.clone());
 
     // Update mod metadata if needed
     if let Some(mod_entry) = library.mods.get_mut(mod_id) {

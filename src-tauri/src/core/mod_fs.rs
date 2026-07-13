@@ -1,6 +1,6 @@
 use crate::models::error::SError;
-use crate::models::mod_dto::{ModManifest, ModType};
-use crate::models::paths::{ModPaths, SPTPathRules};
+use crate::models::mod_dto::ModType;
+use crate::models::paths::SPTPathRules;
 use crate::utils::id::hash_id;
 use camino::{Utf8Path, Utf8PathBuf};
 use serde::{Deserialize, Serialize};
@@ -17,26 +17,8 @@ pub struct ModFS {
 }
 
 impl ModFS {
-    fn read_manifest_guid(manifest_path: &Utf8Path) -> Result<String, SError> {
-        Ok(Self::read_manifest(manifest_path)?.id)
-    }
-
-    pub fn read_manifest(path: &Utf8Path) -> Result<ModManifest, SError> {
-        Ok(serde_json::from_reader(std::fs::File::open(path)?)?)
-    }
-
-    pub fn resolve_id(
-        mod_root: &Utf8Path,
-        spt_paths: &SPTPathRules,
-        files: &[Utf8PathBuf],
-    ) -> Result<String, SError> {
-        // 1. Priority 1: Manifest check
-        let mod_paths = ModPaths::new(mod_root);
-        if let Ok(guid) = Self::read_manifest_guid(&mod_paths.file) {
-            return Ok(guid);
-        }
-
-        // 2. Single-pass collection using BTreeSet for automatic sorting
+    pub fn resolve_id(spt_paths: &SPTPathRules, files: &[Utf8PathBuf]) -> Result<String, SError> {
+        // 1. Single-pass collection using BTreeSet for automatic sorting
         let ids: std::collections::BTreeSet<String> = files
             .iter()
             .filter_map(|path| {
@@ -61,7 +43,7 @@ impl ModFS {
             return Err(SError::UnableToDetermineModId);
         }
 
-        // 3. Concatenate sorted IDs and hash the result
+        // 2. Concatenate sorted IDs and hash the result
         let concatenated = ids.into_iter().collect::<Vec<_>>().join("").to_lowercase();
         Ok(hash_id(&concatenated))
     }
@@ -79,8 +61,6 @@ impl ModFS {
     }
 
     fn collect_files(base: &Utf8Path) -> (Vec<Utf8PathBuf>, Vec<Utf8PathBuf>) {
-        let manifest_folder = ModPaths::default().folder;
-
         WalkDir::new(base)
             .into_iter()
             // 1. Convert Result<DirEntry> to Option<DirEntry>
@@ -93,9 +73,7 @@ impl ModFS {
                     .ok()
                     .and_then(|path| path.strip_prefix(base).ok().map(|p| p.to_path_buf()))
             })
-            // 4. Remove manifest files
-            .filter(|rel| !rel.starts_with(&manifest_folder))
-            // 5. Fold into a tuple of (AllFiles, Executables)
+            // 4. Fold into a tuple of (AllFiles, Executables)
             .fold((Vec::new(), Vec::new()), |(mut all, mut exes), path| {
                 // Use Option::filter to handle the conditional push without an "if"
                 path.extension()
@@ -111,7 +89,7 @@ impl ModFS {
         let (files, executables) = Self::collect_files(root); // Call once
 
         Ok(ModFS {
-            id: Self::resolve_id(root, &spt_paths, &files)?,
+            id: Self::resolve_id(&spt_paths, &files)?,
             mod_type: Self::infer_mod_type(&files, &spt_paths),
             files, // Use the same vector
             executables,

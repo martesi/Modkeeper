@@ -1,6 +1,5 @@
 use crate::config::global::GlobalConfig;
 use crate::core::cache::{LibraryCache, normalize_mod_folders};
-use crate::core::dto_builder;
 use crate::core::library::Library;
 use crate::models::error::SError;
 use crate::models::global::LibrarySwitch;
@@ -158,11 +157,11 @@ pub fn get_active_library_manifest(config: &GlobalConfig) -> Option<LibraryDTO> 
 }
 
 /// Converts the global configuration state into a LibrarySwitch DTO.
-/// When active_library is provided, uses build_frontend_dto to enrich the active library DTO
-/// with manifest and icon data. Otherwise falls back to reading from manifest file.
+/// When active_library is provided, uses its in-memory state directly.
+/// Otherwise falls back to reading from the library manifest file.
 pub fn to_library_switch(config: &GlobalConfig, active_library: Option<&Library>) -> LibrarySwitch {
     let active = active_library
-        .map(|lib| dto_builder::build_frontend_dto(lib))
+        .map(|lib| lib.to_dto())
         .or_else(|| get_active_library_manifest(config));
 
     LibrarySwitch {
@@ -185,10 +184,13 @@ pub fn rebuild_library_cache(library: &mut Library) -> Result<(), SError> {
     // 1. Normalize folder names to match resolved IDs
     let result = normalize_mod_folders(&library.lib_paths.mods, &library.spt_rules, &library.mods)?;
 
-    // 2. Clean up orphaned data for renamed mods
+    // 2. Clean up orphaned data for renamed mods, keeping display names for step 4
+    let mut old_names = std::collections::BTreeMap::new();
     for renamed in &result.renamed {
-        // Remove old mod entry
-        library.mods.remove(&renamed.old_name);
+        // Remove old mod entry, remembering its display name
+        if let Some(old) = library.mods.remove(&renamed.old_name) {
+            old_names.insert(renamed.new_name.clone(), old.name);
+        }
         // Remove old backups
         mod_backup::remove_all_backups(&library.lib_paths, &renamed.old_name)?;
     }
@@ -199,12 +201,10 @@ pub fn rebuild_library_cache(library: &mut Library) -> Result<(), SError> {
     // 4. Create new mod entries for renamed mods and restore enabled state
     for renamed in &result.renamed {
         if let Some(cached_fs) = library.cache.mods.get(&renamed.new_name) {
-            // Get display name from manifest or use folder name
-            let name = library
-                .cache
-                .manifests
+            // Keep the previous display name or fall back to the folder name
+            let name = old_names
                 .get(&renamed.new_name)
-                .map(|m| m.name.clone())
+                .cloned()
                 .unwrap_or_else(|| renamed.new_name.clone());
 
             library.mods.insert(
@@ -214,8 +214,6 @@ pub fn rebuild_library_cache(library: &mut Library) -> Result<(), SError> {
                     is_active: renamed.was_active,
                     mod_type: cached_fs.mod_type.clone(),
                     name,
-                    manifest: None, // Will be filled by dto_builder
-                    icon_data: None,
                 },
             );
         }

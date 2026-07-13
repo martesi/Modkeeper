@@ -1,7 +1,7 @@
 use crate::core::decompression;
 use crate::core::mod_fs::ModFS;
 use crate::models::error::SError;
-use crate::models::paths::{ModPaths, SPTPathRules};
+use crate::models::paths::SPTPathRules;
 use crate::utils::file::FileUtils;
 use crate::utils::process::ProcessChecker;
 use camino::{Utf8Path, Utf8PathBuf};
@@ -90,9 +90,8 @@ fn process_as_directory(
         Ok(true) => {
             // It IS a game structure, so it MUST be a valid mod. Fail if ModFS::new fails.
             Some(ModFS::new(input, rules).map(|fs| {
-                // Determine name: manifest name (highest priority) or directory name
-                let name = read_manifest_name(input)
-                    .unwrap_or_else(|| input.file_name().unwrap_or(unknown_mod_name).to_string());
+                // Determine name: directory name
+                let name = input.file_name().unwrap_or(unknown_mod_name).to_string();
                 StagedMod {
                     fs,
                     source_path: input.clone(),
@@ -105,9 +104,8 @@ fn process_as_directory(
             // Sub-strategy A2: Folder is a standard mod folder.
             // We try ModFS::new. If it succeeds, Good. If it fails, we treat it as "Not a mod" (None).
             ModFS::new(input, rules).ok().map(|fs| {
-                // Determine name: manifest name (highest priority) or directory name
-                let name = read_manifest_name(input)
-                    .unwrap_or_else(|| input.file_name().unwrap_or(unknown_mod_name).to_string());
+                // Determine name: directory name
+                let name = input.file_name().unwrap_or(unknown_mod_name).to_string();
                 Ok(StagedMod {
                     fs,
                     source_path: input.clone(),
@@ -131,14 +129,6 @@ fn process_as_archive(
 }
 
 // --- Internal Helpers ---
-
-/// Reads the manifest name if a manifest exists at the mod root, otherwise returns None.
-fn read_manifest_name(mod_root: &Utf8Path) -> Option<String> {
-    let mod_paths = ModPaths::new(mod_root);
-    ModFS::read_manifest(&mod_paths.file)
-        .ok()
-        .map(|manifest| manifest.name)
-}
 
 fn is_game_root_structure(inputs: &[Utf8PathBuf], rules: &SPTPathRules) -> bool {
     let roots = [
@@ -187,8 +177,8 @@ fn stage_loose_files(
 
     let fs = ModFS::new(&dest_dir, rules)?;
 
-    // Determine name: manifest name (highest priority) or translated "Unknown mod" for loose files
-    let name = read_manifest_name(&dest_dir).unwrap_or_else(|| unknown_mod_name.to_string());
+    // Determine name: translated "Unknown mod" for loose files
+    let name = unknown_mod_name.to_string();
 
     Ok(StagedMod {
         fs,
@@ -212,9 +202,8 @@ fn stage_archive(
 
     let fs = ModFS::new(&dest_dir, rules)?;
 
-    // Determine name: manifest name (highest priority) or archive name without extension
-    let name = read_manifest_name(&dest_dir)
-        .unwrap_or_else(|| archive.file_stem().unwrap_or(unknown_mod_name).to_string());
+    // Determine name: archive name without extension
+    let name = archive.file_stem().unwrap_or(unknown_mod_name).to_string();
 
     Ok(StagedMod {
         fs,

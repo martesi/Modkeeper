@@ -1,5 +1,5 @@
 use camino::Utf8Path;
-use mod_keeper_lib::models::paths::{ModPaths, SPTPathRules};
+use mod_keeper_lib::models::paths::SPTPathRules;
 use std::fs;
 use tempfile::TempDir;
 
@@ -48,13 +48,4 @@ pub fn create_test_mod(path: &Utf8Path, name: &str, is_server: bool) {
 
     fs::create_dir_all(&mod_dir).unwrap();
     fs::write(mod_dir.join("content.txt"), name).unwrap();
-
-    // Optional: Add a manifest
-    let manifest_dir = path.join(ModPaths::default().folder);
-    fs::create_dir_all(&manifest_dir).unwrap();
-    let manifest_json = format!(
-        r#"{{"id": "{}", "name": "{}", "version": "1.0.0", "author": "test", "sptVersion": "3.9.0"}}"#,
-        name, name
-    );
-    fs::write(manifest_dir.join("manifest.json"), manifest_json).unwrap();
 }

@@ -6,19 +6,17 @@ use mod_keeper_lib::config::global::GlobalConfig;
 use mod_keeper_lib::core::library::Library;
 use mod_keeper_lib::core::mod_fs::ModFS;
 use mod_keeper_lib::core::mod_stager::StagedMod;
-use mod_keeper_lib::core::{dto_builder, global_service, library_service, mod_manager};
+use mod_keeper_lib::core::{global_service, library_service, mod_manager};
 use mod_keeper_lib::models::error::SError;
 use mod_keeper_lib::models::library::LibraryCreationRequirement;
-use mod_keeper_lib::models::paths::{ModPaths, SPTPathRules};
+use mod_keeper_lib::models::paths::SPTPathRules;
+use mod_keeper_lib::utils::id::hash_id;
 use std::fs;
 
 // Helper function to create a StagedMod from a path and ModFS for testing
 fn create_staged_mod_for_test(mod_root: &Utf8Path, fs: ModFS) -> StagedMod {
-    // Try to read manifest name, otherwise use directory name or mod_id
-    let name = ModFS::read_manifest(&ModPaths::new(mod_root).file)
-        .ok()
-        .map(|m| m.name)
-        .unwrap_or_else(|| mod_root.file_name().unwrap_or(&fs.id).to_string());
+    // Use directory name or mod_id as the display name
+    let name = mod_root.file_name().unwrap_or(&fs.id).to_string();
     StagedMod {
         fs,
         source_path: mod_root.to_path_buf(),
@@ -50,10 +48,11 @@ fn test_library_init_and_add_mod() {
     let staged = create_staged_mod_for_test(mod_src_utf8, mod_fs);
     mod_manager::add_mod(&mut lib, staged, "Test Backup").expect("Failed to add mod");
 
-    // 4. Verify persistence
-    assert!(lib.mods.contains_key("MyMod"));
-    assert!(lib.lib_paths.mods.join("MyMod").exists());
-    assert!(lib.cache.mods.contains_key("MyMod"));
+    // 4. Verify persistence (id is the hash of the server mod folder name)
+    let mod_id = hash_id("mymod");
+    assert!(lib.mods.contains_key(&mod_id));
+    assert!(lib.lib_paths.mods.join(&mod_id).exists());
+    assert!(lib.cache.mods.contains_key(&mod_id));
 }
 
 #[test]
@@ -67,29 +66,26 @@ fn test_collision_detection() {
     let mut lib = Library::create(requirement).unwrap();
     let rules = SPTPathRules::default();
 
-    // Helper to create a mod with a specific ID (via manifest) but containing a specific file
-    let mut add_named_mod = |mod_id: &str, colliding_file: &str| {
-        let p = repo_root.join(format!("src_{}", mod_id));
+    // Helper to create a mod with a unique server folder (distinct ID) plus a colliding file
+    let mut add_named_mod = |mod_name: &str, colliding_file: &str| {
+        let p = repo_root.join(format!("src_{}", mod_name));
 
-        // 1. Create Manifest to force a unique Mod ID
-        let manifest_dir = p.join("manifest");
-        fs::create_dir_all(&manifest_dir).unwrap();
-        let manifest_json = format!(
-            r#"{{"id": "{}", "name": "{}", "version": "1.0", "author": "test", "sptVersion": "3.9.0"}}"#,
-            mod_id, mod_id
-        );
-        fs::write(manifest_dir.join("manifest.json"), manifest_json).unwrap();
+        // 1. Create a unique server folder so the two mods hash to different IDs
+        let server_file = p.join(&rules.server_mods).join(mod_name).join("mod.js");
+        fs::create_dir_all(server_file.parent().unwrap()).unwrap();
+        fs::write(server_file, "// mod").unwrap();
 
         // 2. Create the colliding file
-        let file_path = p.join(&colliding_file);
+        let file_path = p.join(colliding_file);
         fs::create_dir_all(file_path.parent().unwrap()).unwrap();
         fs::write(file_path, "some content").unwrap();
 
         // 3. Add to library and activate
         let fs = ModFS::new(&p, &rules).expect("Failed to parse mod");
+        let mod_id = fs.id.clone();
         let staged = create_staged_mod_for_test(&p, fs);
         mod_manager::add_mod(&mut lib, staged, "Test Backup").expect("Failed to add mod");
-        lib.mods.get_mut(mod_id).unwrap().is_active = true;
+        lib.mods.get_mut(&mod_id).unwrap().is_active = true;
     };
 
     // These two mods have different IDs but both provide "BepInEx/plugins/conflict.dll"
@@ -128,30 +124,26 @@ fn test_recursive_linking_logic() {
     let mut lib = Library::create(requirement).unwrap();
     let rules = SPTPathRules::default();
 
-    let setup_mod = |lib: &mut Library, mod_id: &str, file_name: &str| {
-        let p = repo_root.join(mod_id);
+    let setup_mod = |lib: &mut Library, mod_name: &str, file_name: &str| {
+        let p = repo_root.join(mod_name);
 
-        // 1. Force the ID using a manifest
-        let manifest_dir = p.join("manifest");
-        fs::create_dir_all(&manifest_dir).unwrap();
-        let manifest_json = format!(
-            r#"{{"id": "{}", "name": "{}", "version": "1", "author": "t", "sptVersion": "3.9.0"}}"#,
-            mod_id, mod_id
-        );
-        fs::write(manifest_dir.join("manifest.json"), manifest_json).unwrap();
+        // 1. Create a unique client dll so the two mods hash to different IDs
+        let dll_path = p.join(&rules.client_plugins).join(format!("{mod_name}.dll"));
+        fs::create_dir_all(dll_path.parent().unwrap()).unwrap();
+        fs::write(dll_path, "").unwrap();
 
         // 2. Create the overlapping directory structure
         let file_path = p.join(&rules.server_mods).join("CommonDir").join(file_name);
         fs::create_dir_all(file_path.parent().unwrap()).unwrap();
         fs::write(file_path, "data").unwrap();
 
-        // 3. New ModFS will now resolve ID to mod_id ("ModA" or "ModB")
+        // 3. Add and activate using the resolved hash ID
         let fs = ModFS::new(&p, &rules).unwrap();
+        let mod_id = fs.id.clone();
         let staged = create_staged_mod_for_test(&p, fs);
         mod_manager::add_mod(lib, staged, "Test Backup").unwrap();
 
-        // 4. This will no longer panic
-        lib.mods.get_mut(mod_id).unwrap().is_active = true;
+        lib.mods.get_mut(&mod_id).unwrap().is_active = true;
     };
 
     setup_mod(&mut lib, "ModA", "A.txt");
@@ -180,9 +172,10 @@ fn test_purge_removes_deactivated_mods() {
     // 1. Add and activate mod
     create_test_mod(&repo_root.join("src"), "DeleteMe", true);
     let fs = ModFS::new(&repo_root.join("src"), &rules).unwrap();
+    let mod_id = fs.id.clone();
     let staged = create_staged_mod_for_test(&repo_root.join("src"), fs);
     mod_manager::add_mod(&mut lib, staged, "Test Backup").unwrap();
-    lib.mods.get_mut("DeleteMe").unwrap().is_active = true;
+    lib.mods.get_mut(&mod_id).unwrap().is_active = true;
 
     // Sync
     lib.sync().unwrap();
@@ -191,16 +184,16 @@ fn test_purge_removes_deactivated_mods() {
     assert!(target_path.exists());
 
     // 2. Deactivate and sync
-    lib.mods.get_mut("DeleteMe").unwrap().is_active = false;
+    lib.mods.get_mut(&mod_id).unwrap().is_active = false;
     lib.sync().unwrap();
 
     // 3. Verify it's gone from game but exists in repo
     assert!(!target_path.exists());
-    assert!(lib.lib_paths.mods.join("DeleteMe").exists());
+    assert!(lib.lib_paths.mods.join(&mod_id).exists());
 }
 
 #[test]
-fn test_to_frontend_dto_enrichment() {
+fn test_to_dto_uses_hash_id() {
     let (_tmp, game_root, repo_root) = setup_test_env();
     let requirement = LibraryCreationRequirement {
         repo_root: Some(repo_root.clone()),
@@ -209,23 +202,10 @@ fn test_to_frontend_dto_enrichment() {
     };
     let mut lib = Library::create(requirement).expect("Failed to create library");
 
-    // 1. Prepare a mod with a real manifest file on disk
+    // 1. Prepare a mod on disk
     let mod_src = _tmp.path().join("source_mod");
     let mod_src_utf8 = Utf8Path::from_path(&mod_src).unwrap();
 
-    let manifest_path = mod_src_utf8.join("manifest/manifest.json");
-    std::fs::create_dir_all(manifest_path.parent().unwrap()).unwrap();
-
-    let manifest_data = r#"{
-        "id": "test-mod-id",
-        "name": "Test Mod Name",
-        "version": "1.0.0",
-        "author": "someone",
-        "sptVersion": "3.9.0"
-    }"#;
-    std::fs::write(&manifest_path, manifest_data).unwrap();
-
-    // 2. Mock some files inside the mod so ModFS::new works
     let rules = SPTPathRules::default();
     let dummy_dll = mod_src_utf8
         .join(&rules.server_mods)
@@ -233,18 +213,17 @@ fn test_to_frontend_dto_enrichment() {
     std::fs::create_dir_all(dummy_dll.parent().unwrap()).unwrap();
     std::fs::write(dummy_dll, "").unwrap();
 
-    // 3. Add mod to library
+    // 2. Add mod to library
     let fs = ModFS::new(mod_src_utf8, &rules).unwrap();
     let staged = create_staged_mod_for_test(mod_src_utf8, fs);
     mod_manager::add_mod(&mut lib, staged, "Test Backup").expect("Add mod failed");
 
-    // 4. Check Frontend DTO
-    let dto = dto_builder::build_frontend_dto(&lib);
-    let m = dto.mods.get("test-mod-id").expect("Mod not found in DTO");
-
-    // Assert the manifest was successfully pulled from cache into the DTO
-    assert!(m.manifest.is_some());
-    assert_eq!(m.manifest.as_ref().unwrap().name, "Test Mod Name");
+    // 3. Check Frontend DTO: mod is keyed by the hash ID, name from the source directory
+    let dto = lib.to_dto();
+    let mod_id = hash_id("testmod");
+    let m = dto.mods.get(&mod_id).expect("Mod not found in DTO");
+    assert_eq!(m.id, mod_id);
+    assert_eq!(m.name, "source_mod");
 }
 
 #[test]
@@ -258,23 +237,16 @@ fn test_mod_backup_on_overwrite() {
     let mut lib = Library::create(requirement).unwrap();
     let rules = SPTPathRules::default();
 
-    let mod_id = "BackupTest";
+    // Both versions share the same server folder name, so they hash to the same ID
+    let folder_name = "BackupTest";
+    let mod_id = hash_id("backuptest");
     let src = repo_root.join("src_v1");
-    fs::create_dir_all(src.join(&rules.server_mods).join(mod_id)).unwrap();
+    fs::create_dir_all(src.join(&rules.server_mods).join(folder_name)).unwrap();
     fs::write(
-        src.join(&rules.server_mods).join(mod_id).join("v1.txt"),
+        src.join(&rules.server_mods).join(folder_name).join("v1.txt"),
         "v1",
     )
     .unwrap();
-
-    // Create Manifest for src
-    let manifest_dir = src.join("manifest");
-    fs::create_dir_all(&manifest_dir).unwrap();
-    let manifest_json = format!(
-        r#"{{"id": "{}", "name": "Backup Test Mod", "version": "1.0", "author": "test", "sptVersion": "3.9.0"}}"#,
-        mod_id
-    );
-    fs::write(manifest_dir.join("manifest.json"), &manifest_json).unwrap();
 
     // 1. Initial Add
     let fs1 = ModFS::new(&src, &rules).unwrap();
@@ -286,24 +258,19 @@ fn test_mod_backup_on_overwrite() {
 
     // 2. Overwrite Add
     let src2 = repo_root.join("src_v2");
-    fs::create_dir_all(src2.join(&rules.server_mods).join(mod_id)).unwrap();
+    fs::create_dir_all(src2.join(&rules.server_mods).join(folder_name)).unwrap();
     fs::write(
-        src2.join(&rules.server_mods).join(mod_id).join("v2.txt"),
+        src2.join(&rules.server_mods).join(folder_name).join("v2.txt"),
         "v2",
     )
     .unwrap();
-
-    // Create Manifest for src2
-    let manifest_dir2 = src2.join("manifest");
-    fs::create_dir_all(&manifest_dir2).unwrap();
-    fs::write(manifest_dir2.join("manifest.json"), &manifest_json).unwrap();
 
     let fs2 = ModFS::new(&src2, &rules).unwrap();
     let staged2 = create_staged_mod_for_test(&src2, fs2);
     mod_manager::add_mod(&mut lib, staged2, "Test Backup").unwrap();
 
     // 3. Check backups
-    let backup_dir = lib.lib_paths.backups.join(mod_id);
+    let backup_dir = lib.lib_paths.backups.join(&mod_id);
     let entries: Vec<_> = fs::read_dir(backup_dir).unwrap().collect();
     assert_eq!(
         entries.len(),
@@ -316,7 +283,7 @@ fn test_mod_backup_on_overwrite() {
         backup_path
             .join("content")
             .join(&rules.server_mods)
-            .join(mod_id)
+            .join(folder_name)
             .join("v1.txt")
             .exists()
     );
@@ -419,25 +386,18 @@ fn test_persistence_cycle() {
     )
     .unwrap();
 
-    let manifest_dir = src.join("manifest");
-    fs::create_dir_all(&manifest_dir).unwrap();
-    let manifest_json = format!(
-        r#"{{"id": "persistmod", "name": "Persist Mod", "version": "1.0", "author": "test", "sptVersion": "3.9.0"}}"#
-    );
-    fs::write(manifest_dir.join("manifest.json"), &manifest_json).unwrap();
-
     let mod_fs = ModFS::new(&src, &rules).unwrap();
     let staged = create_staged_mod_for_test(&src, mod_fs);
     mod_manager::add_mod(&mut lib, staged, "Test Backup").unwrap();
 
-    // FIX: Use lowercase "persistmod"
-    lib.mods.get_mut("persistmod").unwrap().is_active = true;
+    let mod_id = hash_id("persistmod");
+    lib.mods.get_mut(&mod_id).unwrap().is_active = true;
     lib.sync().unwrap();
 
     let loaded_lib = Library::load(&repo_root).expect("Failed to load library");
 
     assert_eq!(loaded_lib.mods.len(), 1);
-    assert!(loaded_lib.mods.get("persistmod").unwrap().is_active);
+    assert!(loaded_lib.mods.get(&mod_id).unwrap().is_active);
 }
 
 #[test]
@@ -870,10 +830,11 @@ fn test_remove_library_with_mods() {
     create_test_mod(mod_src_utf8, "TestMod", true);
 
     let mod_fs = ModFS::new(mod_src_utf8, &SPTPathRules::default()).expect("Failed to parse mod");
+    let mod_id = mod_fs.id.clone();
     let staged = create_staged_mod_for_test(mod_src_utf8, mod_fs);
     mod_manager::add_mod(&mut lib, staged, "Test Backup").expect("Failed to add mod");
 
-    lib.mods.get_mut("TestMod").unwrap().is_active = true;
+    lib.mods.get_mut(&mod_id).unwrap().is_active = true;
     lib.sync().expect("Sync failed");
 
     // Note: Mod links would exist if deployed, but we verify cleanup happens during remove
@@ -930,8 +891,10 @@ fn test_cache_rebuild_renames_mismatched_folder() {
     let mut lib = Library::create(requirement).expect("Failed to create library");
     let rules = SPTPathRules::default();
 
-    // 1. Create mod folder - folder name will be treated as old ID
+    // 1. Create mod folder - folder name will be treated as old ID.
+    // The folder name doesn't match the resolved hash ID, which triggers a rename on rebuild.
     let old_folder_name = "hash_abc123";
+    let new_resolved_id = hash_id("testmod");
     let mod_dir = lib.lib_paths.mods.join(old_folder_name);
     let server_mod_dir = mod_dir.join(&rules.server_mods).join("TestMod");
     fs::create_dir_all(&server_mod_dir).unwrap();
@@ -946,56 +909,49 @@ fn test_cache_rebuild_renames_mismatched_folder() {
             is_active: true,
             mod_type: mod_keeper_lib::models::mod_dto::ModType::Server,
             name: "Test Mod".to_string(),
-            manifest: None,
-            icon_data: None,
         },
     );
 
-    // 3. Add manifest with different ID - this will trigger rename on rebuild
-    let new_manifest_id = "com.test.mymod";
-    let manifest_dir = mod_dir.join("manifest");
-    fs::create_dir_all(&manifest_dir).unwrap();
-    let manifest_json = format!(
-        r#"{{"id": "{}", "name": "My Mod", "version": "1.0", "author": "test", "sptVersion": "3.9.0"}}"#,
-        new_manifest_id
-    );
-    fs::write(manifest_dir.join("manifest.json"), &manifest_json).unwrap();
-
-    // 4. Create backup for old folder name (to verify cleanup)
+    // 3. Create backup for old folder name (to verify cleanup)
     let old_backup_dir = lib.lib_paths.backups.join(old_folder_name);
     fs::create_dir_all(&old_backup_dir).unwrap();
     fs::write(old_backup_dir.join("dummy.txt"), "backup data").unwrap();
     lib.persist().unwrap();
 
-    // 5. Rebuild cache - should rename folder and clean up
+    // 4. Rebuild cache - should rename folder and clean up
     library_service::rebuild_library_cache(&mut lib).expect("Cache rebuild failed");
 
-    // 6. Verify folder was renamed
+    // 5. Verify folder was renamed
     assert!(
         !lib.lib_paths.mods.join(old_folder_name).exists(),
         "Old folder should be renamed"
     );
     assert!(
-        lib.lib_paths.mods.join(new_manifest_id).exists(),
+        lib.lib_paths.mods.join(&new_resolved_id).exists(),
         "New folder should exist"
     );
 
-    // 7. Verify enabled state preserved
+    // 6. Verify enabled state and display name preserved
     assert!(
         lib.mods
-            .get(new_manifest_id)
+            .get(&new_resolved_id)
             .map(|m| m.is_active)
             .unwrap_or(false),
         "Enabled state should be preserved"
     );
+    assert_eq!(
+        lib.mods.get(&new_resolved_id).map(|m| m.name.as_str()),
+        Some("Test Mod"),
+        "Display name should be preserved"
+    );
 
-    // 8. Verify old mod entry removed
+    // 7. Verify old mod entry removed
     assert!(
         !lib.mods.contains_key(old_folder_name),
         "Old mod entry should be removed"
     );
 
-    // 9. Verify old backup removed
+    // 8. Verify old backup removed
     assert!(
         !old_backup_dir.exists(),
         "Old backup directory should be removed"
@@ -1013,29 +969,21 @@ fn test_cache_rebuild_conflict_error() {
     let mut lib = Library::create(requirement).expect("Failed to create library");
     let rules = SPTPathRules::default();
 
-    // 1. Create first mod folder that will want to rename to "target-id"
+    // Both folders contain the same server mod folder, so both resolve to the same hash ID
+    let resolved_id = hash_id("samemod");
+
+    // 1. Create first mod folder whose name doesn't match the resolved ID (wants a rename)
     let source_folder = "source-mod";
     let source_dir = lib.lib_paths.mods.join(source_folder);
-    let source_server = source_dir.join(&rules.server_mods).join("SourceMod");
+    let source_server = source_dir.join(&rules.server_mods).join("SameMod");
     fs::create_dir_all(&source_server).unwrap();
     fs::write(source_server.join("mod.js"), "// source").unwrap();
 
-    // Add manifest to source that wants ID "target-id"
-    let manifest_dir = source_dir.join("manifest");
-    fs::create_dir_all(&manifest_dir).unwrap();
-    let manifest_json = r#"{"id": "target-id", "name": "Source Mod", "version": "1.0", "author": "test", "sptVersion": "3.9.0"}"#;
-    fs::write(manifest_dir.join("manifest.json"), manifest_json).unwrap();
-
-    // 2. Create second mod folder already named "target-id"
-    let target_dir = lib.lib_paths.mods.join("target-id");
-    let target_server = target_dir.join(&rules.server_mods).join("TargetMod");
+    // 2. Create second mod folder already named with the resolved ID
+    let target_dir = lib.lib_paths.mods.join(&resolved_id);
+    let target_server = target_dir.join(&rules.server_mods).join("SameMod");
     fs::create_dir_all(&target_server).unwrap();
     fs::write(target_server.join("mod.js"), "// target").unwrap();
-
-    // Add manifest to target with same ID
-    let target_manifest_dir = target_dir.join("manifest");
-    fs::create_dir_all(&target_manifest_dir).unwrap();
-    fs::write(target_manifest_dir.join("manifest.json"), manifest_json).unwrap();
 
     // 3. Attempt cache rebuild - should fail with conflict error
     let result = library_service::rebuild_library_cache(&mut lib);
@@ -1044,7 +992,7 @@ fn test_cache_rebuild_conflict_error() {
     match result {
         Err(SError::ModIdConflict(from, to)) => {
             assert_eq!(from, source_folder);
-            assert_eq!(to, "target-id");
+            assert_eq!(to, resolved_id);
         }
         other => panic!("Expected ModIdConflict error, got: {:?}", other),
     }

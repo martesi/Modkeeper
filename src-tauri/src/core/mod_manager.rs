@@ -25,20 +25,17 @@ pub fn add_mod(library: &mut Library, staged: StagedMod, backup_name: &str) -> R
         .mods
         .entry(mod_id.clone())
         .and_modify(|m| {
-            // Preserve existing name when updating - only update mod_type and icon_data
+            // Preserve existing name when updating - only update mod_type
             m.mod_type = staged.fs.mod_type.clone();
-            m.icon_data = None; // Reset icon_data when updating
         })
         .or_insert_with(|| Mod {
             id: mod_id.clone(),
             is_active: false,
             mod_type: staged.fs.mod_type.clone(),
             name: staged.name.clone(),
-            manifest: None,
-            icon_data: None,
         });
 
-    library.cache.add(&dst, staged.fs);
+    library.cache.add(staged.fs);
     library.mark_dirty();
     library.persist()?;
     Ok(())

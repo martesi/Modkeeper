@@ -31,11 +31,6 @@ macro_rules! define_paths {
     };
 }
 
-define_paths!(ModPaths {
-    folder: "manifest",
-    file: "manifest/manifest.json",
-});
-
 define_paths!(SPTPathRules {
     client_plugins: "BepInEx/plugins",
     client_config: "BepInEx/config",

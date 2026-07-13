@@ -2,7 +2,7 @@ use camino::Utf8PathBuf;
 use mod_keeper_lib::core::mod_fs::ModFS;
 use mod_keeper_lib::models::error::SError;
 use mod_keeper_lib::models::mod_dto::ModType;
-use mod_keeper_lib::models::paths::{ModPaths, SPTPathRules};
+use mod_keeper_lib::models::paths::SPTPathRules;
 use mod_keeper_lib::utils::file::FileUtils;
 use mod_keeper_lib::utils::id::hash_id;
 use std::fs;
@@ -94,29 +94,6 @@ fn test_resolve_id_ignores_non_dll_in_client_plugins() {
     // ID should be hashed version of "validmod" (lowercase), the readme.txt is ignored
     let expected_id = hash_id("validmod");
     assert_eq!(mod_fs.id, expected_id);
-}
-
-#[test]
-fn test_collect_files_excludes_manifest() {
-    let temp = tempdir().unwrap();
-    let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
-    let rules = SPTPathRules::default();
-
-    // Create manifest folder
-    let manifest_dir = root.join(ModPaths::default().folder);
-    fs::create_dir_all(&manifest_dir).unwrap();
-    fs::write(manifest_dir.join("info.json"), "").unwrap();
-
-    // Create actual mod file
-    let mod_file = root.join(&rules.server_mods).join("Mod/mod.dll");
-    fs::create_dir_all(mod_file.parent().unwrap()).unwrap();
-    fs::write(&mod_file, "").unwrap();
-
-    let mod_fs = ModFS::new(&root, &rules).unwrap();
-
-    // Only the dll should be in the files list
-    assert_eq!(mod_fs.files.len(), 1);
-    assert!(mod_fs.files[0].ends_with("mod.dll"));
 }
 
 #[test]

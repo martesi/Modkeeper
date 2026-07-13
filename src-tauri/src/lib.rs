@@ -8,9 +8,8 @@ use crate::commands::global::{
     apply_window_effect, close_library, create_library, init, open_library, remove_library,
 };
 use crate::commands::library::{
-    add_mods, create_backup, get_backups, get_library, get_mod_documentation,
-    rebuild_library_cache, remove_backup, remove_mods, rename_library, restore_backup, reveal_mod,
-    sync_mods, toggle_mod,
+    add_mods, create_backup, get_backups, get_library, rebuild_library_cache, remove_backup,
+    remove_mods, rename_library, restore_backup, reveal_mod, sync_mods, toggle_mod,
 };
 use crate::core::registry::AppRegistry;
 use parking_lot::Mutex;
@@ -32,7 +31,6 @@ fn setup_command_handler() -> Builder<tauri::Wry> {
         create_backup,
         restore_backup,
         remove_backup,
-        get_mod_documentation,
         rename_library,
         rebuild_library_cache,
         reveal_mod,
