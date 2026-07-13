@@ -1,11 +1,8 @@
-use crate::core::decompression;
 use crate::core::mod_fs::{self, ModFS};
 use crate::models::error::SError;
 use crate::models::paths::SPTPathRules;
-use crate::utils::{file, process};
+use crate::utils::{archive, file, process};
 use camino::{Utf8Path, Utf8PathBuf};
-use std::fs;
-use std::fs::remove_dir_all;
 use sysinfo::System;
 use tracing::debug;
 use uuid::Uuid;
@@ -149,7 +146,7 @@ fn folder_matches_game_structure(folder: &Utf8Path, rules: &SPTPathRules) -> Res
     ];
 
     // Using iterator to avoid manual loop
-    let has_match = fs::read_dir(folder)?
+    let has_match = file::read_dir(folder)?
         .filter_map(|e| e.ok())
         .filter_map(|e| e.file_name().into_string().ok())
         .any(|name| roots.contains(&Some(name.as_str())));
@@ -165,7 +162,7 @@ fn stage_loose_files(
 ) -> Result<StagedMod, SError> {
     let uuid = Uuid::new_v4().to_string();
     let dest_dir = staging_root.join(uuid);
-    fs::create_dir_all(&dest_dir)?;
+    file::create_dir_all(&dest_dir)?;
 
     for input in inputs {
         let name = input
@@ -195,9 +192,9 @@ fn stage_archive(
 ) -> Result<StagedMod, SError> {
     let uuid = Uuid::new_v4().to_string();
     let dest_dir = staging_root.join(uuid);
-    fs::create_dir_all(&dest_dir)?;
+    file::create_dir_all(&dest_dir)?;
 
-    decompression::extract(archive, &dest_dir)?;
+    archive::extract(archive, &dest_dir)?;
 
     let fs = mod_fs::scan(&dest_dir, rules)?;
 
@@ -227,5 +224,5 @@ pub fn clean_up(is_staging: bool, source_path: &Utf8Path) -> Result<(), SError> 
         return Ok(());
     }
     debug!("clean up for {source_path}");
-    remove_dir_all(source_path).map_err(Into::into)
+    file::remove_dir_all(source_path)
 }

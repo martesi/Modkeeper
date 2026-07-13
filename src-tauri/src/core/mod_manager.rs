@@ -18,7 +18,7 @@ pub fn add_mod(library: &mut Library, staged: StagedMod, backup_name: &str) -> R
         mod_backup::create_backup(library, &mod_id, backup_name)?;
     }
 
-    std::fs::create_dir_all(&dst)?;
+    file::create_dir_all(&dst)?;
     file::copy_recursive(&staged.source_path, &dst)?;
 
     library
@@ -64,7 +64,7 @@ pub fn remove_mod(library: &mut Library, id: &str) -> Result<(), SError> {
     // Remove mod directory from filesystem
     let mod_dir = library.lib_paths.mods.join(id);
     if mod_dir.exists() {
-        std::fs::remove_dir_all(&mod_dir)?;
+        file::remove_dir_all(&mod_dir)?;
     }
 
     // Remove from cache and mods map

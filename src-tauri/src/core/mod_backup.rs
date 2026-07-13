@@ -20,7 +20,7 @@ pub fn create_backup(library: &Library, mod_id: &str, name: &str) -> Result<(), 
     let backup_dir = library.lib_paths.backups.join(mod_id).join(&timestamp);
     let backup_rules = BackupPathRules::new(&backup_dir);
 
-    std::fs::create_dir_all(&backup_rules.content)?;
+    file::create_dir_all(&backup_rules.content)?;
 
     let manifest = BackupManifest {
         timestamp: timestamp.clone(),
@@ -28,7 +28,7 @@ pub fn create_backup(library: &Library, mod_id: &str, name: &str) -> Result<(), 
     };
     let manifest_content =
         toml::to_string_pretty(&manifest).map_err(|e| SError::ParseError(e.to_string()))?;
-    std::fs::write(&backup_rules.manifest, manifest_content)?;
+    file::write(&backup_rules.manifest, manifest_content)?;
 
     file::copy_recursive(&mod_dir, &backup_rules.content)?;
 
@@ -37,9 +37,9 @@ pub fn create_backup(library: &Library, mod_id: &str, name: &str) -> Result<(), 
         .join(&library.spt_rules.client_config)
         .join(format!("{}.cfg", mod_id));
     if game_config_path.exists() {
-        std::fs::create_dir_all(&backup_rules.config)?;
+        file::create_dir_all(&backup_rules.config)?;
         let backup_config_path = backup_rules.mod_config_file(mod_id);
-        std::fs::copy(&game_config_path, &backup_config_path)?;
+        file::copy(&game_config_path, &backup_config_path)?;
     }
 
     Ok(())
@@ -54,7 +54,7 @@ pub fn list_backups(lib_paths: &LibPathRules, mod_id: &str) -> Result<Vec<ModBac
         return Ok(Vec::new());
     }
 
-    let entries = std::fs::read_dir(&backup_dir)?;
+    let entries = file::read_dir(&backup_dir)?;
     let mut backups: Vec<ModBackup> = entries
         .filter_map(|entry| {
             let entry = entry.ok()?;
@@ -66,7 +66,7 @@ pub fn list_backups(lib_paths: &LibPathRules, mod_id: &str) -> Result<Vec<ModBac
 
             // Check if config folder exists with files
             let has_config = backup_rules.config.exists()
-                && std::fs::read_dir(&backup_rules.config)
+                && file::read_dir(&backup_rules.config)
                     .ok()?
                     .next()
                     .is_some();
@@ -88,7 +88,7 @@ pub fn list_backups(lib_paths: &LibPathRules, mod_id: &str) -> Result<Vec<ModBac
 
 /// Reads a backup manifest from a manifest.toml file
 fn read_manifest(manifest_path: &Utf8Path) -> Result<BackupManifest, SError> {
-    let content = std::fs::read_to_string(manifest_path)?;
+    let content = file::read_to_string(manifest_path)?;
     toml::from_str(&content).map_err(|e| SError::ParseError(e.to_string()))
 }
 
@@ -116,11 +116,11 @@ pub fn restore_backup(
 
     // Remove current mod directory
     if mod_dir.exists() {
-        std::fs::remove_dir_all(&mod_dir)?;
+        file::remove_dir_all(&mod_dir)?;
     }
 
     // Restore mod content from backup
-    std::fs::create_dir_all(&mod_dir)?;
+    file::create_dir_all(&mod_dir)?;
     file::copy_recursive(&backup_rules.content, &mod_dir)?;
 
     // Restore config if requested and exists
@@ -129,8 +129,8 @@ pub fn restore_backup(
         if backup_config_path.exists() {
             let game_config_dir = library.game_root.join(&library.spt_rules.client_config);
             let game_config_path = game_config_dir.join(format!("{}.cfg", mod_id));
-            std::fs::create_dir_all(&game_config_dir)?;
-            std::fs::copy(&backup_config_path, &game_config_path)?;
+            file::create_dir_all(&game_config_dir)?;
+            file::copy(&backup_config_path, &game_config_path)?;
         }
     }
 
@@ -159,7 +159,7 @@ pub fn remove_backup(
     let backup_dir = lib_paths.backups.join(mod_id).join(timestamp);
 
     if backup_dir.exists() {
-        std::fs::remove_dir_all(&backup_dir)?;
+        file::remove_dir_all(&backup_dir)?;
     }
 
     Ok(())
@@ -170,7 +170,7 @@ pub fn remove_all_backups(lib_paths: &LibPathRules, mod_id: &str) -> Result<(), 
     let backup_dir = lib_paths.backups.join(mod_id);
 
     if backup_dir.exists() {
-        std::fs::remove_dir_all(&backup_dir)?;
+        file::remove_dir_all(&backup_dir)?;
     }
 
     Ok(())

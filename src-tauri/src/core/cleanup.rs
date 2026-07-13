@@ -2,6 +2,7 @@ use crate::core::deployment;
 use crate::core::library::Library;
 use crate::core::linker;
 use crate::models::error::SError;
+use crate::utils::file;
 use camino::{Utf8Path, Utf8PathBuf};
 use dunce::canonicalize as dunce_canon;
 use std::collections::HashSet;
@@ -80,8 +81,8 @@ fn process_entry(
     if meta.is_dir() {
         let rel_path = path.strip_prefix(game_root).unwrap_or(path);
 
-        if is_dir_empty(path) && managed_scope.contains(rel_path) {
-            let _ = std::fs::remove_dir(path);
+        if file::is_dir_empty(path) && managed_scope.contains(rel_path) {
+            let _ = file::remove_dir(path);
             return Ok(true);
         }
     }
@@ -103,12 +104,6 @@ fn build_managed_scope(library: &Library) -> HashSet<Utf8PathBuf> {
         })
         .filter(|a| !a.as_str().is_empty() && *a != ".")
         .collect()
-}
-
-fn is_dir_empty(path: &Utf8Path) -> bool {
-    std::fs::read_dir(path)
-        .map(|mut i| i.next().is_none())
-        .unwrap_or(false)
 }
 
 /// Unlinks all symlinks and shared directories for a specific mod.
@@ -149,8 +144,8 @@ pub fn unlink_mod(
         {
             continue;
         }
-        if shared_dir.exists() && is_dir_empty(shared_dir) {
-            let _ = std::fs::remove_dir(shared_dir);
+        if shared_dir.exists() && file::is_dir_empty(shared_dir) {
+            let _ = file::remove_dir(shared_dir);
             unlinked.push(shared_dir.clone());
         }
     }

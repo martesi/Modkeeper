@@ -3,7 +3,9 @@ use std::sync::Arc;
 use camino::{Utf8Path, Utf8PathBuf};
 use parking_lot::{RawMutex, lock_api::Mutex};
 
-use crate::{config::global::GlobalConfig, core::library::Library, models::error::SError};
+use crate::{
+    config::global::GlobalConfig, core::library::Library, models::error::SError, utils::file,
+};
 
 /// Closes a library: moves from library_last to front of library_recent.
 pub fn close_library(config: &mut GlobalConfig, repo_root: &Utf8Path) -> Result<(), SError> {
@@ -29,7 +31,7 @@ pub fn remove_library(config: &mut GlobalConfig, repo_root: &Utf8Path) -> Result
 
     // Remove library_root directory
     if repo_root.exists() {
-        std::fs::remove_dir_all(repo_root)?;
+        file::remove_dir_all(repo_root)?;
     }
 
     Ok(())

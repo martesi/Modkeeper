@@ -5,7 +5,7 @@ use crate::models::error::SError;
 use crate::models::library::{LibraryCreationRequirement, LibraryDTO};
 use crate::models::mod_dto::Mod;
 use crate::models::paths::{LibPathRules, SPTPathCanonical, SPTPathRules};
-use crate::utils::toml;
+use crate::utils::{file, toml};
 use camino::{Utf8Path, Utf8PathBuf};
 use std::collections::BTreeMap;
 use std::default::Default;
@@ -36,11 +36,11 @@ impl Library {
         })?;
 
         // Ensure the repo_root directory exists
-        std::fs::create_dir_all(&repo_root)?;
+        file::create_dir_all(&repo_root)?;
 
         let lib_paths = LibPathRules::new(&repo_root);
         for dir in [&lib_paths.mods, &lib_paths.backups, &lib_paths.staging] {
-            std::fs::create_dir_all(dir)?;
+            file::create_dir_all(dir)?;
         }
 
         let spt_paths = SPTPathRules::new(&requirement.game_root);

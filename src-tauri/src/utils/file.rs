@@ -2,6 +2,44 @@ use crate::models::error::SError;
 use camino::Utf8Path;
 use walkdir::WalkDir;
 
+pub fn create_dir_all(path: &Utf8Path) -> Result<(), SError> {
+    std::fs::create_dir_all(path).map_err(Into::into)
+}
+
+pub fn remove_dir(path: &Utf8Path) -> Result<(), SError> {
+    std::fs::remove_dir(path).map_err(Into::into)
+}
+
+pub fn remove_dir_all(path: &Utf8Path) -> Result<(), SError> {
+    std::fs::remove_dir_all(path).map_err(Into::into)
+}
+
+pub fn rename(from: &Utf8Path, to: &Utf8Path) -> Result<(), SError> {
+    std::fs::rename(from, to).map_err(Into::into)
+}
+
+pub fn copy(from: &Utf8Path, to: &Utf8Path) -> Result<(), SError> {
+    std::fs::copy(from, to).map(|_| ()).map_err(Into::into)
+}
+
+pub fn write(path: &Utf8Path, contents: impl AsRef<[u8]>) -> Result<(), SError> {
+    std::fs::write(path, contents).map_err(Into::into)
+}
+
+pub fn read_to_string(path: &Utf8Path) -> Result<String, SError> {
+    std::fs::read_to_string(path).map_err(Into::into)
+}
+
+pub fn read_dir(path: &Utf8Path) -> Result<std::fs::ReadDir, SError> {
+    std::fs::read_dir(path).map_err(Into::into)
+}
+
+pub fn is_dir_empty(path: &Utf8Path) -> bool {
+    std::fs::read_dir(path)
+        .map(|mut i| i.next().is_none())
+        .unwrap_or(false)
+}
+
 /// Recursively copies a directory tree from source to destination.
 /// Creates all necessary directories and overwrites existing files.
 pub fn copy_recursive(src: &Utf8Path, dst: &Utf8Path) -> Result<(), SError> {

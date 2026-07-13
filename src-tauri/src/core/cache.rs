@@ -1,6 +1,7 @@
 use crate::core::mod_fs::{self, ModFS};
 use crate::models::error::SError;
 use crate::models::paths::SPTPathRules;
+use crate::utils::file;
 use camino::Utf8PathBuf;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -31,7 +32,7 @@ pub fn normalize_mod_folders(
 ) -> Result<NormalizationResult, SError> {
     let mut renamed = Vec::new();
 
-    let entries: Vec<_> = std::fs::read_dir(mods_base)?
+    let entries: Vec<_> = file::read_dir(mods_base)?
         .flatten()
         .filter_map(|e| {
             Utf8PathBuf::from_path_buf(e.path())
@@ -64,7 +65,7 @@ pub fn normalize_mod_folders(
                 .unwrap_or(false);
 
             // Rename folder
-            std::fs::rename(&path, &new_path)?;
+            file::rename(&path, &new_path)?;
 
             renamed.push(RenamedMod {
                 old_name: folder_name,
@@ -81,7 +82,7 @@ impl LibraryCache {
     pub fn build(mods_base: &Utf8PathBuf, spt_paths: &SPTPathRules) -> Result<Self, SError> {
         let mut cache = Self::default();
 
-        let entries = std::fs::read_dir(mods_base)?;
+        let entries = file::read_dir(mods_base)?;
 
         for entry in entries.flatten() {
             let path = Utf8PathBuf::from_path_buf(entry.path())

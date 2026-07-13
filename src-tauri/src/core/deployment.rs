@@ -4,6 +4,7 @@ use crate::core::linker;
 use crate::models::error::SError;
 use crate::models::mod_dto::Mod;
 use crate::models::paths::{LibPathRules, SPTPathRules};
+use crate::utils::file;
 use camino::{Utf8Path, Utf8PathBuf};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
@@ -149,7 +150,7 @@ fn execute_recursive_link(
                 // Case B: Shared -> This is a parent directory. Ensure physical dir exists.
                 let shared_dir = game_root.join(&current_path);
                 if !shared_dir.exists() {
-                    std::fs::create_dir_all(&shared_dir)?;
+                    file::create_dir_all(&shared_dir)?;
                 }
             }
             Ok(())
