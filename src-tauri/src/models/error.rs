@@ -27,6 +27,8 @@ pub enum SError {
         _1
     )]
     ModIdConflict(String, String),
+    #[display("Failed to save app config: {}", _0)]
+    ConfigSaveFailed(String),
 }
 
 macro_rules! impl_from {

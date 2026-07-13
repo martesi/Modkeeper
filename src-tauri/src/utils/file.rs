@@ -34,6 +34,24 @@ pub fn read_dir(path: &Utf8Path) -> Result<std::fs::ReadDir, SError> {
     std::fs::read_dir(path).map_err(Into::into)
 }
 
+/// Writes contents to a temp file in the target's directory, then renames it
+/// over the target - the target is never observable half-written.
+pub fn atomic_write(path: &Utf8Path, contents: impl AsRef<[u8]>) -> Result<(), SError> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| SError::IOError(format!("No parent directory for {path}")))?;
+    create_dir_all(parent)?;
+
+    let file_name = path.file_name().unwrap_or("file");
+    let tmp = parent.join(format!("{}.tmp-{}", file_name, std::process::id()));
+
+    std::fs::write(&tmp, contents)?;
+    std::fs::rename(&tmp, path).inspect_err(|_| {
+        let _ = std::fs::remove_file(&tmp);
+    })?;
+    Ok(())
+}
+
 pub fn is_dir_empty(path: &Utf8Path) -> bool {
     std::fs::read_dir(path)
         .map(|mut i| i.next().is_none())

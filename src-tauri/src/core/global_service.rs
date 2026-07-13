@@ -3,6 +3,10 @@ use std::sync::Arc;
 use camino::{Utf8Path, Utf8PathBuf};
 use parking_lot::{RawMutex, lock_api::Mutex};
 
+use crate::store::{
+    self,
+    app_config::{AppConfig, AppSettings},
+};
 use crate::{
     config::global::GlobalConfig, core::library::Library, models::error::SError, utils::file,
 };
@@ -35,6 +39,18 @@ pub fn remove_library(config: &mut GlobalConfig, repo_root: &Utf8Path) -> Result
     }
 
     Ok(())
+}
+
+pub fn get_settings(config: &AppConfig) -> AppSettings {
+    config.settings.clone()
+}
+
+/// Replaces the settings wholesale and persists the App Config.
+/// Returns the full settings object for the frontend to adopt as-is (T1).
+pub fn save_settings(config: &mut AppConfig, settings: AppSettings) -> Result<AppSettings, SError> {
+    config.settings = settings;
+    store::save(config)?;
+    Ok(config.settings.clone())
 }
 
 /// Finds a library by its ID from all known libraries.

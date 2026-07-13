@@ -2,10 +2,12 @@ pub mod commands;
 pub mod config;
 pub mod core;
 pub mod models;
+pub mod store;
 pub mod utils;
 
 use crate::commands::global::{
-    apply_window_effect, close_library, create_library, init, open_library, remove_library,
+    apply_window_effect, close_library, create_library, get_settings, init, open_library,
+    remove_library, save_settings,
 };
 use crate::commands::library::{
     add_mods, create_backup, get_backups, get_library, rebuild_library_cache, remove_backup,
@@ -41,6 +43,8 @@ fn setup_command_handler() -> Builder<tauri::Wry> {
         close_library,
         remove_library,
         init,
+        get_settings,
+        save_settings,
         // test (debug only)
         create_simulation_game_root,
     ])

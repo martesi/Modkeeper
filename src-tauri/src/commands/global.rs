@@ -3,8 +3,29 @@ use crate::core::{global_service, library_service};
 use crate::models::error::SError;
 use crate::models::global::LibrarySwitch;
 use crate::models::library::LibraryCreationRequirement;
+use crate::store::app_config::AppSettings;
 use camino::Utf8PathBuf;
 use tauri::{AppHandle, Manager, State};
+
+#[tauri::command]
+#[specta::specta]
+pub async fn get_settings(state: State<'_, AppRegistry>) -> Result<AppSettings, SError> {
+    Ok(global_service::get_settings(&state.app_config.lock()))
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn save_settings(
+    state: State<'_, AppRegistry>,
+    settings: AppSettings,
+) -> Result<AppSettings, SError> {
+    let config_handle = state.app_config.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        global_service::save_settings(&mut config_handle.lock(), settings)
+    })
+    .await
+    .map_err(|e| SError::AsyncRuntimeError(e.to_string()))?
+}
 
 /// Detect if running on Windows 11 (build >= 22000)
 #[cfg(target_os = "windows")]
