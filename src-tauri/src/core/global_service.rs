@@ -285,12 +285,11 @@ pub fn rename_library(
 ) -> Result<(), SError> {
     {
         let mut instance = instance_handle.lock();
-        if let Some(inst) = instance.as_mut() {
-            if inst.id == library_id {
+        if let Some(inst) = instance.as_mut()
+            && inst.id == library_id {
                 inst.name = name;
                 return inst.persist();
             }
-        }
     }
 
     let library_root = {

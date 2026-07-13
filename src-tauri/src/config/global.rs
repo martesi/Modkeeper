@@ -20,8 +20,16 @@ const CONFIG_NAME: &str = "config_debug";
 const CONFIG_NAME: &str = "config";
 
 impl GlobalConfig {
+    /// Reads the file exactly where confy ("Modkeeper", CONFIG_NAME) wrote it:
+    /// ProjectDirs("rs", "", "Modkeeper").config_dir()/<CONFIG_NAME>.toml.
+    /// Mirrors confy's default-on-any-failure behavior; fine for a legacy
+    /// read-only migration source.
     pub fn load() -> GlobalConfig {
-        confy::load("Modkeeper", CONFIG_NAME).unwrap_or_default()
+        directories::ProjectDirs::from("rs", "", "Modkeeper")
+            .map(|dirs| dirs.config_dir().join(format!("{CONFIG_NAME}.toml")))
+            .and_then(|path| std::fs::read_to_string(path).ok())
+            .and_then(|content| toml::from_str(&content).ok())
+            .unwrap_or_default()
     }
 
     /// Returns all known library paths (active + recent).

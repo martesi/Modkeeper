@@ -33,9 +33,7 @@ pub fn get_protected_paths_absolute(
 
 /// Checks if a relative path is a protected system root path.
 pub fn is_protected_path(path: &Utf8Path, spt_rules: &SPTPathRules) -> bool {
-    get_protected_paths(spt_rules)
-        .iter()
-        .any(|&protected| path == protected)
+    get_protected_paths(spt_rules).contains(&path)
 }
 
 /// Checks if an absolute path is a protected system root path.
@@ -127,7 +125,7 @@ fn execute_recursive_link(
     cache
         .mods
         .iter()
-        .filter(|(id, _)| mods.get(*id).map_or(false, |m| m.is_active))
+        .filter(|(id, _)| mods.get(*id).is_some_and(|m| m.is_active))
         .flat_map(|(id, m_fs)| m_fs.files.iter().map(move |f| (id, f)))
         .try_for_each(|(id, file_path)| {
             let mut current_path = Utf8PathBuf::new();
@@ -166,7 +164,7 @@ fn iter_active_files<'a>(
     cache
         .mods
         .iter()
-        .filter(move |(id, _)| mods.get(*id).map_or(false, |m| m.is_active))
+        .filter(move |(id, _)| mods.get(*id).is_some_and(|m| m.is_active))
         .flat_map(|(id, fs)| fs.files.iter().map(move |f| (f.as_path(), id.as_str())))
 }
 
@@ -177,7 +175,7 @@ fn iter_active_files_and_ancestors<'a>(
     cache
         .mods
         .iter()
-        .filter(move |(id, _)| mods.get(*id).map_or(false, |m| m.is_active))
+        .filter(move |(id, _)| mods.get(*id).is_some_and(|m| m.is_active))
         .flat_map(|(id, fs)| {
             fs.files.iter().flat_map(move |f| {
                 f.ancestors()

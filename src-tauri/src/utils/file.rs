@@ -80,11 +80,10 @@ pub fn copy_recursive(src: &Utf8Path, dst: &Utf8Path) -> Result<(), SError> {
             std::fs::create_dir_all(&dst_path)?;
         } else {
             // 6. If it's a file, ensure the parent directory exists (safety check)
-            if let Some(parent) = dst_path.parent() {
-                if !parent.exists() {
+            if let Some(parent) = dst_path.parent()
+                && !parent.exists() {
                     std::fs::create_dir_all(parent)?;
                 }
-            }
             // 7. Copy the file (Note: This overwrites existing files at the destination)
             std::fs::copy(src_path, &dst_path)?;
         }

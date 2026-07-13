@@ -1,25 +1,38 @@
 use crate::core::cleanup;
 use crate::core::deployment;
 use crate::core::library::Library;
-use crate::core::mod_backup;
+use crate::core::mod_snapshot;
 use crate::core::mod_stager::StagedMod;
 use crate::models::error::SError;
 use crate::models::mod_dto::Mod;
 use crate::utils::file;
 
 /// Adds or updates a mod in the library.
-/// Creates a backup if the mod already exists.
-pub fn add_mod(library: &mut Library, staged: StagedMod, backup_name: &str) -> Result<(), SError> {
+/// Overwriting an existing mod is guarded by a transient snapshot (§7f): a
+/// failed overwrite restores the mod exactly as it was; a successful one
+/// leaves no snapshot behind.
+pub fn add_mod(library: &mut Library, staged: StagedMod) -> Result<(), SError> {
     let mod_id = staged.fs.id.clone();
     let dst = library.lib_paths.mods.join(&mod_id);
 
-    // Create backup if mod already exists
-    if dst.exists() {
-        mod_backup::create_backup(library, &mod_id, backup_name)?;
-    }
+    let has_snapshot = if dst.exists() {
+        mod_snapshot::take(library, &mod_id)?;
+        true
+    } else {
+        false
+    };
 
-    file::create_dir_all(&dst)?;
-    file::copy_recursive(&staged.source_path, &dst)?;
+    let copied =
+        file::create_dir_all(&dst).and_then(|_| file::copy_recursive(&staged.source_path, &dst));
+    if let Err(e) = copied {
+        if has_snapshot {
+            mod_snapshot::restore(library, &mod_id)?;
+        }
+        return Err(e);
+    }
+    if has_snapshot {
+        mod_snapshot::discard(library, &mod_id)?;
+    }
 
     library
         .mods
@@ -58,8 +71,8 @@ pub fn remove_mod(library: &mut Library, id: &str) -> Result<(), SError> {
         cleanup::unlink_mod(library, id, &unlink_paths, &shared_dirs)?;
     }
 
-    // Remove all backups for this mod
-    mod_backup::remove_all_backups(&library.lib_paths, id)?;
+    // Defensive cleanup of any leftover snapshot dir (crash backstop, §7f)
+    mod_snapshot::cleanup(&library.lib_paths, id)?;
 
     // Remove mod directory from filesystem
     let mod_dir = library.lib_paths.mods.join(id);

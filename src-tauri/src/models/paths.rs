@@ -63,14 +63,3 @@ impl SPTPathCanonical {
     }
 }
 
-define_paths!(BackupPathRules {
-    manifest: "manifest.toml",
-    content: "content",
-    config: "config",
-});
-
-impl BackupPathRules {
-    pub fn mod_config_file(&self, mod_id: &str) -> Utf8PathBuf {
-        self.config.join(format!("{}.cfg", mod_id))
-    }
-}

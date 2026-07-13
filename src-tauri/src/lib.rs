@@ -56,13 +56,12 @@ fn export_typescript_bindings(builder: &Builder<tauri::Wry>) {
     }
 }
 
+type ConfigHandle = Arc<Mutex<AppConfigStore>>;
+type InstanceHandle = Arc<Mutex<Option<crate::core::library::Library>>>;
+type WarningHandle = Arc<Mutex<Option<String>>>;
+
 /// Stage 3: Initialize application state (AppRegistry and handles)
-fn initialize_app_state() -> (
-    AppRegistry,
-    Arc<Mutex<AppConfigStore>>,
-    Arc<Mutex<Option<crate::core::library::Library>>>,
-    Arc<Mutex<Option<String>>>,
-) {
+fn initialize_app_state() -> (AppRegistry, ConfigHandle, InstanceHandle, WarningHandle) {
     let app_registry = AppRegistry::default();
     let config_handle = app_registry.app_config.clone();
     let instance_handle = app_registry.active_instance.clone();
@@ -85,9 +84,9 @@ fn register_plugins() -> tauri::Builder<tauri::Wry> {
 
 /// Helper: Load the initial library (App Config active_library_id) in a background thread
 fn load_initial_library(
-    config_handle: Arc<Mutex<AppConfigStore>>,
-    instance_handle: Arc<Mutex<Option<crate::core::library::Library>>>,
-    warning_handle: Arc<Mutex<Option<String>>>,
+    config_handle: ConfigHandle,
+    instance_handle: InstanceHandle,
+    warning_handle: WarningHandle,
 ) {
     tauri::async_runtime::spawn_blocking(move || {
         let library_root = {
@@ -142,9 +141,9 @@ fn start_init_timeout_checker(init_called: Arc<std::sync::atomic::AtomicBool>) {
 /// Stage 5: Setup application (mount events and load initial library)
 fn setup_application(
     builder: Builder<tauri::Wry>,
-    config_handle: Arc<Mutex<AppConfigStore>>,
-    instance_handle: Arc<Mutex<Option<crate::core::library::Library>>>,
-    warning_handle: Arc<Mutex<Option<String>>>,
+    config_handle: ConfigHandle,
+    instance_handle: InstanceHandle,
+    warning_handle: WarningHandle,
     init_called: Arc<std::sync::atomic::AtomicBool>,
 ) -> impl FnOnce(&mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     move |app| {

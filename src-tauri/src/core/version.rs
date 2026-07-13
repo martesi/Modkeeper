@@ -41,11 +41,10 @@ fn extract_version_number(version_str: &str) -> Result<String, SError> {
     let re = regex::Regex::new(r"(\d+\.\d+\.\d+)")
         .map_err(|e| SError::ParseError(format!("Failed to create regex: {}", e)))?;
 
-    if let Some(caps) = re.captures(version_str) {
-        if let Some(version_match) = caps.get(1) {
+    if let Some(caps) = re.captures(version_str)
+        && let Some(version_match) = caps.get(1) {
             return Ok(version_match.as_str().to_string());
         }
-    }
 
     Err(SError::ParseError(format!(
         "Could not extract version number from: {}",

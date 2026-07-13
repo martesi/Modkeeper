@@ -29,11 +29,10 @@ pub fn extract(archive_path: &Utf8Path, destination: &Utf8Path) -> Result<(), SE
         // 5. Handle Files
         else {
             // Ensure parent directory exists
-            if let Some(parent) = output_path.parent() {
-                if !parent.exists() {
+            if let Some(parent) = output_path.parent()
+                && !parent.exists() {
                     fs::create_dir_all(parent)?;
                 }
-            }
 
             let mut outfile = File::create(&output_path)?;
 

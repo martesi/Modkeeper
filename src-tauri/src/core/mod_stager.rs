@@ -30,21 +30,20 @@ pub fn resolve(
 ) -> Result<Vec<StagedMod>, SError> {
     // 1. Guard Clause: Collective "Loose File" Check
     // If the inputs collectively form a mod root, treat them as one unit immediately.
-    if is_game_root_structure(inputs, &rules) {
-        return stage_loose_files(inputs, &rules, &root, name).map(|staged| vec![staged]);
+    if is_game_root_structure(inputs, rules) {
+        return stage_loose_files(inputs, rules, root, name).map(|staged| vec![staged]);
     }
 
-    // 2. Functional Pipeline: Process individual inputs
+    // 2. Functional Pipeline: Process individual inputs.
+    // Inputs that match no strategy (Option::None) are dropped; collecting
+    // into Result<Vec<_>> returns the first Error if any occur.
     inputs
         .iter()
-        .map(|input| {
+        .filter_map(|input| {
             // Chain strategies: Try Directory -> If None, Try Archive
-            process_as_directory(input, &rules, name)
-                .or_else(|| process_as_archive(input, &rules, &root, name))
+            process_as_directory(input, rules, name)
+                .or_else(|| process_as_archive(input, rules, root, name))
         })
-        // Remove inputs that matched no strategy (Option::None)
-        .filter_map(|res_opt| res_opt)
-        // Collect into Result<Vec<_>>, returning the first Error if any occur
         .collect()
 }
 
@@ -80,7 +79,7 @@ fn process_as_directory(
 
     // Sub-strategy A1: Folder has strict Game Root structure (user/ or BepInEx/)
     // We use boolean matching to avoid deep nesting.
-    let is_game_structure = folder_matches_game_structure(input, rules).map_err(SError::from); // Propagate IO errors if they happen
+    let is_game_structure = folder_matches_game_structure(input, rules); // Propagate IO errors if they happen
 
     match is_game_structure {
         Ok(true) => {

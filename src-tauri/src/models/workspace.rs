@@ -207,20 +207,23 @@ pub struct SyncModsInput {
 
 /// Completion events for the three fire-and-track operations (§7e/§9).
 #[derive(Serialize, Deserialize, Type, Clone, Debug, tauri_specta::Event)]
-#[serde(tag = "type", rename_all = "snake_case", rename_all_fields = "camelCase")]
+#[serde(tag = "type", rename_all = "snake_case")]
 pub enum WorkspaceEvent {
+    #[serde(rename_all = "camelCase")]
     CacheRebuildCompleted {
         task_id: String,
         library_id: String,
         cache_status: CacheStatus,
         workspace: LibraryWorkspace,
     },
+    #[serde(rename_all = "camelCase")]
     ModInstallCompleted {
         task_id: String,
         library_id: String,
         failures: Vec<ArchiveFailure>,
         workspace: LibraryWorkspace,
     },
+    #[serde(rename_all = "camelCase")]
     SyncCompleted {
         task_id: String,
         library_id: String,

@@ -20,11 +20,10 @@ pub fn link(source: &Utf8Path, target: &Utf8Path) -> io::Result<()> {
     // 2. Check if target already exists
     if target.exists() || target.is_symlink() {
         // Already a symlink pointing to the right source — idempotent
-        if let Ok(existing_target) = read_link_target(target) {
-            if existing_target == source {
+        if let Ok(existing_target) = read_link_target(target)
+            && existing_target == source {
                 return Ok(());
             }
-        }
         // Collision: target exists and points elsewhere (or isn't a symlink)
         return Err(io::Error::new(
             io::ErrorKind::AlreadyExists,

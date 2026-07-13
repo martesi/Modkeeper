@@ -186,7 +186,6 @@ pub async fn install_mod_archives(
             &input.library_id,
             &material,
             &archives,
-            "pre-upgrade",
         );
 
         finish_task(&tasks, &input.task_id);

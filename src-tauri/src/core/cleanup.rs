@@ -124,18 +124,17 @@ pub fn unlink_mod(
         }
         if path.exists() || path.is_symlink() {
             // Only unlink if it's a symlink pointing to our mod's directory
-            if let Ok(target) = linker::read_link_target(path) {
-                if target.starts_with(&mod_source_dir) {
+            if let Ok(target) = linker::read_link_target(path)
+                && target.starts_with(&mod_source_dir) {
                     linker::unlink(path)?;
                     unlinked.push(path.clone());
                 }
-            }
         }
     }
 
     // Clean up empty shared directories (deepest first)
     let mut sorted_shared_dirs: Vec<_> = shared_dirs.iter().collect();
-    sorted_shared_dirs.sort_by(|a, b| b.components().count().cmp(&a.components().count()));
+    sorted_shared_dirs.sort_by_key(|dir| std::cmp::Reverse(dir.components().count()));
 
     for shared_dir in sorted_shared_dirs {
         if protected_paths
