@@ -65,7 +65,7 @@ Concrete changes from the 2026-07-09 spec set, collected in one place so nothing
    `remove_dir`-then-`remove_file` fallback encodes a non-obvious platform constraint, not restated
    logic. Comment cleanup happens once, after the structure stops moving, with that distinction
    applied deliberately rather than mechanically.
-5. **Frontend implementation is staged by architectural layer, not by flat file sequence.** See §3.
+5. **Frontend implementation is staged by architectural layer, not by flat file sequence.** See §5.
 
 ## 3. Phase 1 — Audit (Complete)
 
@@ -117,8 +117,10 @@ shape as `create_library`/`activate_library`/`rename_library`/`delete_library`.
 ## 5. Phase 3 — Frontend Redesign, Staged by Layer
 
 `frontend-redesign-spec.md`'s screen specs, design tokens, and acceptance criteria are unchanged.
-What changes is the build order: four explicit stages instead of one flat sequence, each stage
-usable by the next before moving on.
+What changes is the build order: a design-system stage, then a single vertical slice that proves the
+cross-layer contracts end-to-end, then three horizontal stages that build out against contracts the
+slice has already validated. The slice exists so a wrong atom/repository/UI contract surfaces once —
+cheaply, against one screen — instead of at the end when every screen already depends on it.
 
 ### 5.1 Structure Stage — design system, shared primitives, Storybook
 
@@ -144,7 +146,36 @@ Deliverables:
   `redesign-types.ts`, repositories, or Jotai state. If a component needs business data to render,
   it isn't a shared primitive — it belongs in the Composition stage instead.
 
-### 5.2 Global Stage — routes, store, i18n scaffolding
+### 5.2 Walking Skeleton — one screen, all layers
+
+Before the horizontal build-out, cut one thin vertical slice through every layer to validate the
+contracts the horizontal stages would otherwise only discover at the end (§5's rationale). Scope: the
+Library screen reduced to a single mod card plus the execution bar — enough to exercise every
+cross-layer seam once, nothing more.
+
+Deliverables (thin, one instance each — not the full build-out, which stays in 5.3-5.5):
+
+- A minimal route + shell mount (thin slice of 5.3) so the slice renders in the real app, not just
+  Storybook.
+- One repository + one atom pair for the mod list (thin slice of 5.4), backed by `example-data.ts`
+  via the real-first/mock-fallback path — so the `MOCK-FALLBACK` mechanism is exercised, not just
+  declared.
+- One **plain** call (`toggleModStatus`) with its local per-click pending state, and one
+  **fire-and-track** call (`syncMods` or `rebuildLibraryCache`) with its client-minted `taskId` +
+  event-bus registration — so both repository shapes are proven against a real consumer.
+- The derived **"library busy"** state wired producer-to-consumer: produced by the fire-and-track
+  call, read by both the shell affordance and the card's disabled/pending treatment. This is the one
+  contract §5's analysis flagged as split across three horizontal stages; the slice collapses it into
+  one checkable path.
+- One mod card + toggle + execution bar (thin slice of 5.5) consuming the above.
+
+- **Exit criterion:** clicking the toggle on the real card updates through the real atom/repository
+  path; triggering the fire-and-track call flips "library busy" and both the shell and the card
+  reflect it; killing the real backend call falls back to mock without a crash. Once green, the atom
+  shape, repository shape, and library-busy contract are frozen — 5.3-5.5 build out against them, not
+  toward them. If the slice forces a shape change here, that is the plan working as intended.
+
+### 5.3 Global Stage — routes, store, i18n scaffolding
 
 Everything app-wide and screen-independent:
 
@@ -155,7 +186,7 @@ Everything app-wide and screen-independent:
 - Route adapters (`frontend-redesign-spec.md` §4's table) — thin, mount `RedesignRoot` /
   `LibraryScreen` / `SettingsScreen`.
 - `src/redesign/state/*` — `library-state.ts`, `settings-state.ts` (atom shapes only at this stage;
-  wiring to real data happens in 5.3).
+  full wiring to real data happens in 5.4, minus the single atom already proven in the 5.2 slice).
 - `src/redesign/i18n/*` — `common-text.ts`, `library-text.ts`, `settings-text.ts`, `error-text.ts`.
   Skip populating `tool-text.ts` with real copy — the tool registry is deferred (§2 item 1); leave
   the file empty or omit it until that work is picked back up.
@@ -163,7 +194,7 @@ Everything app-wide and screen-independent:
 - **Exit criterion:** the app boots to a working shell — header, nav, routing all functional —
   before any real or mock data flows through it.
 
-### 5.3 Business Layer Stage — data, repositories, state wiring
+### 5.4 Business Layer Stage — data, repositories, state wiring
 
 Everything that decides what the UI shows, independent of how it's drawn:
 
@@ -184,11 +215,11 @@ Everything that decides what the UI shows, independent of how it's drawn:
   an unexplained delay (e.g. a toggle queued behind a large install) into a visible "library busy"
   affordance instead of a silent hang.
 - Wire `state/library-state.ts` and `state/settings-state.ts` atoms to this repository layer.
-- **Exit criterion:** every atom from 5.2 is backed by a real repository call or its mock fallback;
-  no screen-level component exists yet, but the data/state layer is fully functional against
-  `example-data.ts` on its own.
+- **Exit criterion:** every atom from 5.3 is backed by a real repository call or its mock fallback;
+  no screen-level component exists yet beyond the 5.2 slice's single card, but the data/state layer
+  is fully functional against `example-data.ts` on its own.
 
-### 5.4 Composition Stage — screens, dialogs, cards
+### 5.5 Composition Stage — screens, dialogs, cards
 
 Everything previously covered in one pass by `frontend-redesign-spec.md` §9, now built last, on top
 of working structure/global/business layers:
