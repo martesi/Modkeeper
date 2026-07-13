@@ -56,6 +56,8 @@ function seedMods(): ModSummary[] {
   ]
 }
 
+const SECOND_LIBRARY_ID = 'lib-test-bench'
+
 function seedWorkspace(): LibraryWorkspace {
   return {
     activeLibraryId: LIBRARY_ID,
@@ -70,9 +72,22 @@ function seedWorkspace(): LibraryWorkspace {
         deployStale: false,
         updatedAt: now(),
       },
+      // A second, inactive library so Manage Library's tabs/activate flows are exercisable.
+      {
+        id: SECOND_LIBRARY_ID,
+        name: 'Test Bench',
+        gameRoot: 'D:/SPT-testing',
+        libraryRoot: 'D:/SPT-testing/.mod_keeper',
+        sptVersion: '3.9.0',
+        cacheStatus: { state: 'ready', message: null, lastRebuiltAt: now() },
+        deployStale: false,
+        updatedAt: now(),
+      },
+      // A registered-but-unreadable entry (C13): rendered as a bare path, remove-only.
+      { path: 'E:/Archive/old-spt/.mod_keeper' },
     ],
-    modsByLibraryId: { [LIBRARY_ID]: seedMods() },
-    toolsByLibraryId: { [LIBRARY_ID]: [] },
+    modsByLibraryId: { [LIBRARY_ID]: seedMods(), [SECOND_LIBRARY_ID]: [] },
+    toolsByLibraryId: { [LIBRARY_ID]: [], [SECOND_LIBRARY_ID]: [] },
     settings: { theme: 'system', accentColor: '#e91e63', language: 'en-US' },
     configWarning: null,
   }

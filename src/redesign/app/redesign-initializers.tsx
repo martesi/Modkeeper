@@ -1,11 +1,18 @@
 import { useEffect } from 'react'
+import { useAtomValue } from 'jotai'
+import { useTheme } from 'next-themes'
+import { isTauri } from '@tauri-apps/api/core'
 import { toast } from 'sonner'
+import { commands } from '@gen/bindings'
+import { themeToIsDark } from '@/utils/theme'
 import {
   initWorkspaceEventBus,
   listenWorkspaceEvent,
   loadLibraryWorkspace,
 } from '../data/library-repository'
+import { applyAccent, applyLanguage } from '../data/settings-repository'
 import { setWorkspace } from '../state/library-state'
+import { settingsAtom } from '../state/settings-state'
 import { libraryText } from '../i18n/library-text'
 import type { WorkspaceEvent } from '../data/redesign-types'
 
@@ -17,8 +24,9 @@ import type { WorkspaceEvent } from '../data/redesign-types'
  * The subscriber is the single writer that applies completion events to the workspace atom. A
  * startup config warning rides the first workspace and is toasted once (C12).
  *
- * Still to come per §12: settings restore + locale init (8.4, with the settings repository) and
- * the global .zip drag/drop listener (8.5, with the drop empty states that consume it).
+ * Settings restore is implicit: the workspace carries `settings` (T1), the repository mirrors it
+ * into `settingsAtom`, and `SettingsApplier` below reactively turns every settings value — initial
+ * load and later saves alike — into visible effect. One write path, one apply path.
  */
 export function RedesignInitializers() {
   useEffect(() => {
@@ -30,7 +38,7 @@ export function RedesignInitializers() {
     return unsubscribe
   }, [])
 
-  return null
+  return <SettingsApplier />
 }
 
 function handleWorkspaceEvent(event: WorkspaceEvent): void {
@@ -38,4 +46,31 @@ function handleWorkspaceEvent(event: WorkspaceEvent): void {
   if (event.type !== 'cache_rebuild_completed' && event.failures.length > 0) {
     toast.error(libraryText.taskItemsFailed(event.failures.length))
   }
+}
+
+/**
+ * Applies `settingsAtom` to the world: next-themes (+ the native window effect when a backend is
+ * present), the accent CSS variables, and the lingui locale. Renders nothing.
+ */
+function SettingsApplier() {
+  const settings = useAtomValue(settingsAtom)
+  const { setTheme } = useTheme()
+
+  useEffect(() => {
+    if (!settings) return
+    setTheme(settings.theme)
+    if (isTauri()) {
+      void commands
+        .applyWindowEffect(themeToIsDark(settings.theme) ?? null)
+        .catch((error) =>
+          console.warn('[redesign] applyWindowEffect failed', error),
+        )
+    }
+    applyAccent(settings.accentColor)
+    void applyLanguage(settings.language).catch((error) =>
+      console.warn('[redesign] locale change failed', error),
+    )
+  }, [settings, setTheme])
+
+  return null
 }

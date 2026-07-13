@@ -131,13 +131,13 @@ msgstr "App configuration could not be saved: {detail}"
 msgid "Appearance"
 msgstr "Appearance"
 
+#: src/routes/settings.lazy.tsx:36
+msgid "Application settings and preferences"
+msgstr "Application settings and preferences"
+
 #. js-lingui-explicit-id
 #: src/redesign/i18n/settings-text.ts:10
 msgid "settings.header.subtitle"
-msgstr "Application settings and preferences"
-
-#: src/routes/settings.lazy.tsx:36
-msgid "Application settings and preferences"
 msgstr "Application settings and preferences"
 
 #: src/routes/settings.tsx:73
@@ -653,6 +653,10 @@ msgstr "Select Mod Folder"
 #~ msgid "Server"
 #~ msgstr "Server"
 
+#: src/routes/settings.lazy.tsx:33
+msgid "Settings"
+msgstr "Settings"
+
 #. js-lingui-explicit-id
 #: src/redesign/i18n/settings-text.ts:8
 msgid "settings.header.title"
@@ -661,10 +665,6 @@ msgstr "Settings"
 #. js-lingui-explicit-id
 #: src/redesign/i18n/common-text.ts:12
 msgid "common.nav.settings"
-msgstr "Settings"
-
-#: src/routes/settings.lazy.tsx:33
-msgid "Settings"
 msgstr "Settings"
 
 #. js-lingui-explicit-id

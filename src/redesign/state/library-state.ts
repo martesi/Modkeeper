@@ -1,10 +1,11 @@
 /*
- * Library state atoms (consolidated-spec.md §10 "State"), walking-skeleton slice.
+ * Library state atoms (consolidated-spec.md §10 "State").
  *
- * Only the atoms the slice exercises exist here; 8.4 fills in search/sort/filter/selection. The
- * shapes proven here are frozen by the 8.2 exit gate:
+ * The shapes proven by the 8.2 exit gate are frozen:
  *   - the workspace is a single-writer atom, written only by the repository layer;
  *   - "library busy" is DERIVED from an in-flight fire-and-track task set keyed by libraryId.
+ * 8.4 adds the durable view state on top: selection, search, sort, type filter, and the derived
+ * visible-mod list the grid renders. Confirmation/form-draft/transient state stays parent-owned.
  *
  * The pending-task set is the one piece of mutable state a plain repository function needs to poke
  * from outside React, so it is written through `getDefaultStore()` here rather than exposing the
@@ -13,16 +14,20 @@
 import { atom, getDefaultStore } from 'jotai'
 import type {
   LibraryWorkspace,
+  LibraryEntry,
   LibrarySummary,
   ModSummary,
+  ModType,
   LibraryId,
+  ModId,
 } from '../data/redesign-types'
 import { isLibrarySummary } from '../data/redesign-types'
+import { compareByName } from '../shared/utils/sorting'
 
 export const libraryWorkspaceAtom = atom<LibraryWorkspace | null>(null)
 
 export const activeLibraryIdAtom = atom(
-  (get) => get(libraryWorkspaceAtom)?.activeLibraryId ?? null
+  (get) => get(libraryWorkspaceAtom)?.activeLibraryId ?? null,
 )
 
 export const activeLibraryAtom = atom<LibrarySummary | null>((get) => {
@@ -30,16 +35,46 @@ export const activeLibraryAtom = atom<LibrarySummary | null>((get) => {
   const activeId = workspace?.activeLibraryId
   if (!workspace || !activeId) return null
   const entry = workspace.libraries.find(
-    (lib) => isLibrarySummary(lib) && lib.id === activeId
+    (lib) => isLibrarySummary(lib) && lib.id === activeId,
   )
   return entry && isLibrarySummary(entry) ? entry : null
 })
+
+/** Every registered library, readable summaries and path-only stubs alike (C13). */
+export const libraryListAtom = atom<LibraryEntry[]>(
+  (get) => get(libraryWorkspaceAtom)?.libraries ?? [],
+)
 
 export const modListAtom = atom<ModSummary[]>((get) => {
   const workspace = get(libraryWorkspaceAtom)
   const activeId = workspace?.activeLibraryId
   if (!workspace || !activeId) return []
   return workspace.modsByLibraryId[activeId] ?? []
+})
+
+// --- Durable view state (§10): selection, search, sort, type filter ---
+
+export const selectedModIdsAtom = atom<ReadonlySet<ModId>>(new Set<ModId>())
+
+export const librarySearchAtom = atom('')
+
+export type LibrarySort = 'name-asc' | 'name-desc'
+export const librarySortAtom = atom<LibrarySort>('name-asc')
+
+export type LibraryTypeFilter = ModType | 'all'
+export const libraryTypeFilterAtom = atom<LibraryTypeFilter>('all')
+
+/** The mods the grid actually renders: type-filtered, search-filtered, sorted. */
+export const visibleModsAtom = atom<ModSummary[]>((get) => {
+  const typeFilter = get(libraryTypeFilterAtom)
+  const search = get(librarySearchAtom).trim().toLowerCase()
+  const sort = get(librarySortAtom)
+  return get(modListAtom)
+    .filter((mod) => typeFilter === 'all' || mod.type === typeFilter)
+    .filter((mod) => search === '' || mod.name.toLowerCase().includes(search))
+    .sort((a, b) =>
+      sort === 'name-asc' ? compareByName(a, b) : compareByName(b, a),
+    )
 })
 
 /** An accepted-but-not-yet-completed fire-and-track operation. */
@@ -60,6 +95,15 @@ const store = getDefaultStore()
 
 export function setWorkspace(workspace: LibraryWorkspace): void {
   store.set(libraryWorkspaceAtom, workspace)
+  // Prune the selection to mods that still exist in the active library, so a delete or a library
+  // switch can never leave phantom ids behind for the next bulk action.
+  const selected = store.get(selectedModIdsAtom)
+  if (selected.size === 0) return
+  const activeId = workspace.activeLibraryId
+  const mods = activeId ? (workspace.modsByLibraryId[activeId] ?? []) : []
+  const alive = new Set(mods.map((mod) => mod.id))
+  const pruned = new Set([...selected].filter((id) => alive.has(id)))
+  if (pruned.size !== selected.size) store.set(selectedModIdsAtom, pruned)
 }
 
 export function addPendingTask(task: PendingTask): void {
@@ -69,6 +113,6 @@ export function addPendingTask(task: PendingTask): void {
 export function removePendingTask(taskId: string): void {
   store.set(
     pendingTasksAtom,
-    store.get(pendingTasksAtom).filter((task) => task.taskId !== taskId)
+    store.get(pendingTasksAtom).filter((task) => task.taskId !== taskId),
   )
 }
