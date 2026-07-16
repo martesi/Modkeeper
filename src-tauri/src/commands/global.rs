@@ -1,3 +1,4 @@
+use crate::commands::log_err;
 use crate::core::global_service;
 use crate::core::registry::AppRegistry;
 use crate::models::error::SError;
@@ -107,18 +108,21 @@ pub async fn get_library_workspace(
     let instance_handle = state.active_instance.clone();
     let warning_handle = state.config_warning.clone();
 
-    let result = tauri::async_runtime::spawn_blocking(move || {
-        let store = config_handle.lock();
-        let instance = instance_handle.lock();
-        let warning = warning_handle.lock().take();
-        Ok(global_service::assemble_workspace(
-            &store.config,
-            instance.as_ref(),
-            warning,
-        ))
-    })
-    .await
-    .map_err(|e| SError::AsyncRuntimeError(e.to_string()))?;
+    let result = log_err(
+        tauri::async_runtime::spawn_blocking(move || {
+            let store = config_handle.lock();
+            let instance = instance_handle.lock();
+            let warning = warning_handle.lock().take();
+            Ok(global_service::assemble_workspace(
+                &store.config,
+                instance.as_ref(),
+                warning,
+            ))
+        })
+        .await
+        .map_err(|e| SError::AsyncRuntimeError(e.to_string()))
+        .and_then(|r| r),
+    );
 
     app_handle.get_webview_window("main").inspect(|window| {
         let _ = window.center();
@@ -137,19 +141,22 @@ pub async fn activate_library(
     let config_handle = state.app_config.clone();
     let instance_handle = state.active_instance.clone();
 
-    tauri::async_runtime::spawn_blocking(move || {
-        global_service::activate_library(&config_handle, &instance_handle, &input.library_id)?;
+    log_err(
+        tauri::async_runtime::spawn_blocking(move || {
+            global_service::activate_library(&config_handle, &instance_handle, &input.library_id)?;
 
-        let store = config_handle.lock();
-        let instance = instance_handle.lock();
-        Ok(global_service::assemble_workspace(
-            &store.config,
-            instance.as_ref(),
-            None,
-        ))
-    })
-    .await
-    .map_err(|e| SError::AsyncRuntimeError(e.to_string()))?
+            let store = config_handle.lock();
+            let instance = instance_handle.lock();
+            Ok(global_service::assemble_workspace(
+                &store.config,
+                instance.as_ref(),
+                None,
+            ))
+        })
+        .await
+        .map_err(|e| SError::AsyncRuntimeError(e.to_string()))
+        .and_then(|r| r),
+    )
 }
 
 #[tauri::command]
@@ -161,19 +168,22 @@ pub async fn create_library(
     let config_handle = state.app_config.clone();
     let instance_handle = state.active_instance.clone();
 
-    tauri::async_runtime::spawn_blocking(move || {
-        global_service::create_library(&config_handle, &instance_handle, input)?;
+    log_err(
+        tauri::async_runtime::spawn_blocking(move || {
+            global_service::create_library(&config_handle, &instance_handle, input)?;
 
-        let store = config_handle.lock();
-        let instance = instance_handle.lock();
-        Ok(global_service::assemble_workspace(
-            &store.config,
-            instance.as_ref(),
-            None,
-        ))
-    })
-    .await
-    .map_err(|e| SError::AsyncRuntimeError(e.to_string()))?
+            let store = config_handle.lock();
+            let instance = instance_handle.lock();
+            Ok(global_service::assemble_workspace(
+                &store.config,
+                instance.as_ref(),
+                None,
+            ))
+        })
+        .await
+        .map_err(|e| SError::AsyncRuntimeError(e.to_string()))
+        .and_then(|r| r),
+    )
 }
 
 #[tauri::command]
@@ -189,9 +199,12 @@ pub async fn save_settings(
     settings: AppSettings,
 ) -> Result<AppSettings, SError> {
     let config_handle = state.app_config.clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        global_service::save_settings(&mut config_handle.lock(), settings)
-    })
-    .await
-    .map_err(|e| SError::AsyncRuntimeError(e.to_string()))?
+    log_err(
+        tauri::async_runtime::spawn_blocking(move || {
+            global_service::save_settings(&mut config_handle.lock(), settings)
+        })
+        .await
+        .map_err(|e| SError::AsyncRuntimeError(e.to_string()))
+        .and_then(|r| r),
+    )
 }

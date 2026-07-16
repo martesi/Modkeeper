@@ -63,6 +63,16 @@ impl AppConfig {
         self.known_libraries.iter().find(|l| l.id == library_id)
     }
 
+    /// Resolves a removal handle to a known library: id first, then the
+    /// registered library_root path — a path-only stub's only handle (C13).
+    pub fn find_library_by_handle(&self, handle: &str) -> Option<&KnownLibrary> {
+        self.find_library(handle).or_else(|| {
+            self.known_libraries
+                .iter()
+                .find(|l| l.library_root.as_str() == handle)
+        })
+    }
+
     pub fn remove_library(&mut self, library_id: &str) {
         self.known_libraries.retain(|l| l.id != library_id);
         if self.app_state.active_library_id.as_deref() == Some(library_id) {

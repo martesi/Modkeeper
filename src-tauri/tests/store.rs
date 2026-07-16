@@ -156,3 +156,80 @@ fn test_save_failure_surfaces_config_save_failed_and_preserves_target() {
     // The earlier config file was never touched
     assert_eq!(fs::read_to_string(&path).unwrap(), original);
 }
+
+#[test]
+fn test_find_library_by_handle_matches_id_or_path() {
+    let mut config = AppConfig::default();
+    config.upsert_library(KnownLibrary {
+        id: "lib-1".to_string(),
+        library_root: Utf8PathBuf::from("C:/games/spt/.mod_keeper"),
+    });
+
+    assert_eq!(config.find_library_by_handle("lib-1").unwrap().id, "lib-1");
+    // A path-only stub's registered path doubles as its removal handle (C13)
+    assert_eq!(
+        config
+            .find_library_by_handle("C:/games/spt/.mod_keeper")
+            .unwrap()
+            .id,
+        "lib-1"
+    );
+    assert!(config.find_library_by_handle("unknown").is_none());
+}
+
+#[test]
+fn test_delete_library_entry_accepts_path_handle() {
+    use mod_keeper_lib::core::global_service;
+    use mod_keeper_lib::store::AppConfigStore;
+    use parking_lot::Mutex;
+    use std::sync::Arc;
+
+    let tmp = tempfile::tempdir().unwrap();
+    let config_path = Utf8PathBuf::from_path_buf(tmp.path().join("config.toml")).unwrap();
+
+    // A registered library whose manifest is unreadable lists as a path-only
+    // stub; the frontend only has its path to remove it with (C13).
+    let stub_root = "C:/games/spt/.broken_library";
+    let mut config = AppConfig::default();
+    config.upsert_library(KnownLibrary {
+        id: "stub-id".to_string(),
+        library_root: Utf8PathBuf::from(stub_root),
+    });
+    config.app_state.active_library_id = Some("stub-id".to_string());
+
+    let config_handle = Arc::new(Mutex::new(AppConfigStore {
+        path: config_path.clone(),
+        config,
+    }));
+    let instance_handle = Arc::new(Mutex::new(None));
+
+    global_service::delete_library_entry(&config_handle, &instance_handle, stub_root)
+        .expect("delete by path handle failed");
+
+    let store = config_handle.lock();
+    assert!(store.config.known_libraries.is_empty());
+    assert_eq!(store.config.app_state.active_library_id, None);
+
+    // The change was persisted
+    let saved = load_from(&config_path).unwrap();
+    assert!(saved.known_libraries.is_empty());
+}
+
+#[test]
+fn test_delete_library_entry_rejects_unknown_handle() {
+    use mod_keeper_lib::core::global_service;
+    use mod_keeper_lib::store::AppConfigStore;
+    use parking_lot::Mutex;
+    use std::sync::Arc;
+
+    let tmp = tempfile::tempdir().unwrap();
+    let config_path = Utf8PathBuf::from_path_buf(tmp.path().join("config.toml")).unwrap();
+    let config_handle = Arc::new(Mutex::new(AppConfigStore {
+        path: config_path,
+        config: AppConfig::default(),
+    }));
+    let instance_handle = Arc::new(Mutex::new(None));
+
+    let result = global_service::delete_library_entry(&config_handle, &instance_handle, "nope");
+    assert!(matches!(result, Err(SError::InvalidLibrary(_, _))));
+}

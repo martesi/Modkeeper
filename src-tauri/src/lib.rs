@@ -72,11 +72,21 @@ fn initialize_app_state() -> (AppRegistry, ConfigHandle, InstanceHandle, Warning
 
 /// Stage 4: Register Tauri plugins
 fn register_plugins() -> tauri::Builder<tauri::Wry> {
+    use tauri_plugin_log::{Target, TargetKind};
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(
             tauri_plugin_log::Builder::new()
                 .level(tauri_plugin_log::log::LevelFilter::Info)
+                .targets([
+                    Target::new(TargetKind::Stdout),
+                    // File sink in the platform log dir (consolidated-spec.md §13);
+                    // the English error detail trail lives here (§7g).
+                    Target::new(TargetKind::LogDir {
+                        file_name: Some("modkeeper".to_string()),
+                    }),
+                ])
                 .build(),
         )
         .plugin(tauri_plugin_dialog::init())

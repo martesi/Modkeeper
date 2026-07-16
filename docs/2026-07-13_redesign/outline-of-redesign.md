@@ -114,7 +114,7 @@ shape as `create_library`/`activate_library`/`rename_library`/`delete_library`.
 
 **Deferred, not built this pass:** the executable tool registry in full (§2 item 1).
 
-## 5. Phase 3 — Frontend Redesign, Staged by Layer
+## 5. Phase 3 — Frontend Redesign, Staged by Layer (Complete)
 
 `frontend-redesign-spec.md`'s screen specs, design tokens, and acceptance criteria are unchanged.
 What changes is the build order: a design-system stage, then a single vertical slice that proves the
@@ -233,11 +233,20 @@ of working structure/global/business layers:
 - **Exit criterion:** `frontend-redesign-spec.md` §14's acceptance criteria, scoped down by §2's
   deltas (no tool-registry UI, no fire-and-track on `bulk_update_mods`).
 
-## 6. Phase 4 — Logging Fix
+## 6. Phase 4 — Logging Fix (Complete)
 
 Unchanged from `docs/2026-07-09_redesign/outline-of-redesign.md` Phase 4: backend structured
 logging + file sink for `tauri-plugin-log`, frontend global error boundary at `__root.tsx`, no
 silent `.catch(() => {})` on IPC calls. Carried forward as-is.
+
+As landed: `tracing`'s `log` feature forwards every `tracing::*` event into the `log` facade
+(no separate tracing subscriber — the unused `tracing-subscriber`/`tracing-appender` deps are
+dropped), and `tauri-plugin-log` sinks to stdout plus a `modkeeper` file in the platform log dir.
+Every command logs its English `Display` line via `commands::log_err` at the point it returns
+`Err` (§7g of the consolidated spec); fire-and-track outcome failures are logged where their
+completion events are built. The frontend side (error boundary at the redesign root, no silent
+catches) landed with the Global stage; the legacy tree's remaining `.catch(() => null)` rides out
+with the later legacy-cleanup pass.
 
 ## 7. Phase 5 — Verification
 

@@ -46,12 +46,12 @@ parking_lot = "0.12.5"
 zip = "7.0.0"
 tokio = { version = "1.49.0", features = ["macros", "time"] }
 derive_more = { version = "2.1.1", features = ["display"] }
-tracing = "0.1.44"
-tracing-subscriber = { version = "0.3", features = ["env-filter", "std"] }
+# The "log" feature forwards tracing events to the `log` facade (no tracing
+# subscriber is installed), so tauri-plugin-log's sinks receive them.
+tracing = { version = "0.1.44", features = ["log"] }
 tauri-plugin-dialog = "2"
 base64 = "0.22"
 blake3 = "1.5"
-tracing-appender = "0.2.4"
 tauri-plugin-log = "2"
 window-vibrancy = "0.7.1"
 

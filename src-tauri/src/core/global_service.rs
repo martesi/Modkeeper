@@ -216,26 +216,29 @@ pub fn create_library(
 }
 
 /// Deletes only the known_libraries row; files stay on disk so re-adding the
-/// same gameRoot re-adopts the library's id (C7).
+/// same gameRoot re-adopts the library's id (C7). The handle is an id or, for
+/// a path-only stub, the registered library_root path (C13).
 pub fn delete_library_entry(
     config_handle: &Arc<Mutex<AppConfigStore>>,
     instance_handle: &Arc<Mutex<Option<Library>>>,
-    library_id: &str,
+    library_handle: &str,
 ) -> Result<(), SError> {
-    {
+    let library_id = {
         let mut store = config_handle.lock();
-        if store.config.find_library(library_id).is_none() {
+        let Some(known) = store.config.find_library_by_handle(library_handle) else {
             return Err(SError::InvalidLibrary(
-                library_id.to_string(),
+                library_handle.to_string(),
                 "Library not registered".to_string(),
             ));
-        }
-        store.config.remove_library(library_id);
+        };
+        let library_id = known.id.clone();
+        store.config.remove_library(&library_id);
         store.save()?;
-    }
+        library_id
+    };
 
     let mut instance = instance_handle.lock();
-    if instance.as_ref().map(|lib| lib.id.as_str()) == Some(library_id) {
+    if instance.as_ref().map(|lib| lib.id.as_str()) == Some(library_id.as_str()) {
         *instance = None;
     }
     Ok(())
@@ -252,7 +255,7 @@ pub fn delete_library_files(
         let store = config_handle.lock();
         store
             .config
-            .find_library(library_id)
+            .find_library_by_handle(library_id)
             .map(|known| known.library_root.clone())
             .ok_or_else(|| {
                 SError::InvalidLibrary(
