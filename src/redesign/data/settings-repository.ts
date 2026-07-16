@@ -14,6 +14,7 @@ import { commands } from '@gen/bindings'
 import { changeLocale } from '@/utils/i18n'
 import type { AppSettings } from './redesign-types'
 import { resolveCommandError } from '../shared/hooks/use-command-error'
+import { contrastOn } from '../shared/utils/contrast'
 import { getMockWorkspace, setMockWorkspace } from './example-data'
 import { setSettings } from '../state/settings-state'
 
@@ -46,41 +47,22 @@ export async function saveSettings(
 }
 
 /**
- * Accent is applied as CSS-variable overrides on the root element; the hover/active/state-layer
- * shades are derived with color-mix so one hex drives the whole interactive palette. The default
- * accent clears the overrides so the stylesheet's hand-tuned values win.
+ * Accent is applied as shadcn-variable overrides on the root element (fix_plan_0.md §3):
+ * `--primary` and `--ring` carry the hex, `--primary-foreground` is derived from its luminance
+ * (§4) so light accents keep readable text. Hover/active shades need no vars — the shadcn `/90`
+ * opacity idiom derives them. The default accent clears the overrides so the stylesheet wins.
  */
 export function applyAccent(accentColor: string): void {
   const style = document.documentElement.style
   if (accentColor === DEFAULT_ACCENT) {
-    for (const name of [
-      '--mk-primary',
-      '--mk-primary-hover',
-      '--mk-primary-active',
-      '--mk-state-hover',
-      '--mk-state-active',
-    ]) {
+    for (const name of ['--primary', '--primary-foreground', '--ring']) {
       style.removeProperty(name)
     }
     return
   }
-  style.setProperty('--mk-primary', accentColor)
-  style.setProperty(
-    '--mk-primary-hover',
-    `color-mix(in srgb, ${accentColor} 90%, black)`,
-  )
-  style.setProperty(
-    '--mk-primary-active',
-    `color-mix(in srgb, ${accentColor} 80%, black)`,
-  )
-  style.setProperty(
-    '--mk-state-hover',
-    `color-mix(in srgb, ${accentColor} 12%, transparent)`,
-  )
-  style.setProperty(
-    '--mk-state-active',
-    `color-mix(in srgb, ${accentColor} 20%, transparent)`,
-  )
+  style.setProperty('--primary', accentColor)
+  style.setProperty('--primary-foreground', contrastOn(accentColor))
+  style.setProperty('--ring', accentColor)
 }
 
 export async function applyLanguage(language: string): Promise<void> {

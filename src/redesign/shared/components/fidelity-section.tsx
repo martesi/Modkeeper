@@ -24,14 +24,16 @@ export function FidelitySection({
     >
       <header className="flex items-start justify-between gap-3">
         <div className="flex flex-col gap-0.5">
-          <h3 className="text-sm font-semibold text-[var(--mk-text)]">
+          <h3 className="font-heading text-sm font-bold text-foreground">
             {title}
           </h3>
           {description && (
-            <p className="text-xs text-[var(--mk-text-muted)]">{description}</p>
+            <p className="text-xs text-muted-foreground">{description}</p>
           )}
         </div>
-        {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+        {actions && (
+          <div className="flex shrink-0 items-center gap-2">{actions}</div>
+        )}
       </header>
       {children}
     </section>

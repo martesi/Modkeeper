@@ -76,13 +76,13 @@ function ExtraContentHarness() {
         cancelLabel="Cancel"
         onConfirm={() => setOpen(false)}
       >
-        <label className="flex items-center gap-2.5 rounded-[var(--mk-radius-control)] border border-[var(--mk-outline)] bg-[var(--mk-surface-container)] px-3.5 py-2.5 text-sm text-[var(--mk-text)]">
+        <label className="flex items-center gap-2.5 rounded-lg border border-border bg-secondary px-3.5 py-2.5 text-sm text-foreground">
           <input
             type="checkbox"
             checked={deleteFiles}
             onChange={(e) => setDeleteFiles(e.target.checked)}
             className="size-4"
-            style={{ accentColor: 'var(--mk-primary)' }}
+            style={{ accentColor: 'var(--primary)' }}
           />
           Also delete files on disk
         </label>

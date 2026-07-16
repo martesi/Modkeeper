@@ -4,15 +4,16 @@ import { cn } from '@/lib/utils'
 import { FidelityPanel } from '../shared/components/fidelity-panel'
 import { FidelityCheckbox } from '../shared/components/fidelity-checkbox'
 import { FidelitySwitch } from '../shared/components/fidelity-switch'
-import { ModCategoryIcon } from './mod-category-icon'
+import { ModInitialIcon } from './mod-initial-icon'
 import { libraryBusyAtom, selectedModIdsAtom } from '../state/library-state'
 import { toggleModStatus } from '../data/library-repository'
 import { libraryText } from '../i18n/library-text'
 import type { ModSummary } from '../data/redesign-types'
 
 /**
- * Title-only mod card (consolidated-spec.md §12.3): left selection checkbox, ModType-tinted
- * category icon, truncated title, right enable/disable switch. Stable dimensions in every state.
+ * Mod card (reference Modkeeper.dc.html `mod.cardStyle`): selection checkbox, tinted initial
+ * tile, truncated title, enable/disable switch. Enabled cards get a primary-tinted border;
+ * disabled ones fade. Stable dimensions in every state.
  *
  * The toggle is the PLAIN repository shape with LOCAL per-click pending — set on click, cleared
  * when the promise settles — so it gives instant feedback even queued behind a heavy op. The card
@@ -48,12 +49,9 @@ export function ModTitleCard({ mod }: { mod: ModSummary }) {
 
   return (
     <FidelityPanel
-      radius="control"
       className={cn(
-        'flex h-14 items-center gap-3 px-3 transition-opacity',
-        mod.isEnabled
-          ? 'border-[var(--mk-primary)] bg-[var(--mk-state-hover)]'
-          : 'opacity-70',
+        'flex items-center gap-3.5 px-4 py-4 transition-[opacity,border-color]',
+        mod.isEnabled ? 'border-primary/20' : 'opacity-60',
       )}
     >
       <FidelityCheckbox
@@ -61,9 +59,9 @@ export function ModTitleCard({ mod }: { mod: ModSummary }) {
         onCheckedChange={handleSelect}
         aria-label={libraryText.selectMod(mod.name)}
       />
-      <ModCategoryIcon type={mod.type} />
+      <ModInitialIcon name={mod.name} type={mod.type} />
       <span
-        className="min-w-0 flex-1 truncate text-sm font-medium"
+        className="min-w-0 flex-1 truncate text-sm font-bold"
         title={mod.name}
       >
         {mod.name}

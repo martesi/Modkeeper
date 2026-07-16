@@ -1,3 +1,4 @@
+import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
 
 type FidelitySwitchProps = {
@@ -11,38 +12,27 @@ type FidelitySwitchProps = {
   className?: string
 }
 
-/** Stable-dimension toggle switch (spec §11 guardrails — no layout shift between states). */
+/**
+ * Styled wrapper over the shadcn Switch (fix_plan_0.md §1/§7 — the interactive primitive is always
+ * the shadcn one; thumb geometry is Radix's). Sized to the reference's 44×26 track / 20px knob.
+ */
 export function FidelitySwitch({
-  checked,
-  onCheckedChange,
-  disabled = false,
   busy = false,
   className,
   ...props
 }: FidelitySwitchProps) {
   return (
-    <button
-      type="button"
-      role="switch"
+    <Switch
       data-slot="fidelity-switch"
-      aria-checked={checked}
       aria-busy={busy || undefined}
-      disabled={disabled}
-      onClick={() => onCheckedChange(!checked)}
       className={cn(
-        'mk-focus-ring relative h-6 w-11 shrink-0 rounded-full transition-colors',
-        'disabled:cursor-not-allowed disabled:opacity-50',
-        checked ? 'bg-[var(--mk-primary)]' : 'bg-[var(--mk-outline)]',
+        'h-[1.625rem] w-11',
+        '[&_[data-slot=switch-thumb]]:size-5',
+        '[&_[data-slot=switch-thumb][data-state=unchecked]]:translate-x-[2px]',
+        '[&_[data-slot=switch-thumb][data-state=checked]]:translate-x-[20px]',
         className,
       )}
       {...props}
-    >
-      <span
-        className={cn(
-          'absolute top-0.5 size-5 rounded-full bg-white shadow-sm transition-transform',
-          checked ? 'translate-x-[1.375rem]' : 'translate-x-0.5',
-        )}
-      />
-    </button>
+    />
   )
 }

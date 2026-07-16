@@ -1,6 +1,6 @@
+import { Fragment } from 'react'
 import { useAtomValue } from 'jotai'
-import { Globe, Palette, SunMoon } from 'lucide-react'
-import { PageTitle } from '../shell/page-title'
+import { FidelityPanel } from '../shared/components/fidelity-panel'
 import { settingsAtom } from '../state/settings-state'
 import { saveSettings, DEFAULT_ACCENT } from '../data/settings-repository'
 import type { AppSettings } from '../data/redesign-types'
@@ -17,9 +17,10 @@ const FALLBACK_SETTINGS: AppSettings = {
 }
 
 /**
- * Settings screen (consolidated-spec.md §12.6): one centered column of rows, no tabs, no developer
- * section. Every change saves the FULL settings object (T1); the initializers' applier turns the
- * replaced atom into visible effect.
+ * Settings screen (reference Modkeeper.dc.html settings view): page header, then ONE glass card
+ * with divider-separated rows — App Theme, Accent Color, Interface Language. Every change saves
+ * the FULL settings object (T1); the initializers' applier turns the replaced atom into visible
+ * effect.
  */
 export function SettingsScreen() {
   const settings = useAtomValue(settingsAtom) ?? FALLBACK_SETTINGS
@@ -28,45 +29,61 @@ export function SettingsScreen() {
     void saveSettings({ ...settings, ...patch })
   }
 
-  return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-3">
-      <PageTitle
-        title={settingsText.title()}
-        subtitle={settingsText.subtitle()}
-      />
-
-      <SettingRow
-        icon={SunMoon}
-        label={settingsText.appearance()}
-        description={settingsText.appearanceDescription()}
-      >
+  const rows = [
+    {
+      key: 'theme',
+      label: settingsText.appearance(),
+      description: settingsText.appearanceDescription(),
+      control: (
         <ThemeModeControl
           value={settings.theme}
           onChange={(theme) => save({ theme })}
         />
-      </SettingRow>
-
-      <SettingRow
-        icon={Palette}
-        label={settingsText.accent()}
-        description={settingsText.accentDescription()}
-      >
+      ),
+    },
+    {
+      key: 'accent',
+      label: settingsText.accent(),
+      description: settingsText.accentDescription(),
+      control: (
         <AccentSwatches
           value={settings.accentColor}
           onChange={(accentColor) => save({ accentColor })}
         />
-      </SettingRow>
-
-      <SettingRow
-        icon={Globe}
-        label={settingsText.language()}
-        description={settingsText.languageDescription()}
-      >
+      ),
+    },
+    {
+      key: 'language',
+      label: settingsText.language(),
+      description: settingsText.languageDescription(),
+      control: (
         <LanguageSelect
           value={settings.language}
           onChange={(language) => save({ language })}
         />
-      </SettingRow>
+      ),
+    },
+  ]
+
+  return (
+    <div className="mx-auto flex w-full max-w-[62.5rem] flex-col">
+      <h1 className="font-heading text-[26px] font-extrabold leading-tight text-foreground">
+        {settingsText.title()}
+      </h1>
+      <p className="mb-3 text-[13px] text-muted-foreground">
+        {settingsText.subtitle()}
+      </p>
+
+      <FidelityPanel className="flex flex-col">
+        {rows.map((row, index) => (
+          <Fragment key={row.key}>
+            {index > 0 && <div className="h-px bg-border" aria-hidden />}
+            <SettingRow label={row.label} description={row.description}>
+              {row.control}
+            </SettingRow>
+          </Fragment>
+        ))}
+      </FidelityPanel>
     </div>
   )
 }

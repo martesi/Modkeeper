@@ -12,3 +12,6 @@ pre-commit:
     lingui-extract:
       glob: 'src/**/*.{ts,tsx}'
       run: bun run extract && git add locales/*.po
+    token-guardrail:
+      glob: 'src/redesign/**/*'
+      run: bun run scripts/check-tokens.ts

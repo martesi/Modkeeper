@@ -1,37 +1,27 @@
 import type { ReactNode } from 'react'
-import type { LucideIcon } from 'lucide-react'
-import { FidelityPanel } from '../shared/components/fidelity-panel'
 
 /**
- * One settings row (consolidated-spec.md §12.6): icon, label, description, right-aligned control.
- * Stacks on narrow widths (spec §12 accessibility).
+ * One settings row (reference Modkeeper.dc.html): bold label + description left, right-aligned
+ * control. Wraps on narrow widths (spec §12 accessibility).
  */
 export function SettingRow({
-  icon: Icon,
   label,
   description,
   children,
 }: {
-  icon: LucideIcon
   label: string
   description: string
   children: ReactNode
 }) {
   return (
-    <FidelityPanel
-      radius="control"
-      className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
-    >
-      <div className="flex min-w-0 items-center gap-3">
-        <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-[var(--mk-radius-control)] bg-[var(--mk-state-hover)] text-[var(--mk-primary)]">
-          <Icon className="size-5" aria-hidden />
-        </span>
-        <div className="min-w-0">
-          <p className="text-sm font-medium">{label}</p>
-          <p className="text-xs text-[var(--mk-text-muted)]">{description}</p>
-        </div>
+    <div className="flex flex-wrap items-center justify-between gap-6 px-6 py-4">
+      <div className="min-w-0">
+        <p className="font-heading mb-0.5 text-[15px] font-bold text-foreground">
+          {label}
+        </p>
+        <p className="text-[13px] text-muted-foreground">{description}</p>
       </div>
       <div className="flex shrink-0 items-center gap-2">{children}</div>
-    </FidelityPanel>
+    </div>
   )
 }

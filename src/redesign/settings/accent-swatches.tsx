@@ -1,19 +1,13 @@
-import { Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { DEFAULT_ACCENT } from '../data/settings-repository'
+import { ACCENT_SWATCHES } from './accent-palette'
 import { settingsText } from '../i18n/settings-text'
 
-// Fidelity pink first (the default), then warm-compatible alternatives (spec §11 guardrails).
-const SWATCHES: { name: string; value: string }[] = [
-  { name: 'Pink', value: DEFAULT_ACCENT },
-  { name: 'Teal', value: '#00828d' },
-  { name: 'Purple', value: '#8b5cf6' },
-  { name: 'Orange', value: '#f97316' },
-  { name: 'Green', value: '#10b981' },
-  { name: 'Blue', value: '#3b82f6' },
-]
-
-/** Accent swatch strip (consolidated-spec.md §12.6): applies immediately and persists. */
+/**
+ * Accent swatch strip (reference Modkeeper.dc.html `accentOptions`): 32px dots; the selected one
+ * gets a white inner border plus an accent-colored halo, the rest sit dimmed. Applies immediately
+ * and persists. Selection needs no glyph, so no foreground-contrast concern here — the derived
+ * `--primary-foreground` (§4) covers the filled controls.
+ */
 export function AccentSwatches({
   value,
   onChange,
@@ -22,8 +16,8 @@ export function AccentSwatches({
   onChange: (color: string) => void
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      {SWATCHES.map((swatch) => {
+    <div className="flex flex-wrap items-center gap-3.5">
+      {ACCENT_SWATCHES.map((swatch) => {
         const selected = value.toLowerCase() === swatch.value.toLowerCase()
         return (
           <button
@@ -34,15 +28,19 @@ export function AccentSwatches({
             title={swatch.name}
             onClick={() => onChange(swatch.value)}
             className={cn(
-              'mk-focus-ring inline-flex size-8 items-center justify-center rounded-full border-2 transition-transform',
+              'size-8 rounded-full border-[3px] transition-[opacity,box-shadow]',
+              'outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
               selected
-                ? 'scale-110 border-[var(--mk-text)]'
-                : 'border-transparent hover:scale-105',
+                ? 'border-white opacity-100 shadow-[0_0_0_2px_var(--swatch-color)]'
+                : 'border-transparent opacity-55 hover:opacity-100',
             )}
-            style={{ backgroundColor: swatch.value }}
-          >
-            {selected && <Check className="size-4 text-white" aria-hidden />}
-          </button>
+            style={
+              {
+                backgroundColor: swatch.value,
+                '--swatch-color': swatch.value,
+              } as React.CSSProperties
+            }
+          />
         )
       })}
     </div>

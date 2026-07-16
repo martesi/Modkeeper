@@ -25,12 +25,12 @@ export class RedesignErrorBoundary extends Component<Props, State> {
   render() {
     if (!this.state.error) return this.props.children
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[var(--mk-surface)] p-6">
+      <div className="flex min-h-screen items-center justify-center bg-background p-6">
         <FidelityPanel className="flex max-w-md flex-col items-center gap-4 p-8 text-center">
-          <h1 className="text-lg font-semibold text-[var(--mk-text)]">
+          <h1 className="font-heading text-lg font-bold text-foreground">
             {commonText.somethingWentWrong()}
           </h1>
-          <p className="break-all text-sm text-[var(--mk-text-muted)]">
+          <p className="break-all text-sm text-muted-foreground">
             {this.state.error.message}
           </p>
           <FidelityButton onClick={() => window.location.reload()}>

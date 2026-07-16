@@ -8,30 +8,31 @@ export const settingsText = {
   subtitle: () =>
     t({
       id: 'settings.header.subtitle',
-      message: 'Application settings and preferences',
+      message: 'Find and configure settings instantly.',
     }),
   appearance: () =>
-    t({ id: 'settings.appearance.label', message: 'Appearance' }),
+    t({ id: 'settings.appearance.label', message: 'App Theme' }),
   appearanceDescription: () =>
     t({
       id: 'settings.appearance.description',
-      message: 'System follows your OS preference',
+      message: 'Light, dark, or system preference',
     }),
   themeSystem: () => t({ id: 'settings.appearance.system', message: 'System' }),
   themeLight: () => t({ id: 'settings.appearance.light', message: 'Light' }),
   themeDark: () => t({ id: 'settings.appearance.dark', message: 'Dark' }),
-  accent: () => t({ id: 'settings.accent.label', message: 'Accent color' }),
+  accent: () => t({ id: 'settings.accent.label', message: 'Accent Color' }),
   accentDescription: () =>
     t({
       id: 'settings.accent.description',
-      message: 'The primary color used across the app',
+      message: 'Custom branding color',
     }),
   accentSwatch: (name: string) =>
     t({ id: 'settings.accent.swatch', message: `Use ${name} accent` }),
-  language: () => t({ id: 'settings.language.label', message: 'Language' }),
+  language: () =>
+    t({ id: 'settings.language.label', message: 'Interface Language' }),
   languageDescription: () =>
     t({
       id: 'settings.language.description',
-      message: 'Language for the whole interface',
+      message: 'App display language',
     }),
 }

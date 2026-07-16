@@ -3,8 +3,8 @@ import { FidelityButton } from '../shared/components/fidelity-button'
 import { libraryText } from '../i18n/library-text'
 
 /**
- * No-active-library state (consolidated-spec.md §12.1): centered dashed card whose primary action
- * opens the Manage Library dialog. No toolbar renders in this state.
+ * No-active-library state (reference Modkeeper.dc.html "Activate a library" card): dashed card
+ * whose action opens the Manage Library dialog. No toolbar renders in this state.
  */
 export function LibraryActivateEmptyState({
   onManageLibraries,
@@ -13,10 +13,16 @@ export function LibraryActivateEmptyState({
 }) {
   return (
     <LibraryEmptyCard>
-      <p className="text-sm text-[var(--mk-text-muted)]">
-        {libraryText.subtitleEmpty()}
+      <p className="font-heading text-base font-bold text-muted-foreground">
+        {libraryText.emptyActivateTitle()}
       </p>
-      <FidelityButton onClick={onManageLibraries}>
+      <p className="max-w-md text-xs text-muted-foreground">
+        {libraryText.emptyActivateBody()}
+      </p>
+      <FidelityButton
+        className="mt-1.5 rounded-full text-xs font-extrabold uppercase tracking-[0.05em]"
+        onClick={onManageLibraries}
+      >
         {libraryText.manageLibraries()}
       </FidelityButton>
     </LibraryEmptyCard>

@@ -1,22 +1,17 @@
-/*
- * Full-viewport app background (consolidated-spec.md §12): warm base surface with two soft brand
- * tints so the glass panels have something to blur. Fixed and non-interactive; sits behind
- * everything.
+import { isTauri } from '@tauri-apps/api/core'
+
+/**
+ * Browser-prototype page surface (fix_plan_0.md §6): the reference's radial page gradient, for
+ * environments with no OS surface (browser prototype, Storybook). In Tauri it renders NOTHING —
+ * the window is transparent and `apply_window_effect`'s mica IS the background; painting anything
+ * here would block it.
  */
 export function AppBackground() {
+  if (isTauri()) return null
   return (
     <div
       aria-hidden
-      className="fixed inset-0 -z-10 overflow-hidden bg-[var(--mk-surface)]"
-    >
-      <div
-        className="absolute -left-32 -top-40 size-[28rem] rounded-full blur-3xl"
-        style={{ backgroundColor: 'var(--mk-state-hover)' }}
-      />
-      <div
-        className="absolute -bottom-48 -right-32 size-[32rem] rounded-full blur-3xl"
-        style={{ backgroundColor: 'rgba(0, 130, 141, 0.08)' }}
-      />
-    </div>
+      className="mk-page-gradient fixed inset-0 -z-10 transition-colors"
+    />
   )
 }

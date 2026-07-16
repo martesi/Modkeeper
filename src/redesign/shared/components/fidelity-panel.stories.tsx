@@ -10,7 +10,7 @@ const meta = {
     children: (
       <div className="flex flex-col gap-1">
         <h3 className="text-sm font-semibold">Panel surface</h3>
-        <p className="text-sm text-[var(--mk-text-muted)]">
+        <p className="text-sm text-muted-foreground">
           Warm glass container used across the redesign.
         </p>
       </div>

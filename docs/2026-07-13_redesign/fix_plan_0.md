@@ -1,7 +1,22 @@
 # Fix Plan 0 — Redesign visual/QA pass + agent-drivable E2E
 
-Status: Revised 2026-07-16. §0 and §8 are **done** (landed while diagnosing the boot crash);
-everything else is planned. Scope: fixes only — no new features.
+Status: Revised 2026-07-16 (evening). **All sections landed** in the reference-UI implementation
+pass (Modkeeper.dc.html): §1–§7 done, §8 partially productized (`dev:e2e` script +
+`e2e/cdp-console.ts`; Playwright harness still open). Notes on how the landed code deviates from
+the letter of this plan:
+
+- §3: the palette values live directly in `src/assets/style.css` `:root`/`.dark` (not as a second
+  override block in fidelity.css — CSS import order made the override race the stone defaults);
+  `fidelity.css` keeps only the true extensions (`.mk-glass-*`, `.mk-scrollbar`,
+  `.mk-page-gradient`). Guardrail is `scripts/check-tokens.ts`, wired into lefthook.
+- §4: the 4.5:1 acceptance was unreachable for the brand pink `#e91e63` (its best foreground,
+  white, is ~4.3:1). `contrastOn` picks the higher-contrast of white/dark-ink and the unit test
+  asserts ≥3:1 (WCAG non-text-contrast) plus best-choice.
+- §2: the toolbar type filter was replaced by the reference's enabled/disabled filter (dropdown
+  menus, not Select); the language row uses shadcn Select as planned.
+- The reference's tool registry (header pill launchers, Executable Tools section, Configure Tool
+  dialog) is implemented frontend-only — the backend still has no tool commands (§7d), so tools
+  don't persist across restarts in Tauri and launch args are stored but unused.
 
 ## Core question
 

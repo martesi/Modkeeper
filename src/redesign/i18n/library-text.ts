@@ -1,6 +1,6 @@
 /*
  * Library-screen i18n namespace (frontend-redesign-spec.md §10): screen, toolbar, empty states,
- * bulk actions, and the Manage Library dialog.
+ * bulk actions, the Manage Library dialog, and the tool registry.
  */
 import { t } from '@lingui/core/macro'
 
@@ -11,10 +11,18 @@ export const libraryText = {
       id: 'library.header.subtitleEmpty',
       message: 'Click to create or activate a library',
     }),
+  subtitleModsInstalled: (count: number) =>
+    t({
+      id: 'library.header.subtitleModsInstalled',
+      message: `${count} mods installed`,
+    }),
   sync: () => t({ id: 'library.actions.sync', message: 'Sync' }),
   syncing: () => t({ id: 'library.status.syncing', message: 'Syncing…' }),
   deployStale: () =>
-    t({ id: 'library.status.deployStale', message: 'Deployment out of date' }),
+    t({
+      id: 'library.status.deployStale',
+      message: 'Deployment out of date — sync now',
+    }),
   deployUpToDate: () =>
     t({
       id: 'library.status.deployUpToDate',
@@ -31,12 +39,27 @@ export const libraryText = {
     }),
 
   // Import surfaces
-  addMods: () => t({ id: 'library.actions.addMods', message: 'Add mods' }),
-  dropZipPrompt: () =>
+  addMod: () => t({ id: 'library.actions.addMod', message: 'Add mod' }),
+  emptyActivateTitle: () =>
+    t({ id: 'library.empty.activateTitle', message: 'Activate a library' }),
+  emptyActivateBody: () =>
     t({
-      id: 'library.empty.dropZipPrompt',
-      message: 'Drop .zip archives here, or click to browse',
+      id: 'library.empty.activateBody',
+      message:
+        'Create or select a modding profile to start managing installed mods.',
     }),
+  dropTitle: () =>
+    t({
+      id: 'library.empty.dropTitle',
+      message: 'Drag and drop mod archives here to install',
+    }),
+  dropBrowse: () =>
+    t({
+      id: 'library.empty.dropBrowse',
+      message: 'or click to browse local files',
+    }),
+  dropSupported: () =>
+    t({ id: 'library.empty.dropSupported', message: 'SUPPORTED: .zip' }),
   manageLibraries: () =>
     t({ id: 'library.actions.manageLibraries', message: 'Manage libraries' }),
   zipArchive: () =>
@@ -53,28 +76,33 @@ export const libraryText = {
     }),
 
   // Toolbar
+  selectAll: () =>
+    t({ id: 'library.toolbar.selectAll', message: 'Select all' }),
   selectAllVisible: () =>
     t({
       id: 'library.toolbar.selectAllVisible',
       message: 'Select all visible mods',
     }),
   searchPlaceholder: () =>
-    t({ id: 'library.toolbar.searchPlaceholder', message: 'Search mods' }),
+    t({ id: 'library.toolbar.searchPlaceholder', message: 'Search mods…' }),
   searchLabel: () =>
     t({ id: 'library.toolbar.searchLabel', message: 'Search mods' }),
+  sortLabel: () => t({ id: 'library.toolbar.sortLabel', message: 'Sort' }),
   sortNameAsc: () =>
-    t({ id: 'library.toolbar.sortNameAsc', message: 'Sorted A to Z' }),
+    t({ id: 'library.toolbar.sortNameAsc', message: 'Name (A-Z)' }),
   sortNameDesc: () =>
-    t({ id: 'library.toolbar.sortNameDesc', message: 'Sorted Z to A' }),
+    t({ id: 'library.toolbar.sortNameDesc', message: 'Name (Z-A)' }),
+  sortUpdatedDesc: () =>
+    t({ id: 'library.toolbar.sortUpdatedDesc', message: 'Recently updated' }),
   filterLabel: () =>
-    t({ id: 'library.toolbar.filterLabel', message: 'Filter by type' }),
-  filterAll: () => t({ id: 'library.toolbar.filterAll', message: 'All types' }),
-  typeClient: () => t({ id: 'library.modType.client', message: 'Client' }),
-  typeServer: () => t({ id: 'library.modType.server', message: 'Server' }),
-  typeBoth: () => t({ id: 'library.modType.both', message: 'Both' }),
-  typeUnknown: () => t({ id: 'library.modType.unknown', message: 'Unknown' }),
+    t({ id: 'library.toolbar.filterLabel', message: 'Filter' }),
+  filterAll: () => t({ id: 'library.toolbar.filterAll', message: 'All mods' }),
+  filterEnabled: () =>
+    t({ id: 'library.toolbar.filterEnabled', message: 'Enabled only' }),
+  filterDisabled: () =>
+    t({ id: 'library.toolbar.filterDisabled', message: 'Disabled only' }),
   actions: (count: number) =>
-    t({ id: 'library.toolbar.actions', message: `Actions (${count})` }),
+    t({ id: 'library.toolbar.actions', message: `Actions · ${count}` }),
   noVisibleMods: () =>
     t({
       id: 'library.grid.noVisibleMods',
@@ -103,7 +131,12 @@ export const libraryText = {
 
   // Manage Library dialog
   manageDialogTitle: () =>
-    t({ id: 'library.manage.dialogTitle', message: 'Manage Libraries' }),
+    t({ id: 'library.manage.dialogTitle', message: 'Manage Library' }),
+  manageDialogDescription: () =>
+    t({
+      id: 'library.manage.dialogDescription',
+      message: 'Configure paths and tools for your modding profiles.',
+    }),
   addLibraryTab: () =>
     t({ id: 'library.manage.addLibraryTab', message: 'Add library' }),
   selectGameRoot: () =>
@@ -112,13 +145,23 @@ export const libraryText = {
       message: 'Select the SPT game folder',
     }),
   identitySection: () =>
-    t({ id: 'library.manage.identitySection', message: 'Identity' }),
+    t({ id: 'library.manage.identitySection', message: 'Library Identity' }),
+  identityDescription: () =>
+    t({
+      id: 'library.manage.identityDescription',
+      message: 'The display name for this library in your dashboard.',
+    }),
   nameLabel: () => t({ id: 'library.manage.nameLabel', message: 'Name' }),
   saveName: () => t({ id: 'library.manage.saveName', message: 'Save' }),
   sptVersion: (version: string) =>
     t({ id: 'library.manage.sptVersion', message: `SPT ${version}` }),
   pathsSection: () =>
-    t({ id: 'library.manage.pathsSection', message: 'Paths' }),
+    t({ id: 'library.manage.pathsSection', message: 'Installation Paths' }),
+  pathsDescription: () =>
+    t({
+      id: 'library.manage.pathsDescription',
+      message: 'Required locations for game files and mod deployments.',
+    }),
   gameRootLabel: () =>
     t({ id: 'library.manage.gameRootLabel', message: 'Game root' }),
   libraryRootLabel: () =>
@@ -132,7 +175,7 @@ export const libraryText = {
       message: 'Open in file explorer',
     }),
   rebuildCache: () =>
-    t({ id: 'library.manage.rebuildCache', message: 'Rebuild cache' }),
+    t({ id: 'library.manage.rebuildCache', message: 'Rebuild Cache' }),
   rebuildNeedsActive: () =>
     t({
       id: 'library.manage.rebuildNeedsActive',
@@ -141,7 +184,7 @@ export const libraryText = {
   activate: () => t({ id: 'library.manage.activate', message: 'Activate' }),
   activated: () => t({ id: 'library.manage.activated', message: 'Activated' }),
   deleteLibrary: () =>
-    t({ id: 'library.manage.deleteLibrary', message: 'Delete' }),
+    t({ id: 'library.manage.deleteLibrary', message: 'Delete Library' }),
   deleteLibraryTitle: (name: string) =>
     t({ id: 'library.manage.deleteLibraryTitle', message: `Delete ${name}?` }),
   deleteLibraryDescription: () =>
@@ -159,6 +202,8 @@ export const libraryText = {
       id: 'library.manage.unreadableLibrary',
       message: 'Unreadable library',
     }),
+  pathUnreachable: () =>
+    t({ id: 'library.manage.pathUnreachable', message: 'Path unreachable' }),
   unreadableLibraryHint: () =>
     t({
       id: 'library.manage.unreadableLibraryHint',
@@ -167,4 +212,65 @@ export const libraryText = {
     }),
   removeEntry: () =>
     t({ id: 'library.manage.removeEntry', message: 'Remove entry' }),
+
+  // Executable tools
+  toolsSection: () =>
+    t({ id: 'library.tools.section', message: 'Executable Tools' }),
+  toolsDescription: () =>
+    t({
+      id: 'library.tools.description',
+      message: "Launch utilities specific to this profile's configuration.",
+    }),
+  registerNewTool: () =>
+    t({ id: 'library.tools.registerNewTool', message: '+ Register New Tool' }),
+  launchToolLabel: (name: string) =>
+    t({ id: 'library.tools.launch', message: `Launch ${name}` }),
+  configureToolLabel: (name: string) =>
+    t({ id: 'library.tools.configure', message: `Configure ${name}` }),
+  launchingTool: (name: string) =>
+    t({ id: 'library.tools.launching', message: `Launching ${name}…` }),
+  toolLaunchFailed: (name: string) =>
+    t({ id: 'library.tools.launchFailed', message: `Could not launch ${name}` }),
+  toolSaved: () => t({ id: 'library.tools.saved', message: 'Tool saved' }),
+  toolDeleted: () =>
+    t({ id: 'library.tools.deleted', message: 'Tool deleted' }),
+  configureToolTitle: () =>
+    t({ id: 'library.tools.dialogTitle', message: 'Configure Tool' }),
+  configureToolDescription: () =>
+    t({
+      id: 'library.tools.dialogDescription',
+      message: 'External executable and launch parameters.',
+    }),
+  toolIdentity: () =>
+    t({ id: 'library.tools.identity', message: 'Tool Identity' }),
+  toolNamePlaceholder: () =>
+    t({ id: 'library.tools.namePlaceholder', message: 'Tool name' }),
+  toolIconPlaceholder: () =>
+    t({
+      id: 'library.tools.iconPlaceholder',
+      message: 'Icon URL (optional)',
+    }),
+  executablePathLabel: () =>
+    t({ id: 'library.tools.executablePath', message: 'Executable Path' }),
+  executablePathPlaceholder: () =>
+    t({
+      id: 'library.tools.executablePathPlaceholder',
+      message: 'System path to the target file',
+    }),
+  browse: () => t({ id: 'library.tools.browse', message: 'Browse' }),
+  selectExecutable: () =>
+    t({ id: 'library.tools.selectExecutable', message: 'Select executable' }),
+  launchArgsLabel: () =>
+    t({ id: 'library.tools.launchArgs', message: 'Launch Arguments' }),
+  launchArgsHint: () =>
+    t({
+      id: 'library.tools.launchArgsHint',
+      message: 'Stored, but not passed yet — launch uses the OS handler',
+    }),
+  deleteTool: () =>
+    t({ id: 'library.tools.deleteTool', message: 'Delete Tool' }),
+  saveChanges: () =>
+    t({ id: 'library.tools.saveChanges', message: 'Save Changes' }),
+  executable: () =>
+    t({ id: 'library.tools.executable', message: 'Executable' }),
 }

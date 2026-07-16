@@ -3,8 +3,9 @@ import type { ThemeMode } from '@gen/bindings'
 import { settingsText } from '../i18n/settings-text'
 
 /**
- * Segmented System/Light/Dark control (consolidated-spec.md §12.6). Stable dimensions — the
- * selected state changes color only, never size.
+ * Segmented System/Light/Dark control (reference Modkeeper.dc.html): uppercase segments in a soft
+ * track; the active one is a white pill in BOTH themes (reference `themeOptions` style). Stable
+ * dimensions — the selected state changes color only, never size.
  */
 export function ThemeModeControl({
   value,
@@ -23,7 +24,7 @@ export function ThemeModeControl({
     <div
       role="radiogroup"
       aria-label={settingsText.appearance()}
-      className="inline-flex rounded-[var(--mk-radius-control)] border border-[var(--mk-outline)] bg-[var(--mk-surface)] p-1"
+      className="inline-flex gap-0.5 rounded-[0.875rem] border border-border bg-secondary p-1"
     >
       {options.map((option) => (
         <button
@@ -33,10 +34,12 @@ export function ThemeModeControl({
           aria-checked={value === option.mode}
           onClick={() => onChange(option.mode)}
           className={cn(
-            'mk-focus-ring h-8 rounded-[calc(var(--mk-radius-control)-0.25rem)] px-3 text-sm transition-colors',
+            'rounded-[0.625rem] px-4 py-2 text-[11px] font-extrabold uppercase tracking-[0.05em]',
+            'outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50',
             value === option.mode
-              ? 'bg-[var(--mk-primary)] font-medium text-[var(--mk-on-primary)]'
-              : 'text-[var(--mk-text-muted)] hover:bg-[var(--mk-state-hover)]',
+              ? // The reference pill is white regardless of theme (a deliberate literal).
+                'bg-white text-neutral-900 shadow-sm'
+              : 'text-muted-foreground hover:bg-accent',
           )}
         >
           {option.label}

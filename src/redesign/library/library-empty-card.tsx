@@ -1,11 +1,10 @@
 import type { ReactNode } from 'react'
-import { CloudUpload } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 /**
- * The shared 16:9 dashed-boundary empty-state card (consolidated-spec.md §12.1/§12.2): cloud-upload
- * icon, caller-supplied prompt/action content, optional corner badge. When `onClick` is given the
- * whole card is one big button (the §12.2 drop state).
+ * The shared dashed empty-state card (reference Modkeeper.dc.html): accent dot, caller-supplied
+ * prompt/action content, optional corner badge. When `onClick` is given the whole card is one big
+ * button (the drop state) — callers that render their own button inside must NOT pass `onClick`.
  */
 export function LibraryEmptyCard({
   onClick,
@@ -22,20 +21,17 @@ export function LibraryEmptyCard({
       type={onClick ? 'button' : undefined}
       onClick={onClick}
       className={cn(
-        'relative mx-auto flex aspect-video w-full max-w-xl flex-col items-center justify-center gap-4',
-        'rounded-[var(--mk-radius-panel)] border-2 border-dashed border-[var(--mk-outline)]',
-        'bg-[var(--mk-surface-container)] p-8 text-center text-[var(--mk-text)]',
+        'mk-glass-standard relative flex w-full max-w-[60rem] flex-col items-center gap-2',
+        'rounded-[1.25rem] border-2 border-dashed border-border bg-card px-6 py-6',
+        'text-center text-foreground',
         onClick &&
-          'mk-focus-ring cursor-pointer transition-colors hover:border-[var(--mk-primary)] hover:bg-[var(--mk-state-hover)]',
+          'cursor-pointer outline-none transition-colors hover:border-primary/60 hover:bg-primary/5 focus-visible:ring-[3px] focus-visible:ring-ring/50',
       )}
     >
-      <CloudUpload
-        className="size-12 text-[var(--mk-text-muted)]"
-        aria-hidden
-      />
+      <span className="size-7 rounded-full bg-primary/15" aria-hidden />
       {children}
       {badge && (
-        <span className="absolute bottom-4 right-5 rounded-full border border-[var(--mk-outline)] bg-[var(--mk-surface)] px-2.5 py-0.5 text-xs font-medium text-[var(--mk-text-muted)]">
+        <span className="mt-1.5 rounded-xl bg-secondary px-3 py-1.5 text-[10px] font-bold tracking-[0.05em] text-muted-foreground">
           {badge}
         </span>
       )}

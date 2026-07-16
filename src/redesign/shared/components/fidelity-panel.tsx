@@ -2,19 +2,17 @@ import type { ComponentProps } from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/utils'
 
-const panelVariants = cva('text-[var(--mk-text)] border', {
+const panelVariants = cva('text-foreground border', {
   variants: {
     variant: {
-      standard:
-        'mk-glass-standard bg-[var(--mk-surface-container)] border-[var(--mk-outline)] shadow-[var(--mk-shadow-panel)]',
-      strong:
-        'mk-glass-strong bg-[var(--mk-surface-strong)] border-[var(--mk-outline)] shadow-[var(--mk-shadow-panel)]',
-      solid: 'bg-[var(--mk-surface)] border-[var(--mk-outline)]',
+      standard: 'mk-glass-standard bg-card border-border shadow-sm',
+      strong: 'mk-glass-strong bg-popover border-border shadow-xl',
+      solid: 'bg-background border-border',
     },
     radius: {
-      panel: 'rounded-[var(--mk-radius-panel)]',
-      dialog: 'rounded-[var(--mk-radius-dialog)]',
-      control: 'rounded-[var(--mk-radius-control)]',
+      panel: 'rounded-[1.25rem]',
+      dialog: 'rounded-[2rem]',
+      control: 'rounded-lg',
     },
   },
   defaultVariants: {

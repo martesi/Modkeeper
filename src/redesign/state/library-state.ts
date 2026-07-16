@@ -17,7 +17,7 @@ import type {
   LibraryEntry,
   LibrarySummary,
   ModSummary,
-  ModType,
+  ToolSummary,
   LibraryId,
   ModId,
 } from '../data/redesign-types'
@@ -52,29 +52,45 @@ export const modListAtom = atom<ModSummary[]>((get) => {
   return workspace.modsByLibraryId[activeId] ?? []
 })
 
-// --- Durable view state (§10): selection, search, sort, type filter ---
+/** Executable tools registered on the active library (reference header toolbar). */
+export const activeLibraryToolsAtom = atom<ToolSummary[]>((get) => {
+  const workspace = get(libraryWorkspaceAtom)
+  const activeId = workspace?.activeLibraryId
+  if (!workspace || !activeId) return []
+  return workspace.toolsByLibraryId[activeId] ?? []
+})
+
+// --- Durable view state (§10): selection, search, sort, status filter ---
 
 export const selectedModIdsAtom = atom<ReadonlySet<ModId>>(new Set<ModId>())
 
 export const librarySearchAtom = atom('')
 
-export type LibrarySort = 'name-asc' | 'name-desc'
+// Sort/filter vocabulary follows the reference toolbar (Modkeeper.dc.html): sort by name or
+// recency, filter by enabled state. ("Recently installed" from the reference has no backing
+// field — ModSummary only carries updatedAt — so recency means last updated.)
+export type LibrarySort = 'name-asc' | 'name-desc' | 'updated-desc'
 export const librarySortAtom = atom<LibrarySort>('name-asc')
 
-export type LibraryTypeFilter = ModType | 'all'
-export const libraryTypeFilterAtom = atom<LibraryTypeFilter>('all')
+export type LibraryStatusFilter = 'all' | 'enabled' | 'disabled'
+export const libraryStatusFilterAtom = atom<LibraryStatusFilter>('all')
 
-/** The mods the grid actually renders: type-filtered, search-filtered, sorted. */
+/** The mods the grid actually renders: status-filtered, search-filtered, sorted. */
 export const visibleModsAtom = atom<ModSummary[]>((get) => {
-  const typeFilter = get(libraryTypeFilterAtom)
+  const statusFilter = get(libraryStatusFilterAtom)
   const search = get(librarySearchAtom).trim().toLowerCase()
   const sort = get(librarySortAtom)
   return get(modListAtom)
-    .filter((mod) => typeFilter === 'all' || mod.type === typeFilter)
-    .filter((mod) => search === '' || mod.name.toLowerCase().includes(search))
-    .sort((a, b) =>
-      sort === 'name-asc' ? compareByName(a, b) : compareByName(b, a),
+    .filter(
+      (mod) =>
+        statusFilter === 'all' ||
+        mod.isEnabled === (statusFilter === 'enabled'),
     )
+    .filter((mod) => search === '' || mod.name.toLowerCase().includes(search))
+    .sort((a, b) => {
+      if (sort === 'updated-desc') return b.updatedAt.localeCompare(a.updatedAt)
+      return sort === 'name-asc' ? compareByName(a, b) : compareByName(b, a)
+    })
 })
 
 /** An accepted-but-not-yet-completed fire-and-track operation. */

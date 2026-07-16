@@ -6,12 +6,13 @@ export function FidelityInput({ className, ...props }: ComponentProps<'input'>) 
     <input
       data-slot="fidelity-input"
       className={cn(
-        'mk-focus-ring h-10 w-full min-w-0 rounded-[var(--mk-radius-control)] px-3.5 text-sm',
-        'border border-[var(--mk-outline)] bg-[var(--mk-surface)] text-[var(--mk-text)]',
-        'transition-colors placeholder:text-[var(--mk-text-muted)]',
+        'h-10 w-full min-w-0 rounded-lg px-3.5 text-sm',
+        'border border-border bg-secondary text-foreground',
+        'transition-colors placeholder:text-muted-foreground',
+        'outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]',
         'disabled:cursor-not-allowed disabled:opacity-50',
-        'aria-invalid:border-[var(--mk-danger)] aria-invalid:text-[var(--mk-danger)]',
-        className
+        'aria-invalid:border-destructive aria-invalid:text-destructive',
+        className,
       )}
       {...props}
     />

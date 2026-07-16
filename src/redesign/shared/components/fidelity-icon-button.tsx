@@ -4,22 +4,23 @@ import { cn } from '@/lib/utils'
 
 const iconButtonVariants = cva(
   cn(
-    'mk-focus-ring inline-flex shrink-0 items-center justify-center',
-    'rounded-[var(--mk-radius-control)] transition-colors',
+    'inline-flex shrink-0 items-center justify-center',
+    'rounded-lg transition-colors',
+    'outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]',
     'disabled:pointer-events-none disabled:opacity-50',
-    '[&_svg]:shrink-0 [&_svg]:pointer-events-none'
+    '[&_svg]:shrink-0 [&_svg]:pointer-events-none',
   ),
   {
     variants: {
       variant: {
-        primary:
-          'bg-[var(--mk-primary)] text-[var(--mk-on-primary)] hover:bg-[var(--mk-primary-hover)] active:bg-[var(--mk-primary-active)]',
+        primary: 'bg-primary text-primary-foreground hover:bg-primary/90',
         secondary:
-          'border border-[var(--mk-outline)] bg-[var(--mk-surface-container)] text-[var(--mk-text)] hover:bg-[var(--mk-surface-container-hover)]',
+          'border border-border bg-secondary text-foreground hover:bg-accent',
+        /** The reference toolbar's tinted round tool button: primary at low alpha. */
+        soft: 'bg-primary/15 text-primary hover:bg-primary/25',
         ghost:
-          'bg-transparent text-[var(--mk-text)] hover:bg-[var(--mk-state-hover)] active:bg-[var(--mk-state-active)]',
-        destructive:
-          'bg-[var(--mk-danger)] text-[var(--mk-on-danger)] hover:bg-[var(--mk-danger-hover)]',
+          'bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground',
+        destructive: 'bg-destructive text-white hover:bg-destructive/90',
       },
       size: {
         sm: 'size-8 [&_svg]:size-4',
@@ -31,7 +32,7 @@ const iconButtonVariants = cva(
       variant: 'ghost',
       size: 'md',
     },
-  }
+  },
 )
 
 type FidelityIconButtonProps = ComponentProps<'button'> &

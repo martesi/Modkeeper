@@ -1,14 +1,31 @@
 import { useState } from 'react'
 import { useAtomValue } from 'jotai'
-import * as Dialog from '@radix-ui/react-dialog'
 import { isTauri } from '@tauri-apps/api/core'
-import { Plus, RefreshCw, Trash2, X } from 'lucide-react'
+import { toast } from 'sonner'
+import {
+  Copy,
+  FolderOpen,
+  Play,
+  Plus,
+  RefreshCw,
+  Settings2,
+  TriangleAlert,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { FidelityButton } from '../../shared/components/fidelity-button'
 import { FidelityIconButton } from '../../shared/components/fidelity-icon-button'
+import { FidelityInput } from '../../shared/components/fidelity-input'
 import {
   activeLibraryIdAtom,
   libraryListAtom,
+  libraryWorkspaceAtom,
   pendingTasksAtom,
 } from '../../state/library-state'
 import {
@@ -16,25 +33,29 @@ import {
   createLibrary,
   deleteLibrary,
   rebuildLibraryCache,
+  renameLibrary,
 } from '../../data/library-repository'
+import { launchTool } from '../../data/tools-repository'
 import { isLibrarySummary } from '../../data/redesign-types'
 import type {
   LibraryEntry,
   LibraryStub,
   LibrarySummary,
+  ToolSummary,
 } from '../../data/redesign-types'
+import { openGameRoot, openLibraryRoot } from '../../shared/utils/app-opener'
 import { libraryText } from '../../i18n/library-text'
-import { commonText } from '../../i18n/common-text'
-import { LibraryIdentitySection } from './library-identity-section'
-import { LibraryPathsSection } from './library-paths-section'
+import { ToolIconGlyph } from '../tool-icon-glyph'
 import { DeleteLibraryConfirmDialog } from './delete-library-confirm-dialog'
+import { ConfigureToolDialog } from './configure-tool-dialog'
 
 /**
- * Manage Library dialog (consolidated-spec.md §12.4): strong-glass body, top tabs across every
- * registered entry (readable summaries AND path-only stubs, C13) plus a dashed plus tab that picks
- * a game folder and creates+selects. The tools section is NOT rendered — the tool registry is
- * deferred (§3). Rebuild Cache is fire-and-track and only valid for the ACTIVE library (§7e
- * rejects non-active libraryIds), so it is disabled elsewhere with a hint.
+ * Manage Library dialog (reference Modkeeper.dc.html): strong-glass body, profile tabs across
+ * every registered entry (readable summaries AND path-only stubs, C13) plus a dashed plus tab
+ * that picks a game folder and creates+selects. The body is the reference's two-column layout —
+ * section labels left, controls right — covering identity, installation paths, and executable
+ * tools. Rebuild Cache is fire-and-track and only valid for the ACTIVE library (§7e rejects
+ * non-active libraryIds), so it is disabled elsewhere with a hint.
  */
 export function ManageLibraryDialog({
   open,
@@ -66,97 +87,86 @@ export function ManageLibraryDialog({
   }
 
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay
-          className={cn(
-            'fixed inset-0 z-50 bg-black/40 backdrop-blur-sm',
-            'data-[state=open]:animate-in data-[state=open]:fade-in-0',
-            'data-[state=closed]:animate-out data-[state=closed]:fade-out-0',
-          )}
-        />
-        <Dialog.Content
-          className={cn(
-            'mk-glass-strong fixed left-1/2 top-1/2 z-50 w-[min(40rem,calc(100vw-2rem))]',
-            '-translate-x-1/2 -translate-y-1/2 rounded-[var(--mk-radius-dialog)] p-6',
-            'border border-[var(--mk-outline)] bg-[var(--mk-surface-strong)] text-[var(--mk-text)]',
-            'shadow-[var(--mk-shadow-panel)]',
-            'data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95',
-            'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95',
-          )}
-        >
-          <div className="flex flex-col gap-5">
-            <div className="flex items-center justify-between gap-3">
-              <Dialog.Title className="text-lg font-semibold">
-                {libraryText.manageDialogTitle()}
-              </Dialog.Title>
-              <Dialog.Close asChild>
-                <FidelityIconButton size="sm" aria-label={commonText.close()}>
-                  <X />
-                </FidelityIconButton>
-              </Dialog.Close>
-            </div>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="mk-glass-strong mk-scrollbar flex max-h-[88vh] w-[min(67.5rem,calc(100vw-2rem))] flex-col gap-0 overflow-y-auto rounded-[2rem] border-border bg-popover p-0 sm:max-w-none">
+        <DialogHeader className="px-9 pb-1 pt-8">
+          <DialogTitle className="font-heading text-[26px] font-extrabold">
+            {libraryText.manageDialogTitle()}
+          </DialogTitle>
+          <DialogDescription className="text-sm">
+            {libraryText.manageDialogDescription()}
+          </DialogDescription>
+        </DialogHeader>
 
-            <div className="flex flex-wrap items-center gap-2" role="tablist">
-              {libraries.map((entry) => {
-                const key = entryKey(entry)
-                const isSelected =
-                  selected !== null && key === entryKey(selected)
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    role="tab"
-                    aria-selected={isSelected}
-                    onClick={() => setSelectedKey(key)}
-                    className={cn(
-                      'mk-focus-ring h-9 max-w-48 truncate rounded-[var(--mk-radius-control)] border px-3 text-sm transition-colors',
-                      isSelected
-                        ? 'border-[var(--mk-primary)] bg-[var(--mk-state-hover)] font-medium'
-                        : 'border-[var(--mk-outline)] bg-[var(--mk-surface-container)] hover:bg-[var(--mk-surface-container-hover)]',
-                    )}
-                  >
-                    {isLibrarySummary(entry)
-                      ? entry.name
-                      : libraryText.unreadableLibrary()}
-                  </button>
-                )
-              })}
+        <div
+          className="flex flex-wrap items-center gap-2.5 px-9 pb-1 pt-5"
+          role="tablist"
+        >
+          {libraries.map((entry) => {
+            const key = entryKey(entry)
+            const isSelected = selected !== null && key === entryKey(selected)
+            return (
               <button
+                key={key}
                 type="button"
-                onClick={() => void handleAddLibrary()}
-                aria-label={libraryText.addLibraryTab()}
-                title={libraryText.addLibraryTab()}
+                role="tab"
+                aria-selected={isSelected}
+                onClick={() => setSelectedKey(key)}
                 className={cn(
-                  'mk-focus-ring inline-flex h-9 items-center justify-center rounded-[var(--mk-radius-control)]',
-                  'border-2 border-dashed border-[var(--mk-outline)] px-3 text-[var(--mk-text-muted)] transition-colors',
-                  'hover:border-[var(--mk-primary)] hover:text-[var(--mk-primary)]',
+                  'h-11 max-w-56 truncate rounded-2xl px-4.5 text-sm outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50',
+                  isSelected
+                    ? 'bg-primary font-bold text-primary-foreground'
+                    : 'border border-border bg-secondary font-semibold text-foreground hover:bg-accent',
                 )}
               >
-                <Plus className="size-4" aria-hidden />
+                {isLibrarySummary(entry)
+                  ? entry.name
+                  : libraryText.unreadableLibrary()}
               </button>
-            </div>
-
-            {selected === null ? null : isLibrarySummary(selected) ? (
-              <LibraryDetails key={selected.id} library={selected} />
-            ) : (
-              <StubDetails stub={selected} />
+            )
+          })}
+          <button
+            type="button"
+            onClick={() => void handleAddLibrary()}
+            aria-label={libraryText.addLibraryTab()}
+            title={libraryText.addLibraryTab()}
+            className={cn(
+              'inline-flex size-11 items-center justify-center rounded-2xl',
+              'border-2 border-dashed border-border text-muted-foreground outline-none transition-colors',
+              'hover:border-primary hover:text-primary focus-visible:ring-[3px] focus-visible:ring-ring/50',
             )}
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+          >
+            <Plus className="size-4.5" aria-hidden />
+          </button>
+        </div>
+
+        {selected === null ? null : isLibrarySummary(selected) ? (
+          <LibraryDetails key={selected.id} library={selected} />
+        ) : (
+          <StubDetails stub={selected} />
+        )}
+      </DialogContent>
+    </Dialog>
   )
 }
 
 function LibraryDetails({ library }: { library: LibrarySummary }) {
   const activeLibraryId = useAtomValue(activeLibraryIdAtom)
   const pendingTasks = useAtomValue(pendingTasksAtom)
+  const workspace = useAtomValue(libraryWorkspaceAtom)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [activating, setActivating] = useState(false)
+  const [nameDraft, setNameDraft] = useState(library.name)
+  const [renaming, setRenaming] = useState(false)
+  const [configureTool, setConfigureTool] = useState<{
+    tool: ToolSummary | null
+  } | null>(null)
 
+  const tools = workspace?.toolsByLibraryId[library.id] ?? []
   const isActive = library.id === activeLibraryId
   const busy = pendingTasks.some((task) => task.libraryId === library.id)
+  const nameDirty =
+    nameDraft.trim() !== library.name && nameDraft.trim() !== ''
 
   async function handleActivate() {
     setActivating(true)
@@ -167,33 +177,111 @@ function LibraryDetails({ library }: { library: LibrarySummary }) {
     }
   }
 
+  async function handleRename() {
+    setRenaming(true)
+    try {
+      await renameLibrary({ libraryId: library.id, name: nameDraft.trim() })
+    } finally {
+      setRenaming(false)
+    }
+  }
+
   return (
     <>
-      <LibraryIdentitySection library={library} />
-      <LibraryPathsSection library={library} />
-      {/* Tools section deliberately absent — tool registry deferred (§3). */}
+      <div className="grid gap-7 px-9 py-7 md:grid-cols-[16.25rem_1fr]">
+        <div>
+          <SectionLabel
+            title={libraryText.identitySection()}
+            description={
+              library.sptVersion
+                ? `${libraryText.identityDescription()} · ${libraryText.sptVersion(library.sptVersion)}`
+                : libraryText.identityDescription()
+            }
+          />
+          <SectionLabel
+            title={libraryText.pathsSection()}
+            description={libraryText.pathsDescription()}
+          />
+          <SectionLabel
+            title={libraryText.toolsSection()}
+            description={libraryText.toolsDescription()}
+            last
+          />
+          <button
+            type="button"
+            onClick={() => setConfigureTool({ tool: null })}
+            className="rounded-sm text-[13px] font-bold text-primary outline-none transition-opacity hover:opacity-80 focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          >
+            {libraryText.registerNewTool()}
+          </button>
+        </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--mk-outline)] pt-4">
+        <div className="min-w-0">
+          <div className="mb-5 flex gap-2.5">
+            <FidelityInput
+              value={nameDraft}
+              onChange={(event) => setNameDraft(event.target.value)}
+              aria-label={libraryText.nameLabel()}
+              className="font-semibold"
+            />
+            <FidelityButton
+              disabled={!nameDirty}
+              busy={renaming}
+              onClick={() => void handleRename()}
+            >
+              {libraryText.saveName()}
+            </FidelityButton>
+          </div>
+
+          <PathRow
+            label={libraryText.gameRootLabel()}
+            path={library.gameRoot}
+            onOpen={() => void openGameRoot(library)}
+          />
+          <PathRow
+            label={libraryText.libraryRootLabel()}
+            path={library.libraryRoot}
+            onOpen={() => void openLibraryRoot(library)}
+          />
+
+          <div className="mt-5 flex flex-col gap-3">
+            {tools.map((tool) => (
+              <ToolRow
+                key={tool.id}
+                tool={tool}
+                onConfigure={() => setConfigureTool({ tool })}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3.5 border-t border-border px-9 py-5">
         <div className="flex items-center gap-2">
           <FidelityButton
-            variant="secondary"
+            variant="ghost"
+            size="sm"
+            className="text-[13px] font-bold text-muted-foreground"
             disabled={!isActive}
             busy={busy}
             title={isActive ? undefined : libraryText.rebuildNeedsActive()}
             onClick={() => void rebuildLibraryCache(library.id)}
           >
-            <RefreshCw />
+            {!busy && <RefreshCw />}
             {libraryText.rebuildCache()}
           </FidelityButton>
           <FidelityButton
-            variant="destructive"
+            variant="ghost"
+            size="sm"
+            className="text-[13px] font-bold text-destructive hover:text-destructive"
             onClick={() => setConfirmDelete(true)}
           >
-            <Trash2 />
             {libraryText.deleteLibrary()}
           </FidelityButton>
         </div>
         <FidelityButton
+          size="lg"
+          className="rounded-2xl px-7 text-[13px] font-extrabold uppercase tracking-[0.05em]"
           disabled={isActive}
           busy={activating}
           onClick={() => void handleActivate()}
@@ -208,11 +296,131 @@ function LibraryDetails({ library }: { library: LibrarySummary }) {
         onOpenChange={setConfirmDelete}
         onDeleted={() => {}}
       />
+      <ConfigureToolDialog
+        libraryId={library.id}
+        tool={configureTool?.tool ?? null}
+        open={configureTool !== null}
+        onOpenChange={(next) => {
+          if (!next) setConfigureTool(null)
+        }}
+      />
     </>
   )
 }
 
-/** Registered-but-unreadable entry (C13): bare path, remove-only. */
+function SectionLabel({
+  title,
+  description,
+  last = false,
+}: {
+  title: string
+  description: string
+  last?: boolean
+}) {
+  return (
+    <div className={last ? 'mb-2.5' : 'mb-7'}>
+      <h3 className="font-heading mb-1.5 text-[15px] font-bold text-foreground">
+        {title}
+      </h3>
+      <p className="text-[13px] text-muted-foreground">{description}</p>
+    </div>
+  )
+}
+
+function PathRow({
+  label,
+  path,
+  onOpen,
+}: {
+  label: string
+  path: string
+  onOpen: () => void
+}) {
+  async function handleCopy() {
+    await navigator.clipboard.writeText(path)
+    toast.success(libraryText.pathCopied())
+  }
+
+  return (
+    <div className="mb-3 flex items-center gap-3.5 rounded-2xl border border-border bg-secondary px-4.5 py-3.5">
+      <span className="shrink-0 text-sm font-bold uppercase tracking-[0.02em] text-foreground">
+        {label}
+      </span>
+      <span
+        className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground"
+        title={path}
+      >
+        {path}
+      </span>
+      <FidelityIconButton
+        size="sm"
+        variant="secondary"
+        className="rounded-[0.625rem] bg-transparent"
+        aria-label={libraryText.copyPath()}
+        title={libraryText.copyPath()}
+        onClick={() => void handleCopy()}
+      >
+        <Copy />
+      </FidelityIconButton>
+      <FidelityIconButton
+        size="sm"
+        variant="secondary"
+        className="rounded-[0.625rem] bg-transparent"
+        aria-label={libraryText.openInExplorer()}
+        title={libraryText.openInExplorer()}
+        onClick={onOpen}
+      >
+        <FolderOpen />
+      </FidelityIconButton>
+    </div>
+  )
+}
+
+function ToolRow({
+  tool,
+  onConfigure,
+}: {
+  tool: ToolSummary
+  onConfigure: () => void
+}) {
+  return (
+    <div className="flex items-center gap-3.5 rounded-2xl border border-border bg-secondary px-4.5 py-3.5">
+      <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-[0.625rem] bg-primary/15 text-primary [&_svg]:size-4">
+        <ToolIconGlyph tool={tool} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-bold text-foreground">
+          {tool.name}
+        </p>
+        <p className="truncate text-[11px] uppercase tracking-[0.05em] text-muted-foreground">
+          {tool.executablePath.split(/[\\/]/).pop()}
+        </p>
+      </div>
+      <FidelityIconButton
+        size="sm"
+        variant="secondary"
+        className="rounded-[0.625rem] bg-transparent"
+        aria-label={libraryText.launchToolLabel(tool.name)}
+        title={libraryText.launchToolLabel(tool.name)}
+        onClick={() => void launchTool(tool)}
+      >
+        <Play />
+      </FidelityIconButton>
+      <FidelityIconButton
+        size="sm"
+        variant="secondary"
+        className="rounded-[0.625rem] bg-transparent"
+        aria-label={libraryText.configureToolLabel(tool.name)}
+        title={libraryText.configureToolLabel(tool.name)}
+        onClick={onConfigure}
+      >
+        <Settings2 />
+      </FidelityIconButton>
+    </div>
+  )
+}
+
+/** Registered-but-unreadable entry (C13): warning row + bare path, remove-only. */
 function StubDetails({ stub }: { stub: LibraryStub }) {
   const [pending, setPending] = useState(false)
 
@@ -228,26 +436,37 @@ function StubDetails({ stub }: { stub: LibraryStub }) {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="rounded-[var(--mk-radius-control)] border border-[var(--mk-outline)] bg-[var(--mk-surface)] px-3 py-2">
-        <p className="text-xs text-[var(--mk-text-muted)]">
+    <>
+      <div className="px-9 py-7">
+        <div className="flex items-center gap-3.5 rounded-2xl border border-destructive/25 bg-destructive/10 px-4.5 py-4">
+          <span className="inline-flex size-8.5 shrink-0 items-center justify-center rounded-[0.625rem] bg-destructive/15 text-destructive">
+            <TriangleAlert className="size-4" aria-hidden />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold text-foreground">
+              {libraryText.pathUnreachable()}
+            </p>
+            <p className="truncate text-[13px] text-muted-foreground" title={stub.path}>
+              {stub.path}
+            </p>
+          </div>
+        </div>
+        <p className="mt-3 text-xs text-muted-foreground">
           {libraryText.unreadableLibraryHint()}
         </p>
-        <p className="truncate text-sm" title={stub.path}>
-          {stub.path}
-        </p>
       </div>
-      <div className="flex justify-end">
+      <div className="flex items-center justify-end border-t border-border px-9 py-5">
         <FidelityButton
-          variant="destructive"
+          variant="ghost"
+          size="sm"
+          className="text-[13px] font-bold text-destructive hover:text-destructive"
           busy={pending}
           onClick={() => void handleRemove()}
         >
-          <Trash2 />
           {libraryText.removeEntry()}
         </FidelityButton>
       </div>
-    </div>
+    </>
   )
 }
 
