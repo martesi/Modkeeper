@@ -34,11 +34,4 @@ export const settingsText = {
       id: 'settings.language.description',
       message: 'Language for the whole interface',
     }),
-  legacyUi: () =>
-    t({ id: 'settings.legacyUi.label', message: 'Legacy interface' }),
-  legacyUiDescription: () =>
-    t({
-      id: 'settings.legacyUi.description',
-      message: 'Temporarily switch back to the previous UI',
-    }),
 }

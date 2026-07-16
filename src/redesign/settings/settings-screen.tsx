@@ -1,8 +1,7 @@
-import { useAtom, useAtomValue } from 'jotai'
-import { Globe, History, Palette, SunMoon } from 'lucide-react'
+import { useAtomValue } from 'jotai'
+import { Globe, Palette, SunMoon } from 'lucide-react'
 import { PageTitle } from '../shell/page-title'
-import { FidelitySwitch } from '../shared/components/fidelity-switch'
-import { settingsAtom, useLegacyUiAtom } from '../state/settings-state'
+import { settingsAtom } from '../state/settings-state'
 import { saveSettings, DEFAULT_ACCENT } from '../data/settings-repository'
 import type { AppSettings } from '../data/redesign-types'
 import { settingsText } from '../i18n/settings-text'
@@ -20,12 +19,10 @@ const FALLBACK_SETTINGS: AppSettings = {
 /**
  * Settings screen (consolidated-spec.md §12.6): one centered column of rows, no tabs, no developer
  * section. Every change saves the FULL settings object (T1); the initializers' applier turns the
- * replaced atom into visible effect. The legacy-UI switch is the transition-only §10a row — it is
- * frontend-local, not part of AppSettings.
+ * replaced atom into visible effect.
  */
 export function SettingsScreen() {
   const settings = useAtomValue(settingsAtom) ?? FALLBACK_SETTINGS
-  const [useLegacyUi, setUseLegacyUi] = useAtom(useLegacyUiAtom)
 
   function save(patch: Partial<AppSettings>) {
     void saveSettings({ ...settings, ...patch })
@@ -68,18 +65,6 @@ export function SettingsScreen() {
         <LanguageSelect
           value={settings.language}
           onChange={(language) => save({ language })}
-        />
-      </SettingRow>
-
-      <SettingRow
-        icon={History}
-        label={settingsText.legacyUi()}
-        description={settingsText.legacyUiDescription()}
-      >
-        <FidelitySwitch
-          checked={useLegacyUi}
-          onCheckedChange={setUseLegacyUi}
-          aria-label={settingsText.legacyUi()}
         />
       </SettingRow>
     </div>

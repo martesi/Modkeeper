@@ -133,17 +133,28 @@ fn load_initial_library(
     });
 }
 
-/// Helper: Start a timer that checks if the startup command was called within 10 seconds
-/// If it was not called, the application will exit with an error
-fn start_init_timeout_checker(init_called: Arc<std::sync::atomic::AtomicBool>) {
+/// Helper: Watchdog for the startup handshake. `get_library_workspace` is both the frontend's
+/// first backend call and the thing that shows the main window — so if it hasn't arrived within
+/// 10 seconds, the frontend almost certainly crashed before its first render, and the failure
+/// would otherwise be an invisible window plus a dead-looking process. Show the window anyway so
+/// the error surface (boundary screen, devtools) is reachable instead of hard-exiting.
+fn start_init_timeout_checker(
+    app_handle: tauri::AppHandle,
+    init_called: Arc<std::sync::atomic::AtomicBool>,
+) {
+    use tauri::Manager;
+
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
 
         if !init_called.load(std::sync::atomic::Ordering::Relaxed) {
             tracing::error!(
-                "get_library_workspace was not called within 10 seconds of setup. Application will exit."
+                "get_library_workspace was not called within 10 seconds of setup; the frontend likely crashed before its first backend call. Showing the window so the failure is visible."
             );
-            std::process::exit(1);
+            if let Some(window) = app_handle.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
         }
     });
 }
@@ -164,7 +175,7 @@ fn setup_application(
         load_initial_library(config_handle, instance_handle, warning_handle);
 
         // Start timer to check if the startup command was called within 10 seconds
-        start_init_timeout_checker(init_called);
+        start_init_timeout_checker(app.handle().clone(), init_called);
 
         Ok(())
     }

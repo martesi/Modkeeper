@@ -5,7 +5,7 @@
  * `get_library_workspace`, and every mutation goes through `saveSettings`, which returns the FULL
  * object — the atom is replaced wholesale, never patched. The appliers (`applyTheme` side of theme
  * lives with next-themes in the initializers; accent/language live here) turn the saved value into
- * visible effect. The transition-only legacy-UI toggle lives in `legacy-ui-storage.ts` (§10a).
+ * visible effect.
  */
 import { isTauri } from '@tauri-apps/api/core'
 import { toast } from 'sonner'
@@ -85,5 +85,14 @@ export function applyAccent(accentColor: string): void {
 
 export async function applyLanguage(language: string): Promise<void> {
   if (i18n.locale === language) return
-  await changeLocale(language)
+  try {
+    await changeLocale(language)
+  } catch (error) {
+    // Configs written before the backend default was fixed persist bare "en"; there is no such
+    // catalog (lingui locales are region-tagged, e.g. en-US), so fall back instead of warning
+    // on every boot.
+    if (language === 'en-US') throw error
+    console.warn(`[redesign] no catalog for "${language}", falling back to en-US`, error)
+    await changeLocale('en-US')
+  }
 }

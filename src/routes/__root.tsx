@@ -1,20 +1,13 @@
-import { useState } from 'react'
 import { createRootRoute, Outlet } from '@tanstack/react-router'
-import { useAtomValue } from 'jotai'
 import { RedesignRoot } from '@/redesign/app/redesign-root'
-import { useLegacyUiAtom } from '@/redesign/state/settings-state'
-import { LibraryInit } from '@/modules/root/library-init'
-import { SettingsInit } from '@/modules/root/settings-init'
-import { AppNavigation } from '@/modules/root/app-navigation'
-import { FileDropHandler } from '@/modules/root/file-drop-handler'
-import { HeaderPortalContext } from '@/utils/header-portal-context'
 
 /**
- * Root route adapter (consolidated-spec.md §10 route table + §10a).
+ * Root route adapter (consolidated-spec.md §10 route table).
  *
- * Renders RedesignRoot by default; the transition-only `useLegacyUi` toggle swaps in the old app's
- * root tree instead. Both trees stay in the bundle until the legacy cleanup pass — the one
- * deliberate exception to "old files are reference only". Original content preserved at
+ * The transition-only §10a legacy toggle is gone: the legacy tree was runtime-broken against the
+ * renamed backend commands, and a persisted flag booting into it crashed the frontend before
+ * `get_library_workspace` ever fired — tripping the backend init watchdog into a silent exit(1)
+ * with the window still hidden. Original content preserved at
  * docs/2026-07-13_redesign/reference/current-frontend/routes/__root.tsx.
  */
 export const Route = createRootRoute({
@@ -22,34 +15,9 @@ export const Route = createRootRoute({
 })
 
 function RootComponent() {
-  const useLegacyUi = useAtomValue(useLegacyUiAtom)
-  if (useLegacyUi) return <LegacyRoot />
   return (
     <RedesignRoot>
       <Outlet />
     </RedesignRoot>
-  )
-}
-
-function LegacyRoot() {
-  const [container, setContainer] = useState<HTMLElement | null>(null)
-
-  return (
-    <>
-      <LibraryInit />
-      <SettingsInit />
-      <FileDropHandler />
-      <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear">
-        <div className="flex items-center gap-2 px-4 w-full">
-          <AppNavigation />
-          <div className="w-full flex justify-end" ref={setContainer} />
-        </div>
-      </header>
-      <HeaderPortalContext value={container}>
-        <div className="flex flex-1 flex-col gap-4 p-4">
-          <Outlet />
-        </div>
-      </HeaderPortalContext>
-    </>
   )
 }

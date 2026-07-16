@@ -28,7 +28,14 @@ pub fn load_from(path: &Utf8PathBuf) -> Result<AppConfig, SError> {
         return Ok(AppConfig::default());
     }
     let content = file::read_to_string(path)?;
-    toml::from_str(&content).map_err(|e| SError::ParseError(e.to_string()))
+    let mut config: AppConfig =
+        toml::from_str(&content).map_err(|e| SError::ParseError(e.to_string()))?;
+    // Value migration: configs written before the default was fixed carry bare "en", but the
+    // frontend loads lingui catalogs by this value verbatim and only region-tagged ones exist.
+    if config.settings.language == "en" {
+        config.settings.language = "en-US".to_string();
+    }
+    Ok(config)
 }
 
 /// Atomically saves the App Config to the given path (C12/M7):

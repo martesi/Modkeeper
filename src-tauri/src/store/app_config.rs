@@ -44,7 +44,9 @@ impl Default for AppSettings {
         Self {
             theme: ThemeMode::System,
             accent_color: "#e91e63".to_string(),
-            language: "en".to_string(),
+            // Must match a lingui catalog name (package.json `lingui.locales`) — the frontend
+            // dynamic-imports `locales/<language>.po` from this value verbatim.
+            language: "en-US".to_string(),
         }
     }
 }
