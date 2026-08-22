@@ -1,0 +1,91 @@
+{
+  description = "Modkeeper development shell";
+
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    rust-overlay = {
+      url = "github:oxalica/rust-overlay";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+  };
+
+  outputs = { nixpkgs, rust-overlay, ... }:
+    let
+      systems = [ "x86_64-linux" "aarch64-linux" ];
+      shells = system:
+        let
+          pkgs = import nixpkgs {
+            inherit system;
+            overlays = [ (import rust-overlay) ];
+          };
+          rustToolchain = pkgs.rust-bin.stable.latest.default.override {
+            extensions = [ "rust-src" "rust-analyzer" "clippy" "rustfmt" ];
+          };
+          tauriLibs = with pkgs; [
+            cairo
+            dbus
+            gdk-pixbuf
+            glib
+            gtk3
+            harfbuzz
+            librsvg
+            libsoup_3
+            openssl
+            pango
+            webkitgtk_4_1
+          ];
+          basePackages = [ rustToolchain pkgs.bun pkgs.pkg-config ] ++ tauriLibs;
+          tauriHook = ''
+            export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath tauriLibs}:$LD_LIBRARY_PATH"
+            export __EGL_VENDOR_LIBRARY_DIRS="''${__EGL_VENDOR_LIBRARY_DIRS:-${pkgs.mesa}/share/glvnd/egl_vendor.d}"
+            export XDG_DATA_DIRS="${pkgs.gtk3}/share/gsettings-schemas/${pkgs.gtk3.name}:${pkgs.gsettings-desktop-schemas}/share/gsettings-schemas/${pkgs.gsettings-desktop-schemas.name}:$XDG_DATA_DIRS"
+            export GIO_MODULE_DIR="${pkgs.glib-networking}/lib/gio/modules/"
+            export WEBKIT_DISABLE_COMPOSITING_MODE=1
+          '';
+          winCrossToolchain = pkgs.rust-bin.stable.latest.default.override {
+            extensions = [ "rust-src" ];
+            targets = [ "x86_64-pc-windows-gnu" ];
+          };
+          mingw = pkgs.pkgsCross.mingwW64;
+        in
+        {
+          default = pkgs.mkShell {
+            packages = basePackages;
+            shellHook = tauriHook;
+          };
+
+          e2e = pkgs.mkShell {
+            packages = basePackages ++ (with pkgs; [
+              imagemagick
+              xdpyinfo
+              xdotool
+              xvfb
+            ]);
+            shellHook = tauriHook + ''
+              export DISPLAY="''${DISPLAY:-:99}"
+              export FONTCONFIG_FILE="''${FONTCONFIG_FILE:-${
+                pkgs.makeFontsConf {
+                  fontDirectories = with pkgs; [ dejavu_fonts liberation_ttf ];
+                }
+              }}"
+            '';
+          };
+
+          windows = pkgs.mkShell {
+            packages = [
+              winCrossToolchain
+              mingw.stdenv.cc
+              pkgs.bun
+              pkgs.nsis
+            ];
+            shellHook = ''
+              export CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=${mingw.stdenv.cc.targetPrefix}cc
+              export CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUSTFLAGS="-L ${mingw.windows.pthreads}/lib"
+            '';
+          };
+        };
+    in
+    {
+      devShells = nixpkgs.lib.genAttrs systems shells;
+    };
+}
