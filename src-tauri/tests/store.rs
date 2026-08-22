@@ -1,5 +1,6 @@
 mod common;
 
+use camino::Utf8PathBuf;
 use common::setup_test_env;
 use mod_keeper_lib::config::global::GlobalConfig;
 use mod_keeper_lib::core::library::Library;
@@ -7,7 +8,6 @@ use mod_keeper_lib::models::error::SError;
 use mod_keeper_lib::models::library::LibraryCreationRequirement;
 use mod_keeper_lib::store::app_config::{AppConfig, KnownLibrary, migrate_from_confy};
 use mod_keeper_lib::store::{load_from, save_to};
-use camino::Utf8PathBuf;
 use std::fs;
 
 #[test]

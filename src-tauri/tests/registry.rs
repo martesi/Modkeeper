@@ -76,7 +76,9 @@ fn test_assert_active_library_rejects_non_active() {
     ));
 
     // Matching id passes
-    registry.assert_active_library(&library_id).expect("active id accepted");
+    registry
+        .assert_active_library(&library_id)
+        .expect("active id accepted");
 }
 
 #[test]

@@ -41,8 +41,7 @@ pub fn load_from(path: &Utf8PathBuf) -> Result<AppConfig, SError> {
 /// Atomically saves the App Config to the given path (C12/M7):
 /// serialize to a temp file in the same directory, then rename over the target.
 pub fn save_to(path: &Utf8PathBuf, config: &AppConfig) -> Result<(), SError> {
-    let content =
-        toml::to_string(config).map_err(|e| SError::ConfigSaveFailed(e.to_string()))?;
+    let content = toml::to_string(config).map_err(|e| SError::ConfigSaveFailed(e.to_string()))?;
     file::atomic_write(path, content).map_err(|e| SError::ConfigSaveFailed(e.to_string()))
 }
 

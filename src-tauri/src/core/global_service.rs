@@ -1,16 +1,16 @@
 use crate::core::cache::LibraryCache;
+use crate::core::cleanup;
 use crate::core::library::Library;
 use crate::core::library_service;
-use crate::core::cleanup;
 use crate::models::error::SError;
 use crate::models::library::LibraryCreationRequirement;
+use crate::models::paths::LibPathRules;
 use crate::models::workspace::{
     CacheState, CacheStatus, CreateLibraryInput, LibraryEntry, LibraryStub, LibrarySummary,
     LibraryWorkspace, ModSummary,
 };
-use crate::store::app_config::{AppConfig, AppSettings, KnownLibrary};
 use crate::store::AppConfigStore;
-use crate::models::paths::LibPathRules;
+use crate::store::app_config::{AppConfig, AppSettings, KnownLibrary};
 use crate::utils::file;
 use crate::utils::time::{now_iso8601_utc, to_iso8601_utc};
 use crate::utils::toml;
@@ -155,10 +155,7 @@ pub fn activate_library(
             .find_library(library_id)
             .map(|known| known.library_root.clone())
             .ok_or_else(|| {
-                SError::InvalidLibrary(
-                    library_id.to_string(),
-                    "Library not registered".to_string(),
-                )
+                SError::InvalidLibrary(library_id.to_string(), "Library not registered".to_string())
             })?
     };
 
@@ -193,12 +190,9 @@ pub fn create_library(
         library_service::validate_library_structure(&library_root)?;
         Library::load(&library_root)?
     } else {
-        let name = input.name.unwrap_or_else(|| {
-            game_root
-                .file_name()
-                .unwrap_or("Library")
-                .to_string()
-        });
+        let name = input
+            .name
+            .unwrap_or_else(|| game_root.file_name().unwrap_or("Library").to_string());
         Library::create(LibraryCreationRequirement {
             game_root,
             repo_root: Some(library_root.clone()),
@@ -263,10 +257,7 @@ pub fn delete_library_files(
             .find_library_by_handle(library_id)
             .map(|known| known.library_root.clone())
             .ok_or_else(|| {
-                SError::InvalidLibrary(
-                    library_id.to_string(),
-                    "Library not registered".to_string(),
-                )
+                SError::InvalidLibrary(library_id.to_string(), "Library not registered".to_string())
             })?
     };
 
@@ -294,10 +285,11 @@ pub fn rename_library(
     {
         let mut instance = instance_handle.lock();
         if let Some(inst) = instance.as_mut()
-            && inst.id == library_id {
-                inst.name = name;
-                return inst.persist();
-            }
+            && inst.id == library_id
+        {
+            inst.name = name;
+            return inst.persist();
+        }
     }
 
     let library_root = {
@@ -307,10 +299,7 @@ pub fn rename_library(
             .find_library(library_id)
             .map(|known| known.library_root.clone())
             .ok_or_else(|| {
-                SError::InvalidLibrary(
-                    library_id.to_string(),
-                    "Library not registered".to_string(),
-                )
+                SError::InvalidLibrary(library_id.to_string(), "Library not registered".to_string())
             })?
     };
 

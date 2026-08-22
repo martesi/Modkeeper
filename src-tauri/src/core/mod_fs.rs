@@ -28,10 +28,11 @@ pub fn resolve_id(spt_paths: &SPTPathRules, files: &[Utf8PathBuf]) -> Result<Str
 
             // Client check (DLLs only)
             if path.extension() == Some("dll")
-                && let Ok(rel) = path.strip_prefix(&spt_paths.client_plugins) {
-                    // Normalize path separators to forward slashes for consistent hashing
-                    return Some(rel.as_str().replace('\\', "/").to_string());
-                }
+                && let Ok(rel) = path.strip_prefix(&spt_paths.client_plugins)
+            {
+                // Normalize path separators to forward slashes for consistent hashing
+                return Some(rel.as_str().replace('\\', "/").to_string());
+            }
 
             None // Ignore file if it matches neither
         })

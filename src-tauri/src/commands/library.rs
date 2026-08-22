@@ -1,4 +1,5 @@
 use crate::commands::log_err;
+use crate::core::library::Library;
 use crate::core::registry::AppRegistry;
 use crate::core::{global_service, library_service};
 use crate::models::error::SError;
@@ -8,7 +9,6 @@ use crate::models::workspace::{
     SyncModsInput, WorkspaceEvent,
 };
 use crate::store::AppConfigStore;
-use crate::core::library::Library;
 use crate::utils::time::now_iso8601_utc;
 use camino::Utf8PathBuf;
 use parking_lot::Mutex;
@@ -144,18 +144,19 @@ pub async fn sync_mods(
     let tasks = state.in_flight_tasks.clone();
 
     tauri::async_runtime::spawn_blocking(move || {
-        let failures =
-            match library_service::sync_active_library(instance_handle.clone(), &input.library_id)
-            {
-                Ok(()) => Vec::new(),
-                Err(error) => {
-                    tracing::error!("{error}");
-                    vec![ModFailure {
-                        mod_id: String::new(),
-                        error,
-                    }]
-                }
-            };
+        let failures = match library_service::sync_active_library(
+            instance_handle.clone(),
+            &input.library_id,
+        ) {
+            Ok(()) => Vec::new(),
+            Err(error) => {
+                tracing::error!("{error}");
+                vec![ModFailure {
+                    mod_id: String::new(),
+                    error,
+                }]
+            }
+        };
 
         finish_task(&tasks, &input.task_id);
         let event = WorkspaceEvent::SyncCompleted {
@@ -193,11 +194,8 @@ pub async fn install_mod_archives(
     let tasks = state.in_flight_tasks.clone();
 
     tauri::async_runtime::spawn_blocking(move || {
-        let archives: Vec<Utf8PathBuf> = input
-            .archive_paths
-            .iter()
-            .map(Utf8PathBuf::from)
-            .collect();
+        let archives: Vec<Utf8PathBuf> =
+            input.archive_paths.iter().map(Utf8PathBuf::from).collect();
 
         let failures = library_service::install_mod_archives(
             instance_handle.clone(),

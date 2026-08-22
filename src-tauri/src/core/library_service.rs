@@ -1,10 +1,10 @@
 use crate::core::cache::{LibraryCache, normalize_mod_folders};
 use crate::core::library::Library;
-use crate::core::mod_stager::{self, StageMaterial};
 use crate::core::mod_manager;
+use crate::core::mod_stager::{self, StageMaterial};
 use crate::models::error::SError;
-use crate::models::workspace::{ArchiveFailure, BulkModAction};
 use crate::models::paths::LibPathRules;
+use crate::models::workspace::{ArchiveFailure, BulkModAction};
 use crate::utils::thread::with_lib_arc_mut;
 use camino::{Utf8Path, Utf8PathBuf};
 use parking_lot::Mutex;
