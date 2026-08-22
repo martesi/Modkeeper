@@ -2,12 +2,11 @@ import { isTauri } from '@tauri-apps/api/core'
 
 /**
  * Browser-prototype page surface (fix_plan_0.md §6): the reference's radial page gradient, for
- * environments with no OS surface (browser prototype, Storybook). In Tauri it renders NOTHING —
- * the window is transparent and `apply_window_effect`'s mica IS the background; painting anything
- * here would block it.
+ * environments with no OS surface (browser prototype, Storybook, and Linux). In Tauri on Windows
+ * and macOS it renders NOTHING — the transparent window and native effect provide the background.
  */
 export function AppBackground() {
-  if (isTauri()) return null
+  if (isTauri() && !navigator.userAgent.includes('Linux')) return null
   return (
     <div
       aria-hidden

@@ -95,10 +95,7 @@ fn test_default_library_root_stores_relative_game_root() {
     let manifest = fs::read_to_string(&manifest_path).unwrap();
     fs::write(
         &manifest_path,
-        manifest.replace(
-            "gameRoot = \"..\"",
-            "gameRoot = 'E:\\Games\\EFT_16.9'",
-        ),
+        manifest.replace("gameRoot = \"..\"", "gameRoot = 'E:\\Games\\EFT_16.9'"),
     )
     .unwrap();
 
@@ -179,7 +176,9 @@ fn test_recursive_linking_logic() {
         let p = repo_root.join(mod_name);
 
         // 1. Create a unique client dll so the two mods hash to different IDs
-        let dll_path = p.join(&rules.client_plugins).join(format!("{mod_name}.dll"));
+        let dll_path = p
+            .join(&rules.client_plugins)
+            .join(format!("{mod_name}.dll"));
         fs::create_dir_all(dll_path.parent().unwrap()).unwrap();
         fs::write(dll_path, "").unwrap();
 
@@ -237,6 +236,22 @@ fn test_purge_removes_deactivated_mods() {
 
     let target_path = game_root.join(&rules.server_mods).join("DeleteMe");
     assert!(target_path.exists());
+    assert!(
+        fs::symlink_metadata(&target_path)
+            .unwrap()
+            .file_type()
+            .is_symlink()
+    );
+    assert_eq!(
+        fs::read_link(&target_path).unwrap(),
+        lib.lib_paths
+            .mods
+            .join(&mod_id)
+            .join(&rules.server_mods)
+            .join("DeleteMe")
+            .as_std_path()
+    );
+
     // 2. Deactivate and sync
     lib.mods.get_mut(&mod_id).unwrap().is_active = false;
     lib.sync().unwrap();
@@ -269,7 +284,10 @@ fn test_unowned_deployment_target_is_preserved_and_blocks_sync() {
     fs::write(target.join("keep.txt"), "user data").unwrap();
 
     assert!(lib.sync().is_err());
-    assert_eq!(fs::read_to_string(target.join("keep.txt")).unwrap(), "user data");
+    assert_eq!(
+        fs::read_to_string(target.join("keep.txt")).unwrap(),
+        "user data"
+    );
 }
 
 #[test]
@@ -323,7 +341,9 @@ fn test_upgrade_success_leaves_no_snapshot() {
     let src = repo_root.join("src_v1");
     fs::create_dir_all(src.join(&rules.server_mods).join(folder_name)).unwrap();
     fs::write(
-        src.join(&rules.server_mods).join(folder_name).join("v1.txt"),
+        src.join(&rules.server_mods)
+            .join(folder_name)
+            .join("v1.txt"),
         "v1",
     )
     .unwrap();
@@ -337,7 +357,9 @@ fn test_upgrade_success_leaves_no_snapshot() {
     let src2 = repo_root.join("src_v2");
     fs::create_dir_all(src2.join(&rules.server_mods).join(folder_name)).unwrap();
     fs::write(
-        src2.join(&rules.server_mods).join(folder_name).join("v2.txt"),
+        src2.join(&rules.server_mods)
+            .join(folder_name)
+            .join("v2.txt"),
         "v2",
     )
     .unwrap();
@@ -1182,12 +1204,7 @@ fn test_overlapping_mod_writes_settle_to_a_requested_state() {
             let library_id = library_id.clone();
             let mod_id = mod_id.clone();
             std::thread::spawn(move || {
-                library_service::bulk_update_mods(
-                    instance_handle,
-                    &library_id,
-                    &[mod_id],
-                    &action,
-                )
+                library_service::bulk_update_mods(instance_handle, &library_id, &[mod_id], &action)
             })
         })
         .collect();

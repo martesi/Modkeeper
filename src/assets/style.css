@@ -61,7 +61,7 @@ body {
  * Fidelity Modern palette as the shadcn token values (fix_plan_0.md §3: the shadcn vocabulary is
  * canonical, `--mk-*` is retired). Values come from the reference prototype
  * (docs/2026-07-13_redesign/ui/Modkeeper.dc.html). Translucent card/popover fills are deliberate:
- * the OS mica surface (Tauri) or the page gradient (browser prototype) shows through them.
+ * the OS mica surface on Tauri Windows/macOS or the page gradient elsewhere shows through them.
  * `applyAccent` overrides --primary/--primary-foreground/--ring at runtime for non-default accents.
  */
 :root {

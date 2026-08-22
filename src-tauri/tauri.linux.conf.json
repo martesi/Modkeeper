@@ -1,0 +1,13 @@
+{
+  "app": {
+    "windows": [
+      {
+        "title": "Modkeeper",
+        "width": 520,
+        "height": 600,
+        "visible": false,
+        "transparent": false
+      }
+    ]
+  }
+}

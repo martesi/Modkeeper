@@ -6,8 +6,8 @@
  */
 
 /*
- * Browser-prototype page surface (the reference's `pageBg` radial gradient). In Tauri the window
- * is transparent and mica is the surface, so AppBackground doesn't mount this at all (§6).
+ * Browser-prototype page surface (the reference's `pageBg` radial gradient). Tauri Windows/macOS
+ * use a transparent native surface, while Linux uses this because its window is opaque (§6).
  */
 .mk-page-gradient {
   background: radial-gradient(
