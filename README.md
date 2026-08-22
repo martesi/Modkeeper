@@ -6,7 +6,7 @@ A modern desktop mod manager for **SPT (Single Player Tarkov)**, built with Taur
 
 Modkeeper is designed to solve common problems when managing mods for SPT:
 
-- **Non-destructive mod management**: Uses file system links (Windows junctions for directories, hard links for files) to deploy mods without copying files into the game directory
+- **Non-destructive mod management**: Uses preflighted file-system links where available and safe recorded copies as a fallback
 - **Multiple library instances**: Manage different mod configurations for different playthroughs or server setups
 - **Safe operations**: Automatic backup system before mod updates, with restore functionality
 - **Clean separation**: Mods are stored in a separate repository directory and linked to the game directory only when active
@@ -22,7 +22,7 @@ Modkeeper is still in early development and is **not recommended for daily or pr
 - ✅ Library creation and management (multiple instances)
 - ✅ Mod installation from ZIP archives
 - ✅ Mod activation/deactivation (toggle system)
-- ✅ Mod deployment via file system links
+- ✅ Safe deployment via links or recorded copies
 - ✅ Automatic backup system with restore capability
 - ✅ Mod metadata display (manifest parsing)
 - ✅ Mod documentation viewer (Markdown support)
@@ -37,7 +37,7 @@ Modkeeper is still in early development and is **not recommended for daily or pr
 - Windows-focused (uses Windows junctions; Unix support exists but may have limitations)
 - SPT version validation requires registry file
 - Single library instance active at a time (by design; may change if a strong use case emerges)
-- Library root must be inside `game_root` (Windows hard link limitation; avoids requiring admin privileges or enabling Developer Mode)
+- Link methods are selected per platform and volume; copies are used when links are unavailable
 
 ## Tech Stack
 
@@ -53,7 +53,7 @@ Modkeeper is still in early development and is **not recommended for daily or pr
 ### Backend
 - **Rust** with Tauri 2.0
 - **Specta** for TypeScript bindings generation
-- Platform-specific file system operations (junctions on Windows, symlinks on Unix)
+- Platform-specific deployment operations (symlinks, Windows junctions, hardlinks, or copies)
 
 ### Architecture
 

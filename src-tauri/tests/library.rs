@@ -231,9 +231,12 @@ fn test_purge_removes_deactivated_mods() {
     // Sync
     lib.sync().unwrap();
 
+    assert!(lib.lib_paths.deployment.exists());
+    let loaded = Library::load(&lib.repo_root).unwrap();
+    assert!(!loaded.deployment.artifacts.is_empty());
+
     let target_path = game_root.join(&rules.server_mods).join("DeleteMe");
     assert!(target_path.exists());
-
     // 2. Deactivate and sync
     lib.mods.get_mut(&mod_id).unwrap().is_active = false;
     lib.sync().unwrap();
@@ -241,6 +244,32 @@ fn test_purge_removes_deactivated_mods() {
     // 3. Verify it's gone from game but exists in repo
     assert!(!target_path.exists());
     assert!(lib.lib_paths.mods.join(&mod_id).exists());
+    assert!(lib.deployment.artifacts.is_empty());
+}
+
+#[test]
+fn test_unowned_deployment_target_is_preserved_and_blocks_sync() {
+    let (_tmp, game_root, repo_root) = setup_test_env();
+    let mut lib = Library::create(LibraryCreationRequirement {
+        repo_root: Some(repo_root.clone()),
+        game_root: game_root.clone(),
+        name: "Test Library".to_string(),
+    })
+    .unwrap();
+
+    let source = repo_root.join("source");
+    create_test_mod(&source, "OwnedByUser", true);
+    let scanned = mod_fs::scan(&source, &SPTPathRules::default()).unwrap();
+    let mod_id = scanned.id.clone();
+    mod_manager::add_mod(&mut lib, create_staged_mod_for_test(&source, scanned)).unwrap();
+    lib.mods.get_mut(&mod_id).unwrap().is_active = true;
+
+    let target = game_root.join("SPT/user/mods/OwnedByUser");
+    fs::create_dir_all(&target).unwrap();
+    fs::write(target.join("keep.txt"), "user data").unwrap();
+
+    assert!(lib.sync().is_err());
+    assert_eq!(fs::read_to_string(target.join("keep.txt")).unwrap(), "user data");
 }
 
 #[test]

@@ -1,4 +1,5 @@
 use crate::core::cache::LibraryCache;
+use crate::core::deployment::DeploymentState;
 use crate::core::mod_stager::StageMaterial;
 use crate::core::version;
 use crate::models::error::SError;
@@ -58,6 +59,7 @@ pub struct Library {
     pub lib_paths: LibPathRules,
     pub spt_paths_canonical: SPTPathCanonical,
     pub cache: LibraryCache,
+    pub deployment: DeploymentState,
     pub spt_version: String,
     pub mods: BTreeMap<String, Mod>,
     pub(crate) is_dirty: bool,
@@ -91,6 +93,7 @@ impl Library {
             game_root: requirement.game_root,
             spt_version,
             cache: LibraryCache::default(),
+            deployment: DeploymentState::default(),
             mods: Default::default(),
             spt_paths_canonical: SPTPathCanonical::from_spt_paths(spt_paths.clone())?,
             lib_paths,
@@ -118,6 +121,13 @@ impl Library {
         let cache = toml::read(&lib_paths.cache).map_err(|e| {
             SError::InvalidLibrary(repo_root.to_string(), format!("cache.toml: {e}"))
         })?;
+        let deployment = if lib_paths.deployment.exists() {
+            toml::read(&lib_paths.deployment).map_err(|e| {
+                SError::InvalidLibrary(repo_root.to_string(), format!("deployment.toml: {e}"))
+            })?
+        } else {
+            DeploymentState::default()
+        };
 
         Ok(Self {
             id: dto.id,
@@ -127,6 +137,7 @@ impl Library {
             game_root,
             spt_rules: SPTPathRules::default(),
             cache,
+            deployment,
             lib_paths,
             spt_version,
             mods: dto.mods,
@@ -200,15 +211,17 @@ impl Library {
     pub fn persist(&self) -> Result<(), SError> {
         toml::write(&self.lib_paths.manifest, &self.to_dto())?;
         toml::write(&self.lib_paths.cache, &self.cache)?;
+        toml::write(&self.lib_paths.deployment, &self.deployment)?;
         Ok(())
     }
 
-    /// Purge → Deploy → Mark Clean → Persist.
+    /// Plan/preflight → compatibility purge → Deploy → Mark Clean → Persist.
     /// The canonical way to apply mod activation changes to the game directory.
     pub fn sync(&mut self) -> Result<(), SError> {
         use crate::core::{cleanup, deployment};
+        let plan = deployment::plan(self)?;
         cleanup::purge(self)?;
-        deployment::deploy(self)?;
+        deployment::deploy(self, plan)?;
         self.mark_clean();
         self.persist()
     }

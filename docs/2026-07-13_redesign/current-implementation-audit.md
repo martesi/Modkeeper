@@ -143,7 +143,7 @@ path in `library_service::rebuild_library_cache`).
 
 ### 3.4 Deployment Model: Ownership-Map Symlinking
 
-`core/deployment.rs::deploy` is the core algorithm:
+`core/deployment.rs::plan` is the core algorithm; `deploy` applies its recorded plan:
 
 1. **Collision check** (`check_file_collisions`): walk every file of every *active* mod; if two
    different mods claim the same relative path, fail the whole sync with `SError::FileCollision`
@@ -152,22 +152,24 @@ path in `library_service::rebuild_library_cache`).
    path *ancestors* too (not just the leaf file), recording which mod ids "touch" each path.
    `SPT/user/mods` and `BepInEx/plugins` are seeded as owned by a synthetic `"__SYSTEM__"` entry so
    they're never treated as a mod's exclusive folder.
-3. **Recursive link** (`execute_recursive_link`): walk each active mod's files path-component by
-   path-component. The first ancestor uniquely owned by exactly one mod gets symlinked as a whole
-   (file or directory) at that level — deeper components inside it are never individually linked.
+3. **Recursive ownership plan**: walk each active mod's files path-component by path-component.
+   The first ancestor uniquely owned by exactly one mod becomes one artifact at that level; the
+   selected file/directory method is chosen by preflight and can be a symlink, junction, hardlink,
+   or copy.
    An ancestor owned by 2+ mods is left as a real, physically-created directory instead of a link,
    so siblings from different mods can coexist inside it.
 
 This means one mod can produce anywhere from one directory-level symlink to many file-level
 symlinks, depending on whether other active mods also touch the same subtree. `find_mod_links`
-(used by `remove_mod`) re-derives the same ownership logic to compute exactly what a *specific*
-mod would own, so removal can unlink precisely what that mod contributed — including protected
-system roots explicitly excluded from ever being unlinked (`deployment::is_protected_path`).
+(used by `remove_mod`) reads the deployment record to compute exactly what a *specific* mod
+contributed, including protected system roots explicitly excluded from ever being unlinked
+(`deployment::is_protected_path`).
 
-`Library::sync()` is `purge → deploy → mark_clean → persist` — a full teardown and rebuild every
-time, not an incremental diff. `purge` (`core/cleanup.rs`) walks the game root's protected roots and
-removes every symlink whose target canonicalizes into the repo root, plus any now-empty directory
-that Modkeeper's own mods have ever touched (tracked via `build_managed_scope`).
+`Library::sync()` is `plan/preflight → compatibility purge → reconcile recorded artifacts → mark
+clean → persist`. `deployment.toml` records targets relative to the game root, sources relative to
+the repository, artifact kinds, and directories created by deployment. The compatibility purge only
+removes old unrecorded symlinks that point into the repository; current cleanup is record-based and
+never overwrites an unowned game target.
 
 ### 3.5 Lifecycle & Startup
 

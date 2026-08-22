@@ -1,26 +1,41 @@
 use crate::core::cache::LibraryCache;
 use crate::core::library::Library;
-use crate::core::linker;
+use crate::core::linker::{self, ArtifactKind};
 use crate::models::error::SError;
 use crate::models::mod_dto::Mod;
-use crate::models::paths::{LibPathRules, SPTPathRules};
-use crate::utils::file;
+use crate::models::paths::SPTPathRules;
 use camino::{Utf8Path, Utf8PathBuf};
+use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::fs;
+use walkdir::WalkDir;
 
 type OwnershipMap = HashMap<Utf8PathBuf, Vec<String>>;
 
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DeploymentState {
+    pub artifacts: Vec<DeploymentArtifact>,
+    pub created_dirs: Vec<Utf8PathBuf>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct DeploymentArtifact {
+    pub target: Utf8PathBuf,
+    pub source: Utf8PathBuf,
+    pub kind: ArtifactKind,
+}
+
+pub struct DeploymentPlan {
+    artifacts: Vec<DeploymentArtifact>,
+    directories: Vec<Utf8PathBuf>,
+}
+
 // --- Protected Path Helpers ---
 
-/// Returns a vector of protected system root paths (relative paths).
-/// These paths should never be removed during mod operations.
-/// This is the single source of truth for protected paths - add new paths here.
 pub fn get_protected_paths(spt_rules: &SPTPathRules) -> Vec<&Utf8Path> {
     vec![&spt_rules.server_mods, &spt_rules.client_plugins]
 }
 
-/// Returns a vector of protected system root paths as absolute paths.
-/// These paths should never be removed during mod operations.
 pub fn get_protected_paths_absolute(
     game_root: &Utf8Path,
     spt_rules: &SPTPathRules,
@@ -31,14 +46,10 @@ pub fn get_protected_paths_absolute(
         .collect()
 }
 
-/// Checks if a relative path is a protected system root path.
 pub fn is_protected_path(path: &Utf8Path, spt_rules: &SPTPathRules) -> bool {
     get_protected_paths(spt_rules).contains(&path)
 }
 
-/// Checks if an absolute path is a protected system root path.
-/// For better performance when called multiple times, consider pre-computing protected paths
-/// using `get_protected_paths_absolute` and comparing directly.
 pub fn is_protected_path_absolute(
     path: &Utf8Path,
     game_root: &Utf8Path,
@@ -49,46 +60,275 @@ pub fn is_protected_path_absolute(
         .any(|protected| path == protected)
 }
 
-/// Entry point for deployment logic.
-/// Performs conflict detection and recursive linking of active mods.
-pub fn deploy(library: &Library) -> Result<(), SError> {
+/// Builds the entire deployment plan and validates its destinations before any cleanup.
+pub fn plan(library: &Library) -> Result<DeploymentPlan, SError> {
     check_file_collisions(&library.mods, &library.cache)?;
+    let methods = linker::preflight(&library.repo_root, &library.game_root)?;
+    let ownership = build_folder_ownership_map(&library.spt_rules, &library.mods, &library.cache);
+    let mut selected = BTreeMap::new();
 
-    let folder_ownership =
-        build_folder_ownership_map(&library.spt_rules, &library.mods, &library.cache);
+    for (id, mod_fs) in library
+        .cache
+        .mods
+        .iter()
+        .filter(|(id, _)| library.mods.get(*id).is_some_and(|m| m.is_active))
+    {
+        for file_path in &mod_fs.files {
+            let mut current_path = Utf8PathBuf::new();
+            for component in file_path.components() {
+                current_path.push(component);
+                let owners = ownership.get(&current_path).ok_or_else(|| {
+                    SError::ParseError(format!("Missing ownership for '{current_path}'"))
+                })?;
+                if owners.len() == 1 {
+                    let source = library.lib_paths.mods.join(id).join(&current_path);
+                    let kind = if source.is_dir() {
+                        methods.directory
+                    } else {
+                        methods.file
+                    };
+                    selected.insert(current_path.clone(), (source, kind));
+                    break;
+                }
+            }
+        }
+    }
 
-    execute_recursive_link(
-        &library.game_root,
-        &library.lib_paths,
-        &library.mods,
-        &library.cache,
-        &folder_ownership,
-    )
+    let mut artifacts = Vec::new();
+    let mut directories = BTreeSet::new();
+    for (target, (source, kind)) in selected {
+        if kind == ArtifactKind::Copy && source.is_dir() {
+            for entry in WalkDir::new(&source).into_iter().filter_map(Result::ok) {
+                let entry_path = Utf8Path::from_path(entry.path()).ok_or(SError::Unexpected)?;
+                let relative = entry_path.strip_prefix(&source)?;
+                let destination = target.join(relative);
+                if entry.file_type().is_dir() {
+                    directories.insert(destination);
+                } else if entry.file_type().is_file() {
+                    artifacts.push(DeploymentArtifact {
+                        target: destination,
+                        source: entry_path.strip_prefix(&library.repo_root)?.to_path_buf(),
+                        kind,
+                    });
+                }
+            }
+        } else {
+            artifacts.push(DeploymentArtifact {
+                target: target.clone(),
+                source: source.strip_prefix(&library.repo_root)?.to_path_buf(),
+                kind,
+            });
+        }
+        add_parent_dirs(&mut directories, &target);
+    }
+
+    artifacts.sort_by(|a, b| a.target.cmp(&b.target));
+    check_destinations(library, &artifacts)?;
+    Ok(DeploymentPlan {
+        artifacts,
+        directories: directories.into_iter().collect(),
+    })
 }
 
-/// Validates that no two active mods provide the same file.
-fn check_file_collisions(mods: &BTreeMap<String, Mod>, cache: &LibraryCache) -> Result<(), SError> {
-    let mut owners: HashMap<Utf8PathBuf, String> = HashMap::new();
-    let mut collisions = BTreeSet::new();
+/// Reconciles recorded artifacts, then creates only absent destinations.
+pub fn deploy(library: &mut Library, plan: DeploymentPlan) -> Result<(), SError> {
+    let old = library.deployment.clone();
+    let desired: HashSet<_> = plan.artifacts.iter().cloned().collect();
 
+    for artifact in &old.artifacts {
+        if desired.contains(artifact) {
+            continue;
+        }
+        let target = library.game_root.join(&artifact.target);
+        if artifact_is_owned(library, artifact, &target)? {
+            linker::remove(&target, artifact.kind)?;
+        }
+    }
+
+    let protected = get_protected_paths_absolute(&library.game_root, &library.spt_rules);
+    let desired_dirs: HashSet<_> = plan.directories.iter().cloned().collect();
+    let mut old_dirs = old.created_dirs.clone();
+    old_dirs.sort_by_key(|path| std::cmp::Reverse(path.components().count()));
+    for path in &old_dirs {
+        if desired_dirs.contains(path)
+            || protected
+                .iter()
+                .any(|root| root == &library.game_root.join(path))
+        {
+            continue;
+        }
+        let absolute = library.game_root.join(path);
+        if let Ok(meta) = fs::symlink_metadata(&absolute)
+            && meta.is_dir()
+            && fs::read_dir(&absolute)?.next().is_none()
+        {
+            fs::remove_dir(&absolute)?;
+        }
+    }
+
+    let mut created_dirs = Vec::new();
+    for directory in &plan.directories {
+        ensure_directory(
+            &library.game_root.join(directory),
+            &protected,
+            &mut created_dirs,
+        )?;
+    }
+
+    let mut new_artifacts = Vec::new();
+    for artifact in &plan.artifacts {
+        let target = library.game_root.join(&artifact.target);
+        if let Some(previous) = old
+            .artifacts
+            .iter()
+            .find(|old| old.target == artifact.target)
+            && previous == artifact
+            && fs::symlink_metadata(&target).is_ok()
+        {
+            new_artifacts.push(artifact.clone());
+            continue;
+        }
+        match fs::symlink_metadata(&target) {
+            Ok(_) => return Err(collision(&artifact.target)),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
+        }
+        let source = library.repo_root.join(&artifact.source);
+        linker::create(&source, &target, artifact.kind)?;
+        new_artifacts.push(artifact.clone());
+    }
+
+    new_artifacts.sort_by(|a, b| a.target.cmp(&b.target));
+    created_dirs.sort();
+    library.deployment = DeploymentState {
+        artifacts: new_artifacts,
+        created_dirs,
+    };
+    Ok(())
+}
+
+fn check_destinations(library: &Library, artifacts: &[DeploymentArtifact]) -> Result<(), SError> {
+    for artifact in artifacts {
+        let target = library.game_root.join(&artifact.target);
+        let exists = match fs::symlink_metadata(&target) {
+            Ok(_) => true,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
+            Err(error) => return Err(error.into()),
+        };
+        if !exists {
+            continue;
+        }
+        let owned_prior = library.deployment.artifacts.iter().any(|old| {
+            (old.target == artifact.target || artifact.target.starts_with(&old.target))
+                && artifact_is_owned(library, old, &library.game_root.join(&old.target))
+                    .unwrap_or(false)
+        });
+        if owned_prior || legacy_repo_link(&target, &library.repo_root) {
+            continue;
+        }
+        return Err(collision(&artifact.target));
+    }
+    Ok(())
+}
+
+fn collision(path: &Utf8Path) -> SError {
+    SError::FileCollision(vec![format!("Deployment target already exists: '{path}'.")])
+}
+
+fn legacy_repo_link(path: &Utf8Path, repo_root: &Utf8Path) -> bool {
+    let Ok(meta) = fs::symlink_metadata(path) else {
+        return false;
+    };
+    if !meta.file_type().is_symlink() {
+        return false;
+    }
+    let Ok(target) = linker::read_link_target(path) else {
+        return false;
+    };
+    dunce::canonicalize(target.as_std_path())
+        .map(|target| target.starts_with(repo_root.as_std_path()))
+        .unwrap_or(false)
+}
+
+fn artifact_is_owned(
+    library: &Library,
+    artifact: &DeploymentArtifact,
+    target: &Utf8Path,
+) -> Result<bool, SError> {
+    let meta = match fs::symlink_metadata(target) {
+        Ok(meta) => meta,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(error.into()),
+    };
+    if matches!(
+        artifact.kind,
+        ArtifactKind::Symlink | ArtifactKind::Junction
+    ) {
+        let expected = library.repo_root.join(&artifact.source);
+        return Ok(linker::read_link_target(target).is_ok_and(|actual| actual == expected));
+    }
+    Ok(meta.is_file())
+}
+
+fn ensure_directory(
+    path: &Utf8Path,
+    protected: &[Utf8PathBuf],
+    created: &mut Vec<Utf8PathBuf>,
+) -> Result<(), SError> {
+    let mut missing = Vec::new();
+    let mut current = path.to_path_buf();
+    while match fs::symlink_metadata(&current) {
+        Ok(_) => false,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => true,
+        Err(error) => return Err(error.into()),
+    } {
+        missing.push(current.clone());
+        current = current
+            .parent()
+            .ok_or_else(|| SError::IOError(format!("No parent directory for {path}")))?
+            .to_path_buf();
+    }
+    if !fs::symlink_metadata(&current)?.is_dir() {
+        return Err(collision(path));
+    }
+    for directory in missing.into_iter().rev() {
+        fs::create_dir(&directory)?;
+        if !protected.iter().any(|root| root == &directory) {
+            created.push(directory);
+        }
+    }
+    Ok(())
+}
+
+fn add_parent_dirs(directories: &mut BTreeSet<Utf8PathBuf>, path: &Utf8Path) {
+    let mut parent = path.parent();
+    while let Some(directory) = parent {
+        if directory.as_str().is_empty() || directory == "." {
+            break;
+        }
+        directories.insert(directory.to_path_buf());
+        parent = directory.parent();
+    }
+}
+
+fn check_file_collisions(mods: &BTreeMap<String, Mod>, cache: &LibraryCache) -> Result<(), SError> {
+    let mut owners = HashMap::new();
+    let mut collisions = BTreeSet::new();
     for (path, current_id) in iter_active_files(mods, cache) {
         let Some(existing_owner) = owners.insert(path.to_owned(), current_id.to_string()) else {
             continue;
         };
-
         if existing_owner != current_id {
             collisions.insert(format!(
-                "File Conflict: '{}' is provided by both '{}' and '{}'.",
-                path, existing_owner, current_id
+                "File Conflict: '{path}' is provided by both '{existing_owner}' and '{current_id}'."
             ));
         }
     }
-
     if collisions.is_empty() {
-        return Ok(());
+        Ok(())
+    } else {
+        Err(SError::FileCollision(collisions.into_iter().collect()))
     }
-
-    Err(SError::FileCollision(collisions.into_iter().collect()))
 }
 
 fn build_folder_ownership_map(
@@ -96,66 +336,20 @@ fn build_folder_ownership_map(
     mods: &BTreeMap<String, Mod>,
     cache: &LibraryCache,
 ) -> OwnershipMap {
-    // 1. Initialize with System roots (e.g., user/mods, BepInEx/plugins)
-    let mut acc: OwnershipMap = get_protected_paths(spt_rules)
+    let mut ownership: OwnershipMap = get_protected_paths(spt_rules)
         .iter()
         .flat_map(|path| path.ancestors())
-        .filter(|a| !a.as_str().is_empty() && *a != ".")
-        .map(|a| (a.to_path_buf(), vec!["__SYSTEM__".to_string()]))
+        .filter(|path| !path.as_str().is_empty() && *path != ".")
+        .map(|path| (path.to_path_buf(), vec!["__SYSTEM__".to_string()]))
         .collect();
-
-    // 2. Populate with Mod folder structures
     iter_active_files_and_ancestors(mods, cache).for_each(|(path, id)| {
-        let entry = acc.entry(path.to_path_buf()).or_default();
-        if !entry.contains(&id.to_string()) {
-            entry.push(id.to_string());
+        let owners = ownership.entry(path.to_path_buf()).or_default();
+        if !owners.contains(&id.to_string()) {
+            owners.push(id.to_string());
         }
     });
-
-    acc
+    ownership
 }
-
-fn execute_recursive_link(
-    game_root: &Utf8Path,
-    lib_paths: &LibPathRules,
-    mods: &BTreeMap<String, Mod>,
-    cache: &LibraryCache,
-    ownership: &OwnershipMap,
-) -> Result<(), SError> {
-    cache
-        .mods
-        .iter()
-        .filter(|(id, _)| mods.get(*id).is_some_and(|m| m.is_active))
-        .flat_map(|(id, m_fs)| m_fs.files.iter().map(move |f| (id, f)))
-        .try_for_each(|(id, file_path)| {
-            let mut current_path = Utf8PathBuf::new();
-
-            for component in file_path.components() {
-                current_path.push(component);
-
-                let owners = ownership.get(&current_path).ok_or_else(|| {
-                    SError::ParseError(format!("Missing ownership for '{}'", current_path))
-                })?;
-
-                // Case A: Unique Ownership -> Link high level directory/file and exit file loop
-                if owners.len() == 1 {
-                    let src = lib_paths.mods.join(id).join(&current_path);
-                    let dst = game_root.join(&current_path);
-                    linker::link(&src, &dst)?;
-                    return Ok(());
-                }
-
-                // Case B: Shared -> This is a parent directory. Ensure physical dir exists.
-                let shared_dir = game_root.join(&current_path);
-                if !shared_dir.exists() {
-                    file::create_dir_all(&shared_dir)?;
-                }
-            }
-            Ok(())
-        })
-}
-
-// --- Iteration Helpers ---
 
 fn iter_active_files<'a>(
     mods: &'a BTreeMap<String, Mod>,
@@ -165,7 +359,11 @@ fn iter_active_files<'a>(
         .mods
         .iter()
         .filter(move |(id, _)| mods.get(*id).is_some_and(|m| m.is_active))
-        .flat_map(|(id, fs)| fs.files.iter().map(move |f| (f.as_path(), id.as_str())))
+        .flat_map(|(id, fs)| {
+            fs.files
+                .iter()
+                .map(move |file| (file.as_path(), id.as_str()))
+        })
 }
 
 fn iter_active_files_and_ancestors<'a>(
@@ -177,84 +375,52 @@ fn iter_active_files_and_ancestors<'a>(
         .iter()
         .filter(move |(id, _)| mods.get(*id).is_some_and(|m| m.is_active))
         .flat_map(|(id, fs)| {
-            fs.files.iter().flat_map(move |f| {
-                f.ancestors()
-                    .filter(|a| !a.as_str().is_empty() && *a != ".")
-                    .map(move |a| (a, id.as_str()))
+            fs.files.iter().flat_map(move |file| {
+                file.ancestors()
+                    .filter(|path| !path.as_str().is_empty() && *path != ".")
+                    .map(move |path| (path, id.as_str()))
             })
         })
 }
 
-/// Finds all paths that would be linked for a specific mod.
-/// Returns the paths that are uniquely owned by this mod (that need unlinking)
-/// and the shared directories that were created for this mod's files.
-/// Always includes the specified mod in ownership calculation regardless of its active status.
+/// Returns recorded artifact targets belonging to one mod and recorded directories.
 pub fn find_mod_links(
     library: &Library,
     mod_id: &str,
 ) -> Result<(HashSet<Utf8PathBuf>, HashSet<Utf8PathBuf>), SError> {
-    let game_root = &library.game_root;
-    let spt_rules = &library.spt_rules;
-    let mods = &library.mods;
-    let cache = &library.cache;
-    // Get the mod's files from cache
-    let mod_fs = cache
+    if !library.cache.mods.contains_key(mod_id) {
+        return Err(SError::ModNotFound(mod_id.to_string()));
+    }
+    let prefix = library
+        .lib_paths
         .mods
-        .get(mod_id)
-        .ok_or_else(|| SError::ModNotFound(mod_id.to_string()))?;
+        .strip_prefix(&library.repo_root)
+        .unwrap_or(&library.lib_paths.mods)
+        .join(mod_id);
+    let artifacts = library
+        .deployment
+        .artifacts
+        .iter()
+        .filter(|artifact| artifact.source.starts_with(&prefix))
+        .map(|artifact| library.game_root.join(&artifact.target))
+        .collect();
+    let dirs = library
+        .deployment
+        .created_dirs
+        .iter()
+        .map(|path| library.game_root.join(path))
+        .collect();
+    Ok((artifacts, dirs))
+}
 
-    // Build ownership map including this mod (treat it as active for ownership calculation)
-    let mut folder_ownership = build_folder_ownership_map(spt_rules, mods, cache);
-
-    // Ensure the mod being removed is included in ownership map (regardless of active status)
-    // This allows us to find links even if the mod wasn't marked as active
-    for file_path in &mod_fs.files {
-        for ancestor in file_path.ancestors() {
-            if ancestor.as_str().is_empty() || ancestor == "." {
-                continue;
-            }
-            let ancestor_path = ancestor.to_path_buf();
-            let entry = folder_ownership.entry(ancestor_path).or_default();
-            if !entry.contains(&mod_id.to_string()) {
-                entry.push(mod_id.to_string());
-            }
-        }
-    }
-
-    let mut unlink_paths = HashSet::new();
-    let mut shared_dirs = HashSet::new();
-
-    // Iterate through each file in the mod
-    for file_path in &mod_fs.files {
-        let mut current_path = Utf8PathBuf::new();
-
-        for component in file_path.components() {
-            current_path.push(component);
-
-            let owners = folder_ownership.get(&current_path).ok_or_else(|| {
-                SError::ParseError(format!("Missing ownership for '{}'", current_path))
-            })?;
-
-            // Case A: Unique Ownership -> This path would be linked
-            // Skip protected system root paths - never remove server_mods or client_plugins directories
-            if is_protected_path(&current_path, spt_rules) {
-                // Continue to next component, don't add to unlink_paths or shared_dirs
-                continue;
-            }
-            if owners.len() == 1 && owners.contains(&mod_id.to_string()) {
-                let dst = game_root.join(&current_path);
-                unlink_paths.insert(dst);
-                // We found the link point, exit file loop
-                break;
-            }
-
-            // Case B: Shared -> This is a parent directory that might need cleanup
-            if owners.len() > 1 {
-                let shared_dir = game_root.join(&current_path);
-                shared_dirs.insert(shared_dir);
-            }
-        }
-    }
-
-    Ok((unlink_paths, shared_dirs))
+pub fn recorded_artifact<'a>(
+    library: &'a Library,
+    target: &Utf8Path,
+) -> Option<&'a DeploymentArtifact> {
+    let relative = target.strip_prefix(&library.game_root).ok()?;
+    library
+        .deployment
+        .artifacts
+        .iter()
+        .find(|artifact| artifact.target == relative)
 }

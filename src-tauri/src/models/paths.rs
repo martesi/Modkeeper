@@ -47,6 +47,7 @@ define_paths!(LibPathRules {
     staging: "staging",
     manifest: "manifest.toml",
     cache: "cache.toml",
+    deployment: "deployment.toml",
 });
 #[derive(Clone, Debug)]
 pub struct SPTPathCanonical {
@@ -62,4 +63,3 @@ impl SPTPathCanonical {
         })
     }
 }
-

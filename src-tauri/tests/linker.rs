@@ -1,5 +1,5 @@
 use camino::Utf8Path;
-use mod_keeper_lib::core::linker::{link, read_link_target, unlink};
+use mod_keeper_lib::core::linker::{self, ArtifactKind, link, read_link_target, unlink};
 use std::fs;
 use tempfile::tempdir;
 
@@ -126,4 +126,19 @@ fn test_unlink_non_existent_path() {
     // Should not error if path doesn't exist
     let result = unlink(&path);
     assert!(result.is_ok());
+}
+
+#[test]
+fn test_hardlink_create_and_remove() {
+    let tmp = tempdir().unwrap();
+    let root = Utf8Path::from_path(tmp.path()).unwrap();
+    let source = root.join("source.txt");
+    let target = root.join("target.txt");
+    fs::write(&source, "hardlinked").unwrap();
+
+    linker::create(&source, &target, ArtifactKind::Hardlink).unwrap();
+    assert_eq!(fs::read_to_string(&target).unwrap(), "hardlinked");
+    linker::remove(&target, ArtifactKind::Hardlink).unwrap();
+    assert!(source.exists());
+    assert!(!target.exists());
 }
