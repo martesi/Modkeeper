@@ -73,6 +73,40 @@ fn test_library_init_and_add_mod() {
 }
 
 #[test]
+fn test_default_library_root_stores_relative_game_root() {
+    let (_tmp, game_root, _) = setup_test_env();
+    let repo_root = game_root.join(".mod_keeper");
+
+    let original = Library::create(LibraryCreationRequirement {
+        repo_root: Some(repo_root.clone()),
+        game_root: game_root.clone(),
+        name: "Portable Library".to_string(),
+    })
+    .unwrap();
+
+    let manifest = Library::read_library_manifest(&repo_root).unwrap();
+    assert_eq!(manifest.game_root, Utf8PathBuf::from(".."));
+
+    let loaded = Library::load(&repo_root).unwrap();
+    assert_eq!(loaded.id, original.id);
+    assert_eq!(loaded.game_root, game_root);
+
+    let manifest_path = repo_root.join("manifest.toml");
+    let manifest = fs::read_to_string(&manifest_path).unwrap();
+    fs::write(
+        &manifest_path,
+        manifest.replace(
+            "gameRoot = \"..\"",
+            "gameRoot = 'E:\\Games\\EFT_16.9'",
+        ),
+    )
+    .unwrap();
+
+    let loaded_legacy = Library::load(&repo_root).unwrap();
+    assert_eq!(loaded_legacy.game_root, game_root);
+}
+
+#[test]
 fn test_collision_detection() {
     let (_tmp, game_root, repo_root) = setup_test_env();
     let requirement = LibraryCreationRequirement {

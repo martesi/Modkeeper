@@ -11,6 +11,44 @@ use std::collections::BTreeMap;
 use std::default::Default;
 use std::path::PathBuf;
 
+fn is_windows_absolute(path: &Utf8Path) -> bool {
+    let bytes = path.as_str().as_bytes();
+    bytes.len() >= 3 && bytes[1] == b':' && matches!(bytes[2], b'\\' | b'/')
+}
+
+/// Resolves stored game roots relative to the known absolute library root.
+/// The fallback keeps libraries written on Windows loadable from Linux when
+/// their default `.mod_keeper` root is the same physical directory.
+pub(crate) fn resolve_game_root(
+    repo_root: &Utf8Path,
+    stored_game_root: &Utf8Path,
+) -> Result<Utf8PathBuf, SError> {
+    let candidate = if stored_game_root.is_relative() && !is_windows_absolute(stored_game_root) {
+        repo_root.join(stored_game_root)
+    } else {
+        stored_game_root.to_owned()
+    };
+
+    if candidate.exists() {
+        return Utf8PathBuf::from_path_buf(dunce::canonicalize(&candidate)?).map_err(|path| {
+            SError::ParseError(format!("Non-UTF-8 game root: {}", path.display()))
+        });
+    }
+
+    let default_library_root = SPTPathRules::default().library_default;
+    if is_windows_absolute(stored_game_root)
+        && repo_root.file_name() == Some(default_library_root.as_str())
+        && let Some(parent) = repo_root.parent()
+        && parent.exists()
+    {
+        return Utf8PathBuf::from_path_buf(dunce::canonicalize(parent)?).map_err(|path| {
+            SError::ParseError(format!("Non-UTF-8 game root: {}", path.display()))
+        });
+    }
+
+    Ok(candidate)
+}
+
 pub struct Library {
     pub id: String,
     pub name: String,
@@ -71,7 +109,8 @@ impl Library {
         version::validate_string(&dto.spt_version)?;
 
         let lib_paths = LibPathRules::new(repo_root);
-        let spt_paths = SPTPathRules::new(&dto.game_root);
+        let game_root = resolve_game_root(repo_root, &dto.game_root)?;
+        let spt_paths = SPTPathRules::new(&game_root);
         // Validate current physical version using the game_root from the loaded library
         let spt_version = version::fetch_and_validate(&spt_paths)?;
 
@@ -85,7 +124,7 @@ impl Library {
             name: dto.name,
             repo_root: repo_root.to_owned(),
             spt_paths_canonical: SPTPathCanonical::from_spt_paths(spt_paths.clone())?,
-            game_root: dto.game_root,
+            game_root,
             spt_rules: SPTPathRules::default(),
             cache,
             lib_paths,
@@ -107,12 +146,29 @@ impl Library {
         LibraryDTO {
             id: self.id.to_owned(),
             name: self.name.to_owned(),
-            game_root: self.game_root.to_owned(),
+            game_root: self.stored_game_root(),
             repo_root: self.repo_root.to_owned(),
             spt_version: self.spt_version.to_owned(),
             mods: self.mods.to_owned(),
             is_dirty: self.is_dirty,
         }
+    }
+
+    fn stored_game_root(&self) -> Utf8PathBuf {
+        let Ok(repo_relative_to_game) = self.repo_root.strip_prefix(&self.game_root) else {
+            return self.game_root.to_owned();
+        };
+
+        let depth = repo_relative_to_game.components().count();
+        if depth == 0 {
+            return Utf8PathBuf::from(".");
+        }
+
+        let mut relative = Utf8PathBuf::new();
+        for _ in 0..depth {
+            relative.push("..");
+        }
+        relative
     }
 
     pub fn stage_material(&self, unknown_mod_name: String) -> StageMaterial {

@@ -111,10 +111,15 @@ pub fn assemble_workspace(
             })
             .collect();
 
+        let game_root =
+            crate::core::library::resolve_game_root(&known.library_root, &dto.game_root)
+                .map(|path| path.to_string())
+                .unwrap_or_else(|_| dto.game_root.to_string());
+
         libraries.push(LibraryEntry::Summary(LibrarySummary {
             id: known.id.clone(),
             name: dto.name,
-            game_root: dto.game_root.to_string(),
+            game_root,
             library_root: known.library_root.to_string(),
             spt_version: Some(dto.spt_version),
             cache_status,
