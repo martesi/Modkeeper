@@ -59,20 +59,19 @@ export const libraryText = {
       message: 'or click to browse local files',
     }),
   dropSupported: () =>
-    t({ id: 'library.empty.dropSupported', message: 'SUPPORTED: .zip' }),
+    t({ id: 'library.empty.dropSupported', message: 'SUPPORTED: .zip, .7z' }),
   manageLibraries: () =>
     t({ id: 'library.actions.manageLibraries', message: 'Manage libraries' }),
-  zipArchive: () =>
-    t({ id: 'library.import.zipArchive', message: 'Zip archive' }),
+  archive: () => t({ id: 'library.import.archive', message: 'Mod archive' }),
   selectModArchives: () =>
     t({
       id: 'library.import.selectModArchives',
       message: 'Select mod archives',
     }),
-  nonZipRejected: () =>
+  unsupportedArchiveRejected: () =>
     t({
-      id: 'library.import.nonZipRejected',
-      message: 'Only .zip archives can be imported',
+      id: 'library.import.unsupportedArchiveRejected',
+      message: 'Only .zip and .7z archives can be imported',
     }),
 
   // Toolbar
@@ -230,7 +229,10 @@ export const libraryText = {
   launchingTool: (name: string) =>
     t({ id: 'library.tools.launching', message: `Launching ${name}…` }),
   toolLaunchFailed: (name: string) =>
-    t({ id: 'library.tools.launchFailed', message: `Could not launch ${name}` }),
+    t({
+      id: 'library.tools.launchFailed',
+      message: `Could not launch ${name}`,
+    }),
   toolSaved: () => t({ id: 'library.tools.saved', message: 'Tool saved' }),
   toolDeleted: () =>
     t({ id: 'library.tools.deleted', message: 'Tool deleted' }),

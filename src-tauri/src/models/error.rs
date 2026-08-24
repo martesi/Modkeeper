@@ -54,3 +54,4 @@ impl_from!(std::io::Error, IOError);
 impl_from!(serde_json::Error, ParseError);
 impl_from!(std::path::StripPrefixError, ParseError);
 impl_from!(zip::result::ZipError, UnhandledCompression);
+impl_from!(sevenz_rust2::Error, UnhandledCompression);

@@ -11,7 +11,7 @@ import {
 } from '../state/library-state'
 import { syncMods } from '../data/library-repository'
 import { launchTool } from '../data/tools-repository'
-import { useZipFilePicker } from '../shared/hooks/use-zip-file-picker'
+import { useArchiveFilePicker } from '../shared/hooks/use-archive-file-picker'
 import { libraryText } from '../i18n/library-text'
 import { LibraryActivateEmptyState } from './library-activate-empty-state'
 import { LibraryDropEmptyState } from './library-drop-empty-state'
@@ -85,7 +85,7 @@ function LibraryHeaderToolbar() {
   const activeLibrary = useAtomValue(activeLibraryAtom)
   const tools = useAtomValue(activeLibraryToolsAtom)
   const libraryBusy = useAtomValue(libraryBusyAtom)
-  const pickAndInstall = useZipFilePicker()
+  const pickAndInstall = useArchiveFilePicker()
 
   if (!activeLibrary) return null
 

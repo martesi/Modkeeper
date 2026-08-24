@@ -120,7 +120,8 @@ fn process_as_archive(
     staging_root: &Utf8Path,
     unknown_mod_name: &str,
 ) -> Option<Result<StagedMod, SError>> {
-    is_archive(input).then(|| stage_archive(input, rules, staging_root, unknown_mod_name))
+    archive::ArchiveFormat::from_path(input)
+        .map(|_| stage_archive(input, rules, staging_root, unknown_mod_name))
 }
 
 // --- Internal Helpers ---
@@ -206,12 +207,6 @@ fn stage_archive(
         is_staging: true,
         name,
     })
-}
-
-fn is_archive(path: &Utf8Path) -> bool {
-    path.extension()
-        .map(|ext| ext.to_lowercase() == "zip")
-        .unwrap_or(false)
 }
 
 fn get_root_component(path: &Utf8Path) -> Option<&str> {

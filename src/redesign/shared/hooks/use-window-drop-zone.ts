@@ -1,6 +1,6 @@
 /*
- * Global window drop zone (consolidated-spec.md §12): the whole window accepts `.zip` drops for the
- * active library. Non-zip files are rejected with a toast and NO backend call (§12.2). Mounted once
+ * Global window drop zone: the whole window accepts supported archive drops for the active library.
+ * Unsupported files are rejected with a toast and NO backend call. Mounted once
  * by the initializers; in the browser prototype there is no window drop source, so this is inert.
  */
 import { useEffect } from 'react'
@@ -8,8 +8,8 @@ import { isTauri } from '@tauri-apps/api/core'
 import { useAtomValue } from 'jotai'
 import { toast } from 'sonner'
 import { activeLibraryIdAtom } from '../../state/library-state'
-import { installZipArchives } from '../../data/library-repository'
-import { splitZipPaths } from '../utils/file-filters'
+import { installModArchives } from '../../data/library-repository'
+import { splitArchivePaths } from '../utils/file-filters'
 import { libraryText } from '../../i18n/library-text'
 
 export function useWindowDropZone(): void {
@@ -22,10 +22,14 @@ export function useWindowDropZone(): void {
       ({ getCurrentWindow }) =>
         getCurrentWindow().onDragDropEvent((event) => {
           if (event.payload.type !== 'drop') return
-          const { zips, rejected } = splitZipPaths(event.payload.paths)
-          if (rejected.length > 0) toast.error(libraryText.nonZipRejected())
-          if (zips.length > 0) {
-            void installZipArchives({ libraryId: activeLibraryId, paths: zips })
+          const { archives, rejected } = splitArchivePaths(event.payload.paths)
+          if (rejected.length > 0)
+            toast.error(libraryText.unsupportedArchiveRejected())
+          if (archives.length > 0) {
+            void installModArchives({
+              libraryId: activeLibraryId,
+              paths: archives,
+            })
           }
         }),
     )

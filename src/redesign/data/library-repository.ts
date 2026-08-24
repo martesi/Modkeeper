@@ -11,7 +11,7 @@
  *   - PLAIN (bulkUpdateMods and the library CRUD): awaited, returns the updated workspace, local
  *     per-click pending only. A domain rejection is toasted and resolves with the workspace
  *     unchanged — dialog/caller state stays stable (§10 error handling).
- *   - FIRE-AND-TRACK (rebuildLibraryCache / installZipArchives / syncMods): mint a client taskId,
+ *   - FIRE-AND-TRACK (rebuildLibraryCache / installModArchives / syncMods): mint a client taskId,
  *     register the pending task BEFORE invoking, resolve with an accept; the OUTCOME arrives later
  *     as a WorkspaceEvent matched by taskId.
  * Both feed one single persistent event bus; the bus dispatches by taskId and clears library-busy.
@@ -32,6 +32,7 @@ import type {
 import { isLibrarySummary } from './redesign-types'
 import { resolveCommandError } from '../shared/hooks/use-command-error'
 import { getMockWorkspace, setMockWorkspace } from './example-data'
+import { stripSupportedArchiveExtension } from '../shared/utils/file-filters'
 import {
   libraryWorkspaceAtom,
   setWorkspace,
@@ -379,7 +380,7 @@ export async function rebuildLibraryCache(
   )
 }
 
-export async function installZipArchives(input: {
+export async function installModArchives(input: {
   libraryId: LibraryId
   paths: string[]
 }): Promise<OperationAccepted> {
@@ -397,7 +398,7 @@ export async function installZipArchives(input: {
         mods.push({
           id: crypto.randomUUID(),
           libraryId,
-          name: fileName.replace(/\.zip$/i, ''),
+          name: stripSupportedArchiveExtension(fileName),
           type: 'unknown',
           isEnabled: false,
           sourcePath: path,
