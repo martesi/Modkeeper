@@ -259,6 +259,54 @@ fn test_purge_removes_deactivated_mods() {
 }
 
 #[test]
+fn test_copy_deployment_reuses_owned_directories_and_normalizes_legacy_paths() {
+    let (_tmp, game_root, repo_root) = setup_test_env();
+    let mut lib = Library::create(LibraryCreationRequirement {
+        repo_root: Some(repo_root.clone()),
+        game_root: game_root.clone(),
+        name: "Test Library".to_string(),
+    })
+    .unwrap();
+
+    let source = repo_root.join("source");
+    create_test_mod(&source, "CopyMod", true);
+    let scanned = mod_fs::scan(&source, &SPTPathRules::default()).unwrap();
+    let mod_id = scanned.id.clone();
+    mod_manager::add_mod(&mut lib, create_staged_mod_for_test(&source, scanned)).unwrap();
+    lib.mods.get_mut(&mod_id).unwrap().is_active = true;
+
+    lib.sync().unwrap();
+    assert!(
+        lib.deployment
+            .created_dirs
+            .iter()
+            .all(|path| path.is_relative())
+    );
+
+    // A second sync must recognize the copied directory as library-owned.
+    lib.sync().unwrap();
+
+    // Simulate deployment.toml written by the old implementation.
+    lib.deployment.created_dirs = lib
+        .deployment
+        .created_dirs
+        .iter()
+        .map(|path| game_root.join(path))
+        .collect();
+    lib.persist().unwrap();
+
+    let mut loaded = Library::load(&lib.repo_root).unwrap();
+    assert!(
+        loaded
+            .deployment
+            .created_dirs
+            .iter()
+            .all(|path| path.is_relative())
+    );
+    loaded.sync().unwrap();
+}
+
+#[test]
 fn test_unowned_deployment_target_is_preserved_and_blocks_sync() {
     let (_tmp, game_root, repo_root) = setup_test_env();
     let mut lib = Library::create(LibraryCreationRequirement {

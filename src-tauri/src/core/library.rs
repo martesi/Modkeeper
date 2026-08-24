@@ -1,5 +1,5 @@
 use crate::core::cache::LibraryCache;
-use crate::core::deployment::DeploymentState;
+use crate::core::deployment::{self, DeploymentState};
 use crate::core::mod_stager::StageMaterial;
 use crate::core::version;
 use crate::models::error::SError;
@@ -121,13 +121,14 @@ impl Library {
         let cache = toml::read(&lib_paths.cache).map_err(|e| {
             SError::InvalidLibrary(repo_root.to_string(), format!("cache.toml: {e}"))
         })?;
-        let deployment = if lib_paths.deployment.exists() {
+        let mut deployment = if lib_paths.deployment.exists() {
             toml::read(&lib_paths.deployment).map_err(|e| {
                 SError::InvalidLibrary(repo_root.to_string(), format!("deployment.toml: {e}"))
             })?
         } else {
             DeploymentState::default()
         };
+        deployment::normalize_created_dirs(&game_root, &mut deployment);
 
         Ok(Self {
             id: dto.id,

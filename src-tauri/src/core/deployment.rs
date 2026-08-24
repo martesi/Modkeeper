@@ -30,6 +30,23 @@ pub struct DeploymentPlan {
     directories: Vec<Utf8PathBuf>,
 }
 
+/// Keeps persisted directory ownership relative to the game root.
+///
+/// Older deployment files recorded the absolute path passed to
+/// `ensure_directory`. Normalize those records when loading so they continue
+/// to participate in ownership checks after the representation is fixed.
+pub(crate) fn normalize_created_dirs(game_root: &Utf8Path, state: &mut DeploymentState) {
+    for path in &mut state.created_dirs {
+        let Ok(relative) = path.strip_prefix(game_root) else {
+            continue;
+        };
+        if relative.as_str().is_empty() || relative == "." {
+            continue;
+        }
+        *path = relative.to_path_buf();
+    }
+}
+
 // --- Protected Path Helpers ---
 
 pub fn get_protected_paths(spt_rules: &SPTPathRules) -> Vec<&Utf8Path> {
@@ -194,10 +211,19 @@ pub fn deploy(library: &mut Library, plan: DeploymentPlan) -> Result<(), SError>
         }
     }
 
-    let mut created_dirs = Vec::new();
+    // Preserve ownership records for directories that already exist. Without
+    // this, a second sync forgets directories created by the first sync and a
+    // later copy deployment treats them as user-owned collisions.
+    let mut created_dirs: Vec<_> = old
+        .created_dirs
+        .iter()
+        .filter(|path| desired_dirs.contains(*path))
+        .cloned()
+        .collect();
     for directory in &plan.directories {
         ensure_directory(
             &library.game_root.join(directory),
+            &library.game_root,
             &protected,
             &mut created_dirs,
         )?;
@@ -300,6 +326,7 @@ fn artifact_is_owned(
 
 fn ensure_directory(
     path: &Utf8Path,
+    game_root: &Utf8Path,
     protected: &[Utf8PathBuf],
     created: &mut Vec<Utf8PathBuf>,
 ) -> Result<(), SError> {
@@ -322,7 +349,10 @@ fn ensure_directory(
     for directory in missing.into_iter().rev() {
         fs::create_dir(&directory)?;
         if !protected.iter().any(|root| root == &directory) {
-            created.push(directory);
+            let relative = directory
+                .strip_prefix(game_root)
+                .map_err(|_| SError::Unexpected)?;
+            created.push(relative.to_path_buf());
         }
     }
     Ok(())

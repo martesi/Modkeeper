@@ -17,7 +17,7 @@ pub enum SError {
     #[display("Mod not found: {}", _0)]
     ModNotFound(String),
     FileOrDirectoryNotFound(String),
-    #[display("File collisions detected: {}", "_0.join(\", \")")]
+    #[display("File collisions detected: {}", _0.join(", "))]
     FileCollision(Vec<String>),
     Unexpected,
     UnhandledCompression(String),
