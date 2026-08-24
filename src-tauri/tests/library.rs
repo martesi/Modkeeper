@@ -236,20 +236,16 @@ fn test_purge_removes_deactivated_mods() {
 
     let target_path = game_root.join(&rules.server_mods).join("DeleteMe");
     assert!(target_path.exists());
+    assert!(target_path.is_dir());
     assert!(
-        fs::symlink_metadata(&target_path)
+        !fs::symlink_metadata(&target_path)
             .unwrap()
             .file_type()
             .is_symlink()
     );
     assert_eq!(
-        fs::read_link(&target_path).unwrap(),
-        lib.lib_paths
-            .mods
-            .join(&mod_id)
-            .join(&rules.server_mods)
-            .join("DeleteMe")
-            .as_std_path()
+        fs::read_to_string(target_path.join("content.txt")).unwrap(),
+        "DeleteMe"
     );
 
     // 2. Deactivate and sync

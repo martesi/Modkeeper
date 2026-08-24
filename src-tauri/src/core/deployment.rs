@@ -98,6 +98,7 @@ pub fn plan(library: &Library) -> Result<DeploymentPlan, SError> {
     let mut directories = BTreeSet::new();
     for (target, (source, kind)) in selected {
         if kind == ArtifactKind::Copy && source.is_dir() {
+            check_copy_directory_destination(library, &target)?;
             for entry in WalkDir::new(&source).into_iter().filter_map(Result::ok) {
                 let entry_path = Utf8Path::from_path(entry.path()).ok_or(SError::Unexpected)?;
                 let relative = entry_path.strip_prefix(&source)?;
@@ -128,6 +129,33 @@ pub fn plan(library: &Library) -> Result<DeploymentPlan, SError> {
         artifacts,
         directories: directories.into_iter().collect(),
     })
+}
+
+fn check_copy_directory_destination(library: &Library, target: &Utf8Path) -> Result<(), SError> {
+    let absolute = library.game_root.join(target);
+    let exists = match fs::symlink_metadata(&absolute) {
+        Ok(_) => true,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
+        Err(error) => return Err(error.into()),
+    };
+    if !exists {
+        return Ok(());
+    }
+
+    let owned_prior = library
+        .deployment
+        .created_dirs
+        .contains(&target.to_path_buf())
+        || library.deployment.artifacts.iter().any(|old| {
+            old.target == target
+                && artifact_is_owned(library, old, &library.game_root.join(&old.target))
+                    .unwrap_or(false)
+        });
+    if owned_prior || legacy_repo_link(&absolute, &library.repo_root) {
+        return Ok(());
+    }
+
+    Err(collision(target))
 }
 
 /// Reconciles recorded artifacts, then creates only absent destinations.

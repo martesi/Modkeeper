@@ -8,6 +8,40 @@ use std::collections::HashSet;
 use std::fs;
 use walkdir::WalkDir;
 
+/// Removes recorded deployment artifacts that are still owned by the library.
+/// This is used when the library itself is being deleted; normal sync relies
+/// on deployment reconciliation so unchanged artifacts can be retained.
+pub fn remove_recorded_deployment(library: &Library) -> Result<(), SError> {
+    let mut artifacts = library.deployment.artifacts.clone();
+    artifacts.sort_by_key(|artifact| std::cmp::Reverse(artifact.target.components().count()));
+
+    for artifact in artifacts {
+        let target = library.game_root.join(&artifact.target);
+        if artifact_is_still_owned(library, &artifact, &target) {
+            linker::remove(&target, artifact.kind)?;
+        }
+    }
+
+    let protected =
+        deployment::get_protected_paths_absolute(&library.game_root, &library.spt_rules);
+    let mut directories = library.deployment.created_dirs.clone();
+    directories.sort_by_key(|path| std::cmp::Reverse(path.components().count()));
+    for path in directories {
+        let absolute = library.game_root.join(path);
+        if protected.iter().any(|root| root == &absolute) {
+            continue;
+        }
+        if let Ok(meta) = fs::symlink_metadata(&absolute)
+            && meta.is_dir()
+            && fs::read_dir(&absolute)?.next().is_none()
+        {
+            fs::remove_dir(&absolute)?;
+        }
+    }
+
+    Ok(())
+}
+
 /// Compatibility cleanup for deployments made before deployment.toml existed.
 /// Recorded artifacts are removed by reconciliation, not by scanning the cache.
 pub fn purge(library: &Library) -> Result<(), SError> {

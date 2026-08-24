@@ -261,8 +261,9 @@ pub fn delete_library_files(
             })?
     };
 
-    // Unlink deployed mods before the mod sources disappear.
+    // Remove recorded deployment artifacts before the mod sources disappear.
     if let Ok(library) = Library::load(&library_root) {
+        cleanup::remove_recorded_deployment(&library)?;
         cleanup::purge(&library)?;
     }
 

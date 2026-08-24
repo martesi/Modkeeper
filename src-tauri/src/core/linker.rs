@@ -141,22 +141,24 @@ pub fn preflight(repo_root: &Utf8Path, game_root: &Utf8Path) -> io::Result<Metho
     fs::create_dir(&source_dir)?;
 
     let result = (|| {
+        // Prefer copies so deployments remain usable when the library moves
+        // between mounts; links remain a capability fallback.
         let file = probe_kind(
             &source_file,
             &target_root.join("file"),
             [
+                ArtifactKind::Copy,
                 ArtifactKind::Symlink,
                 ArtifactKind::Hardlink,
-                ArtifactKind::Copy,
             ],
         )?;
         let directory = probe_kind(
             &source_dir,
             &target_root.join("directory"),
             [
+                ArtifactKind::Copy,
                 ArtifactKind::Symlink,
                 ArtifactKind::Junction,
-                ArtifactKind::Copy,
             ],
         )?;
         Ok(MethodSelection { file, directory })
@@ -194,4 +196,22 @@ fn is_capability_error(error: &io::Error) -> bool {
             | io::ErrorKind::InvalidInput
             | io::ErrorKind::CrossesDevices
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn preflight_prefers_copy_when_available() {
+        let repo = tempfile::tempdir().unwrap();
+        let game = tempfile::tempdir().unwrap();
+        let repo_root = Utf8Path::from_path(repo.path()).unwrap();
+        let game_root = Utf8Path::from_path(game.path()).unwrap();
+
+        let methods = preflight(repo_root, game_root).unwrap();
+
+        assert_eq!(methods.file, ArtifactKind::Copy);
+        assert_eq!(methods.directory, ArtifactKind::Copy);
+    }
 }
