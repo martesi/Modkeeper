@@ -12,6 +12,7 @@ use parking_lot::Mutex;
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
+#[cfg(target_os = "windows")]
 use sysinfo::System;
 
 // A registry that never touches the real user config (unlike AppRegistry::default)
@@ -25,6 +26,7 @@ fn test_registry(tmp: &tempfile::TempDir) -> AppRegistry {
         })),
         config_warning: Arc::new(Mutex::new(None)),
         in_flight_tasks: Arc::new(Mutex::new(HashSet::new())),
+        #[cfg(target_os = "windows")]
         sys: Mutex::new(System::new()),
         init_called: Arc::new(AtomicBool::new(false)),
     }
@@ -81,6 +83,7 @@ fn test_assert_active_library_rejects_non_active() {
         .expect("active id accepted");
 }
 
+#[cfg(target_os = "windows")]
 #[test]
 fn test_process_guard_detects_running_process() {
     let (_tmp, game_root, repo_root) = setup_test_env();
