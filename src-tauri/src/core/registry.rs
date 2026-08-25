@@ -35,10 +35,21 @@ impl AppRegistry {
             .as_ref()
             .map(|v| v.spt_canonical_paths())
     }
+
+    /// Exact executable-path matching is a meaningful safety guard only for
+    /// native Windows processes. Wine exposes its Unix loader as the process
+    /// executable on Linux, so treating a failed match there as "not running"
+    /// would provide false confidence.
+    #[cfg(target_os = "windows")]
     pub fn is_game_or_server_running(&self) -> bool {
         self.get_canonical_spt_paths()
             .map(|v| self.is_running(&v))
             .unwrap_or(false)
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    pub fn is_game_or_server_running(&self) -> bool {
+        false
     }
 
     pub fn get_stage_material(&self, unknown_mod_name: String) -> Result<StageMaterial, SError> {
