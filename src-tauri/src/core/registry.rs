@@ -3,12 +3,15 @@ use crate::core::library::Library;
 use crate::core::mod_stager::StageMaterial;
 use crate::models::error::SError;
 use crate::store::{self, AppConfigStore};
+#[cfg(target_os = "windows")]
 use crate::utils::process;
 use parking_lot::Mutex;
 use std::collections::HashSet;
+#[cfg(target_os = "windows")]
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
+#[cfg(target_os = "windows")]
 use sysinfo::System;
 
 pub struct AppRegistry {
@@ -19,16 +22,19 @@ pub struct AppRegistry {
     pub config_warning: Arc<Mutex<Option<String>>>,
     /// Fire-and-track tasks currently in flight, keyed by client-minted taskId (§7e).
     pub in_flight_tasks: Arc<Mutex<HashSet<String>>>,
+    #[cfg(target_os = "windows")]
     pub sys: Mutex<System>,
     /// Tracks whether the startup command has been called (watchdog handoff, C11)
     pub init_called: Arc<AtomicBool>,
 }
 
 impl AppRegistry {
+    #[cfg(target_os = "windows")]
     pub fn is_running<P: AsRef<Path>>(&self, canonical_paths: &[P]) -> bool {
         process::is_running(&mut self.sys.lock(), canonical_paths)
     }
 
+    #[cfg(target_os = "windows")]
     pub fn get_canonical_spt_paths(&self) -> Option<Vec<PathBuf>> {
         self.active_instance
             .lock()
@@ -92,6 +98,7 @@ impl Default for AppRegistry {
             app_config: Arc::new(Mutex::new(app_config)),
             config_warning: Arc::new(Mutex::new(config_warning)),
             in_flight_tasks: Arc::new(Mutex::new(HashSet::new())),
+            #[cfg(target_os = "windows")]
             sys: Mutex::new(System::new()),
             init_called: Arc::new(AtomicBool::new(false)),
         }
