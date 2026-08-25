@@ -1,44 +1,38 @@
-use camino::Utf8Path;
+use camino::{Utf8Path, Utf8PathBuf};
 use mod_keeper_lib::models::paths::SPTPathRules;
 use std::fs;
 use tempfile::TempDir;
 
-/// Helper to setup a dummy SPT environment so Library::create doesn't fail
-pub fn setup_test_env() -> (TempDir, camino::Utf8PathBuf, camino::Utf8PathBuf) {
+pub fn setup_test_env() -> (TempDir, Utf8PathBuf, Utf8PathBuf) {
     let tmp = tempfile::tempdir().unwrap();
-    let root = camino::Utf8PathBuf::from_path_buf(tmp.path().to_path_buf()).unwrap();
+    let root = Utf8PathBuf::from_path_buf(tmp.path().to_path_buf()).unwrap();
 
     let game_root = root.join("game");
     let repo_root = root.join("repo");
+    fs::create_dir_all(&game_root).unwrap();
+    fs::create_dir_all(&repo_root).unwrap();
 
-    std::fs::create_dir_all(&game_root).unwrap();
-    std::fs::create_dir_all(&repo_root).unwrap();
-
-    // 1. Get the rules to find where SPT expects files
+    let game_root = canonicalize(&game_root);
+    let repo_root = canonicalize(&repo_root);
     let rules = SPTPathRules::new(&game_root);
 
-    // 2. Create DUMMY files so canonicalize() doesn't fail with "os error 2"
-    let essential_files = [&rules.server_exe, &rules.client_exe];
-
-    for path in essential_files {
+    for path in [&rules.server_exe, &rules.client_exe] {
         if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).unwrap();
+            fs::create_dir_all(parent).unwrap();
         }
-        std::fs::write(path, "dummy").unwrap();
+        fs::write(path, "dummy").unwrap();
     }
 
-    // 3. Create registry.json file with SPT_Version
     if let Some(parent) = rules.server_registry.parent() {
-        std::fs::create_dir_all(parent).unwrap();
+        fs::create_dir_all(parent).unwrap();
     }
     let registry_json = r#"{"SPT_Version": "SPT 4.0.11 - 278e72"}"#;
-    std::fs::write(&rules.server_registry, registry_json).unwrap();
+    fs::write(&rules.server_registry, registry_json).unwrap();
 
     (tmp, game_root, repo_root)
 }
 
-/// Mock a mod folder structure
-#[allow(dead_code)] // not every test binary uses this helper
+#[allow(dead_code)]
 pub fn create_test_mod(path: &Utf8Path, name: &str, is_server: bool) {
     let rules = SPTPathRules::default();
     let mod_dir = if is_server {
@@ -49,4 +43,8 @@ pub fn create_test_mod(path: &Utf8Path, name: &str, is_server: bool) {
 
     fs::create_dir_all(&mod_dir).unwrap();
     fs::write(mod_dir.join("content.txt"), name).unwrap();
+}
+
+fn canonicalize(path: &Utf8Path) -> Utf8PathBuf {
+    Utf8PathBuf::from_path_buf(dunce::canonicalize(path).unwrap()).unwrap()
 }
