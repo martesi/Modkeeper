@@ -34,8 +34,7 @@ pub fn read_dir(path: &Utf8Path) -> Result<std::fs::ReadDir, SError> {
     std::fs::read_dir(path).map_err(Into::into)
 }
 
-/// Writes contents to a temp file in the target's directory, then renames it
-/// over the target - the target is never observable half-written.
+/// Writes via a temp file so the target is never observable half-written.
 pub fn atomic_write(path: &Utf8Path, contents: impl AsRef<[u8]>) -> Result<(), SError> {
     let parent = path
         .parent()
@@ -58,36 +57,24 @@ pub fn is_dir_empty(path: &Utf8Path) -> bool {
         .unwrap_or(false)
 }
 
-/// Recursively copies a directory tree from source to destination.
-/// Creates all necessary directories and overwrites existing files.
 pub fn copy_recursive(src: &Utf8Path, dst: &Utf8Path) -> Result<(), SError> {
-    // 1. Ensure the root destination directory exists
     std::fs::create_dir_all(dst)?;
 
-    for entry in WalkDir::new(src).into_iter().filter_map(|e| e.ok()) {
-        // 2. Convert standard Path to Camino Utf8Path
+    for entry in WalkDir::new(src) {
+        let entry = entry.map_err(|e| SError::IOError(e.to_string()))?;
         let src_path = Utf8Path::from_path(entry.path())
             .ok_or_else(|| SError::ParseError(format!("Invalid UTF-8 path: {:?}", entry.path())))?;
-
-        // 3. Calculate the relative path from the source root
-        let rel_path = src_path.strip_prefix(src)?;
-
-        // 4. Construct the final destination path
-        let dst_path = dst.join(rel_path);
+        let dst_path = dst.join(src_path.strip_prefix(src)?);
 
         if entry.file_type().is_dir() {
-            // 5. If it's a directory, create it in the destination
             std::fs::create_dir_all(&dst_path)?;
-        } else {
-            // 6. If it's a file, ensure the parent directory exists (safety check)
-            if let Some(parent) = dst_path.parent()
-                && !parent.exists()
-            {
-                std::fs::create_dir_all(parent)?;
-            }
-            // 7. Copy the file (Note: This overwrites existing files at the destination)
-            std::fs::copy(src_path, &dst_path)?;
+            continue;
         }
+
+        if let Some(parent) = dst_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::copy(src_path, &dst_path)?;
     }
 
     Ok(())
